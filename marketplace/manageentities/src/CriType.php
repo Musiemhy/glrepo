@@ -1,0 +1,170 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * manageentities plugin for GLPI
+ * Copyright (C) 2017-2026 by the manageentities Development Team.
+ *
+ * https://github.com/InfotelGLPI/manageentities
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of manageentities.
+ *
+ * manageentities is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * manageentities is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with manageentities. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Manageentities;
+
+use CommonDropdown;
+use CommonGLPI;
+use DBConnection;
+use Migration;
+use Session;
+use GlpiPlugin\Manageentities\Config;
+
+class CriType extends CommonDropdown
+{
+    public static $rightname = 'plugin_manageentities';
+
+    public static function getTypeName($nb = 0)
+    {
+        return _n('Intervention type', 'Intervention types', $nb, 'manageentities');
+    }
+
+    public static function canCreate(): bool
+    {
+        return Session::haveRightsOr(self::$rightname, [CREATE, UPDATE, DELETE]);
+    }
+
+    public static function canView(): bool
+    {
+        $config = Config::getInstance();
+        if ($config->fields['useprice'] == Config::PRICE) {
+            return Session::haveRight(self::$rightname, READ);
+        }
+        return false;
+    }
+
+    public function rawSearchOptions()
+    {
+        $tab = parent::rawSearchOptions();
+
+        $tab[] = [
+            'id' => '12',
+            'table' => 'glpi_plugin_manageentities_contractdays',
+            'field' => 'name',
+            'forcegroupby' => true,
+            'name' => ContractDay::getTypeName(),
+            'datatype' => 'itemlink',
+            'joinparams' => [
+                // Cast active entity ids to int before building the raw IN(...) fragment
+                // (search-option conditions are plain SQL strings): defence in depth against
+                // any non-integer value ever reaching $_SESSION['glpiactiveentities'].
+                'condition' =>
+                    "AND REFTABLE.`entities_id` IN (" . implode(",", array_map('intval', $_SESSION["glpiactiveentities"])) . ")",
+                'beforejoin' =>
+                    [
+                        'table' => 'glpi_plugin_manageentities_criprices',
+                        'joinparams' => ['jointype' => "child"],
+                    ],
+            ],
+        ];
+
+        $tab[] = [
+            'id' => '13',
+            'table' => 'glpi_plugin_manageentities_criprices',
+            'field' => 'price',
+            'datatype' => 'number',
+            'forcegroupby' => true,
+            'name' => __('Daily rate', 'manageentities'),
+            /*'joinparams'   =>  ['jointype'  => "child",
+                                'condition' => "AND NEWTABLE.`entities_id` IN ('".implode("','", $_SESSION["glpiactiveentities"])."')"]*/
+        ];
+        /* OLD :
+
+        $tab[13]['table']        = 'glpi_plugin_manageentities_criprices';
+        $tab[13]['field']        = 'price';
+        $tab[13]['datatype']     = 'number';
+        $tab[13]['forcegroupby'] = true;
+        $tab[13]['name']         = __('Daily rate', 'manageentities');
+        $tab[13]['joinparams']   = ['jointype'  => "child",
+                                         'condition' => "AND NEWTABLE.`entities_id` IN ('".implode("','", $_SESSION["glpiactiveentities"])."')"];
+        */
+
+        return $tab;
+    }
+
+    public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0)
+    {
+        if (!$withtemplate) {
+            switch ($item->getType()) {
+                case CriType::class:
+                    return self::createTabEntry(CriType::getTypeName(1));
+            }
+        }
+        return '';
+    }
+
+    public static function displayTabContentForItem(CommonGLPI $item, $tabnum = 1, $withtemplate = 0)
+    {
+        $criprice = new CriPrice();
+        if ($item->getType() == CriType::class) {
+            $criprice->showForCriType($item);
+        }
+        return true;
+    }
+
+    public static function install(Migration $migration)
+    {
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+        $table  = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $query = "CREATE TABLE `$table` (
+                            `id` int {$default_key_sign} NOT NULL auto_increment,
+                            `name` varchar(255) collate utf8mb4_unicode_ci DEFAULT NULL,
+                            `comment` text collate utf8mb4_unicode_ci,
+                            PRIMARY KEY  (`id`),
+                            KEY `name` (`name`)
+               ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
+
+            $DB->doQuery($query);
+
+            foreach ([
+                1 => __('Urgent intervention', 'manageentities'),
+                2 => __('Scheduled intervention', 'manageentities'),
+                3 => __('Study and advice', 'manageentities'),
+            ] as $critype_id => $critype_name) {
+                $DB->insert('glpi_plugin_manageentities_critypes', [
+                    'id'   => $critype_id,
+                    'name' => $critype_name,
+                ]);
+            }
+        }
+    }
+
+    public static function uninstall()
+    {
+        global $DB;
+
+        $DB->dropTable(self::getTable(), true);
+    }
+}

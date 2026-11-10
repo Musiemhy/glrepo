@@ -1,0 +1,327 @@
+--
+-- -------------------------------------------------------------------------
+-- manageentities plugin for GLPI
+-- Copyright (C) 2017-2026 by the manageentities Development Team.
+--
+-- https://github.com/InfotelGLPI/manageentities
+-- -------------------------------------------------------------------------
+--
+-- LICENSE
+--
+-- This file is part of manageentities.
+--
+-- manageentities is free software; you can redistribute it and/or modify
+-- it under the terms of the GNU General Public License as published by
+-- the Free Software Foundation; either version 3 of the License, or
+-- (at your option) any later version.
+--
+-- manageentities is distributed in the hope that it will be useful,
+-- but WITHOUT ANY WARRANTY; without even the implied warranty of
+-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+-- GNU General Public License for more details.
+--
+-- You should have received a copy of the GNU General Public License
+-- along with manageentities. If not, see <http://www.gnu.org/licenses/>.
+-- --------------------------------------------------------------------------
+--
+
+DROP TABLE IF EXISTS `glpi_plugin_manageentities_contracts`;
+CREATE TABLE `glpi_plugin_manageentities_contracts` (
+   `id` int unsigned NOT NULL auto_increment,
+   `contracts_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_contracts (id)',
+   `entities_id` int unsigned NOT NULL DEFAULT '0',
+   `is_default` tinyint NOT NULL DEFAULT '0',
+   `management` tinyint NOT NULL DEFAULT '0' COMMENT 'for the management mode (quarterly or annual or not)',
+   `contract_type` tinyint NOT NULL DEFAULT '0' COMMENT 'for the contract type (hour, intervention, unlimited or not)',
+   `date_signature` timestamp NULL DEFAULT NULL,
+   `date_renewal` timestamp NULL DEFAULT NULL,
+   `contract_added` tinyint NOT NULL DEFAULT '0',
+   `show_on_global_gantt` tinyint NOT NULL DEFAULT '0',
+   `refacturable_costs` tinyint NOT NULL DEFAULT '0',
+   `moving_management` tinyint NOT NULL DEFAULT '0',
+   `duration_moving` decimal(20,2) NOT NULL DEFAULT '0' COMMENT 'Duration of moving',
+   `remaining_days` decimal(10,2) NOT NULL DEFAULT '0.00',
+   `active_editor_suscription` tinyint NOT NULL DEFAULT '0',
+   `cloud_client` tinyint NOT NULL DEFAULT '0',
+   `internet_publication` tinyint NOT NULL DEFAULT '0',
+   PRIMARY KEY  (`id`),
+   UNIQUE KEY `unicity` (`contracts_id`,`entities_id`),
+   KEY `contracts_id` (`contracts_id`),
+   KEY `entities_id` (`entities_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;
+
+DROP TABLE IF EXISTS `glpi_plugin_manageentities_contacts`;
+CREATE TABLE `glpi_plugin_manageentities_contacts` (
+   `id` int unsigned NOT NULL auto_increment,
+   `contacts_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_contacts (id)',
+   `entities_id` int unsigned NOT NULL DEFAULT '0',
+   `is_default` tinyint NOT NULL DEFAULT '0',
+   PRIMARY KEY  (`id`),
+   UNIQUE KEY `unicity` (`entities_id`),
+   KEY `entities_id` (`entities_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;
+
+DROP TABLE IF EXISTS `glpi_plugin_manageentities_businesscontacts`;
+CREATE TABLE `glpi_plugin_manageentities_businesscontacts` (
+   `id` int unsigned NOT NULL auto_increment,
+   `users_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_users (id)',
+   `entities_id` int unsigned NOT NULL DEFAULT '0',
+   `is_default` tinyint NOT NULL DEFAULT '0',
+   PRIMARY KEY  (`id`),
+   UNIQUE KEY `unicity` (`users_id`,`entities_id`),
+   KEY `users_id` (`users_id`),
+   KEY `entities_id` (`entities_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;
+
+DROP TABLE IF EXISTS `glpi_plugin_manageentities_preferences`;
+CREATE TABLE `glpi_plugin_manageentities_preferences` (
+   `id` int unsigned NOT NULL auto_increment,
+   `users_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_users (id)',
+   `show_on_load` int unsigned NOT NULL DEFAULT '0',
+   `contract_states` text DEFAULT NULL,
+   `business_id` text DEFAULT NULL,
+   `companies_id` text DEFAULT NULL,
+   `hidden_dashboard_tabs` text DEFAULT NULL,
+   PRIMARY KEY  (`id`),
+   KEY `users_id` (`users_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;
+
+DROP TABLE IF EXISTS `glpi_plugin_manageentities_configs`;
+CREATE TABLE `glpi_plugin_manageentities_configs` (
+   `id` int unsigned NOT NULL auto_increment,
+   `backup` int unsigned NOT NULL DEFAULT '0',
+   `documentcategories_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_documentcategories (id)',
+   `useprice` tinyint NOT NULL DEFAULT '1' COMMENT 'DEFAULT for yes',
+   `hourorday` tinyint NOT NULL DEFAULT '0' COMMENT 'DEFAULT for day',
+   `hourbyday` int unsigned NOT NULL DEFAULT '0' COMMENT 'if hourorday == 0 then must be different of 0',
+   `needvalidationforcri` tinyint NOT NULL DEFAULT '0' COMMENT 'only CRI with validated ticket are taking into account for consumption calculation',
+   `use_publictask` tinyint NOT NULL DEFAULT '0' COMMENT 'DEFAULT for no',
+   `allow_same_periods` tinyint NOT NULL DEFAULT '0' COMMENT 'allow interventions on the same interval of dates',
+   `contract_states` text DEFAULT NULL,
+   `business_id` text DEFAULT NULL,
+   `choice_intervention` int unsigned DEFAULT NULL,
+   `comment` tinyint NOT NULL DEFAULT '1' COMMENT 'display comments in the CRI',
+   `non_accomplished_tasks` tinyint NOT NULL DEFAULT '0',
+   `get_pdf_cri` tinyint NOT NULL DEFAULT '0',
+   `ticket_state` int unsigned NOT NULL DEFAULT '3',
+   `default_duration` varchar(255) DEFAULT NULL,
+   `default_time_am` varchar(255) DEFAULT NULL,
+   `default_time_pm` varchar(255) DEFAULT NULL,
+   `disable_date_header` tinyint NOT NULL DEFAULT '0',
+   `closed_contractstate_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_plugin_manageentities_contractstates (id) — state applied to contract periods when closing',
+   `closed_glpi_state_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_states (id) — GLPI contract state that triggers period closure and is set when all periods are closed',
+   `wizard_contractstate_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_plugin_manageentities_contractstates (id) — DEFAULT intervention state in wizard',
+   `wizard_contract_type` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_plugin_manageentities_critypes (id) — DEFAULT intervention type in wizard',
+   `wizard_critype_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_plugin_manageentities_critypes (id) — DEFAULT CriType for rate in wizard',
+   `wizard_documentcategories_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_documentcategories (id) — DEFAULT document category in wizard',
+   `wizard_contacttypes_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_contacttypes (id) — DEFAULT contact type in wizard',
+   `wizard_default_entities_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_entities (id) — parent entity pre-selected and locked in wizard step 1',
+   `wizard_archive_entities_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_entities (id) — entity used to archive customers',
+   PRIMARY KEY  (`id`),
+   KEY `documentcategories_id` (`documentcategories_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;
+
+INSERT INTO `glpi_plugin_manageentities_configs` (`id`,`backup`,`documentcategories_id`,`hourorday`,`hourbyday`,`needvalidationforcri`) VALUES ('1', '0','0','0','8','0');
+
+DROP TABLE IF EXISTS `glpi_plugin_manageentities_critypes`;
+CREATE TABLE `glpi_plugin_manageentities_critypes` (
+   `id` int unsigned NOT NULL auto_increment,
+   `name` varchar(255) collate utf8mb4_unicode_ci DEFAULT NULL,
+   `comment` text collate utf8mb4_unicode_ci,
+   PRIMARY KEY  (`id`),
+   KEY `name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;
+
+DROP TABLE IF EXISTS `glpi_plugin_manageentities_criprices`;
+CREATE TABLE `glpi_plugin_manageentities_criprices` (
+   `id` int unsigned NOT NULL auto_increment,
+   `entities_id` int unsigned NOT NULL DEFAULT '0',
+   `plugin_manageentities_critypes_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_plugin_manageentities_critypes (id)',
+   `plugin_manageentities_contractdays_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_plugin_manageentities_contractdays (id)',
+   `price` decimal(20,4) NOT NULL DEFAULT '0.0000',
+   `is_default` tinyint NOT NULL DEFAULT '0',
+   PRIMARY KEY  (`id`),
+   KEY `entities_id` (`entities_id`),
+   KEY `plugin_manageentities_critypes_id` (`plugin_manageentities_critypes_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;
+
+DROP TABLE IF EXISTS `glpi_plugin_manageentities_contractdays`;
+CREATE TABLE `glpi_plugin_manageentities_contractdays` (
+   `id` int unsigned NOT NULL auto_increment,
+   `entities_id` int unsigned NOT NULL DEFAULT '0',
+   `name` varchar(255) collate utf8mb4_unicode_ci DEFAULT NULL,
+   `plugin_manageentities_critypes_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_plugin_manageentities_critypes (id)',
+   `contracts_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_contracts (id)',
+   `plugin_manageentities_contractstates_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_plugin_manageentities_contractstates (id)',
+   `contract_type` tinyint NOT NULL DEFAULT '0' COMMENT 'for the contract type (hour, intervention, unlimited or not)',
+   `begin_date` timestamp NULL DEFAULT NULL,
+   `end_date` timestamp NULL DEFAULT NULL,
+   `nbday` decimal(20,2) DEFAULT '0.00',
+   `report` decimal(20,2) DEFAULT '0.00',
+   `charged` tinyint NOT NULL DEFAULT '0',
+   `comment` text,
+   PRIMARY KEY  (`id`),
+   KEY `entities_id` (`entities_id`),
+   KEY `contracts_id` (`contracts_id`),
+   KEY `plugin_manageentities_critypes_id` (`plugin_manageentities_critypes_id`),
+   KEY `plugin_manageentities_contractstates_id` (`plugin_manageentities_contractstates_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;
+
+DROP TABLE IF EXISTS `glpi_plugin_manageentities_critechnicians`;
+CREATE TABLE `glpi_plugin_manageentities_critechnicians` (
+   `id` int unsigned NOT NULL auto_increment,
+   `tickets_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_tickets (id)',
+   `users_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_users (id)',
+   PRIMARY KEY  (`id`),
+   KEY `tickets_id` (`tickets_id`),
+   KEY `users_id` (`users_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;
+
+
+
+DROP TABLE IF EXISTS `glpi_plugin_manageentities_interventionstakeholders`;
+CREATE TABLE `glpi_plugin_manageentities_interventionstakeholders` (
+   `id` int unsigned NOT NULL auto_increment,
+   `users_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_users (id)',
+   `number_affected_days` double NOT NULL DEFAULT '0' COMMENT 'Number of days affected to the user to an intervention',
+   `plugin_manageentities_contractdays_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_plugin_manageentities_contractdays (id)',
+   PRIMARY KEY  (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;
+
+
+
+DROP TABLE IF EXISTS `glpi_plugin_manageentities_cridetails`;
+CREATE TABLE `glpi_plugin_manageentities_cridetails` (
+   `id` int unsigned NOT NULL auto_increment,
+   `entities_id` int unsigned NOT NULL DEFAULT '0',
+   `date` timestamp NULL DEFAULT NULL,
+   `documents_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_documents (id)',
+   `plugin_manageentities_contractdays_id` int unsigned NOT NULL DEFAULT '0',
+   `plugin_manageentities_critypes_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_plugin_manageentities_critypes (id)',
+   `withcontract` int unsigned NOT NULL DEFAULT '0',
+   `contracts_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_contracts (id)',
+   `realtime` decimal(20,2) DEFAULT '0.00',
+   `technicians` varchar(255) collate utf8mb4_unicode_ci DEFAULT NULL,
+   `tickets_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_tickets (id)',
+   `number_moving` int unsigned NOT NULL DEFAULT '0' COMMENT 'Number of movements',
+   PRIMARY KEY  (`id`),
+   KEY `entities_id` (`entities_id`),
+   KEY `documents_id` (`documents_id`),
+   KEY `plugin_manageentities_critypes_id` (`plugin_manageentities_critypes_id`),
+   KEY `plugin_manageentities_contractdays_id` (`plugin_manageentities_contractdays_id`),
+   KEY `tickets_id` (`tickets_id`),
+   KEY `contracts_id` (`contracts_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;
+
+DROP TABLE IF EXISTS `glpi_plugin_manageentities_contractstates`;
+CREATE TABLE `glpi_plugin_manageentities_contractstates` (
+   `id` int unsigned NOT NULL auto_increment,
+   `name` varchar(255) collate utf8mb4_unicode_ci DEFAULT NULL,
+   `is_active` tinyint NOT NULL DEFAULT '0',
+   `is_closed` tinyint NOT NULL DEFAULT '0',
+   `color` varchar(7) DEFAULT '#F2F2F2',
+   `comment` text collate utf8mb4_unicode_ci,
+   PRIMARY KEY  (`id`),
+   KEY `name` (`name`),
+   KEY `is_active` (`is_active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;
+
+DROP TABLE IF EXISTS `glpi_plugin_manageentities_taskcategories`;
+CREATE TABLE `glpi_plugin_manageentities_taskcategories` (
+   `id` int unsigned NOT NULL auto_increment,
+   `taskcategories_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to  glpi_taskcategories (id)',
+   `is_usedforcount` tinyint NOT NULL DEFAULT '0',
+   PRIMARY KEY  (`id`),
+   KEY `taskcategories_id` (`taskcategories_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;
+
+DROP TABLE IF EXISTS `glpi_plugin_manageentities_companies`;
+CREATE TABLE `glpi_plugin_manageentities_companies` (
+   `id` int unsigned NOT NULL auto_increment,
+   `name` varchar(255) collate utf8mb4_unicode_ci DEFAULT NULL,
+   `address` text collate utf8mb4_unicode_ci COMMENT 'address of the company shown on CRI',
+   `entities_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_entities (id)',
+   `is_recursive` tinyint NOT NULL DEFAULT '0',
+   `logo_id` int unsigned DEFAULT 0 COMMENT 'RELATION to glpi_documents',
+   `comment` text collate utf8mb4_unicode_ci,
+   PRIMARY KEY  (`id`),
+   KEY `entities_id` (`entities_id`),
+   KEY `is_recursive` (`is_recursive`),
+   KEY `logo_id` (`logo_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;
+
+DROP TABLE IF EXISTS `glpi_plugin_manageentities_entitylogos`;
+CREATE TABLE `glpi_plugin_manageentities_entitylogos` (
+   `id` int unsigned NOT NULL auto_increment,
+   `entities_id` int unsigned NOT NULL DEFAULT '0',
+   `logos_id` int unsigned DEFAULT 0 COMMENT 'RELATION to glpi_documents',
+   PRIMARY KEY  (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;
+
+CREATE TABLE `glpi_plugin_manageentities_directhelpdesks` (
+    `id` int unsigned NOT NULL auto_increment,
+    `users_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_users (id)',
+    `entities_id` int unsigned NOT NULL DEFAULT '0',
+    `name` varchar(255) collate utf8mb4_unicode_ci DEFAULT NULL,
+    `comment` text collate utf8mb4_unicode_ci,
+    `is_billed` tinyint NOT NULL DEFAULT '0',
+    `date` timestamp NULL DEFAULT NULL,
+    `actiontime` int NOT NULL DEFAULT '0',
+    `tickets_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_tickets (id)',
+    `date_mod` timestamp NULL DEFAULT NULL,
+    `date_creation` timestamp NULL DEFAULT NULL,
+    PRIMARY KEY  (`id`),
+    KEY `entities_id` (`entities_id`),
+    KEY `tickets_id` (`tickets_id`),
+    KEY `users_id` (`users_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;
+
+DROP TABLE IF EXISTS `glpi_plugin_manageentities_subscriptionlevels`;
+CREATE TABLE `glpi_plugin_manageentities_subscriptionlevels` (
+   `id`                int unsigned NOT NULL auto_increment,
+   `name`              varchar(255) collate utf8mb4_unicode_ci DEFAULT NULL,
+   `comment`           text collate utf8mb4_unicode_ci,
+   `subscription_type` tinyint NOT NULL DEFAULT '0' COMMENT '0=all, 1=on_premise, 2=cloud',
+   PRIMARY KEY (`id`),
+   KEY `name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;
+
+DROP TABLE IF EXISTS `glpi_plugin_manageentities_editorsubscriptions`;
+CREATE TABLE `glpi_plugin_manageentities_editorsubscriptions` (
+   `id`                        int unsigned NOT NULL auto_increment,
+   `entities_id`               int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_entities (id)',
+   `name`                      varchar(255) collate utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Referenced name at the publisher',
+   `customer_account_id`       varchar(255) collate utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Publisher customer account ID',
+   `active_editor_suscription` tinyint NOT NULL DEFAULT '0',
+   `cloud_client`              tinyint NOT NULL DEFAULT '0',
+   `plugin_manageentities_subscriptionlevels_id`     int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_plugin_manageentities_subscriptionlevels (id)',
+   `begin_date`                timestamp NULL DEFAULT NULL,
+   `end_date`                  timestamp NULL DEFAULT NULL,
+   `internet_publication`      tinyint NOT NULL DEFAULT '0' COMMENT 'Internet publication flag (migrated from contracts)',
+   `comment`                   text collate utf8mb4_unicode_ci,
+   PRIMARY KEY (`id`),
+   UNIQUE KEY `unicity` (`entities_id`),
+   KEY `entities_id` (`entities_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;
+
+DROP TABLE IF EXISTS `glpi_plugin_manageentities_directhelpdesks_tickets`;
+CREATE TABLE `glpi_plugin_manageentities_directhelpdesks_tickets` (
+    `id` int unsigned NOT NULL auto_increment,
+    `tickets_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_tickets (id)',
+    `plugin_manageentities_directhelpdesks_id` int unsigned NOT NULL DEFAULT '0',
+    PRIMARY KEY  (`id`),
+    KEY `tickets_id` (`tickets_id`),
+    KEY `plugin_manageentities_directhelpdesks_id` (`plugin_manageentities_directhelpdesks_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;
+
+DROP TABLE IF EXISTS `glpi_plugin_manageentities_techleads`;
+CREATE TABLE `glpi_plugin_manageentities_techleads` (
+   `id` int unsigned NOT NULL auto_increment,
+   `users_id` int unsigned NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_users (id)',
+   `entities_id` int unsigned NOT NULL DEFAULT '0',
+   `is_default` tinyint NOT NULL DEFAULT '0',
+   PRIMARY KEY  (`id`),
+   UNIQUE KEY `unicity` (`users_id`,`entities_id`),
+   KEY `users_id` (`users_id`),
+   KEY `entities_id` (`entities_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC;

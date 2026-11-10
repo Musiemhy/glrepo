@@ -1,0 +1,301 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# Xavier CAILLAUD <thetsmr@gmail.com>, 2026
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-06-24 09:26+0200\n"
+"PO-Revision-Date: 2025-09-23 12:17+0000\n"
+"Last-Translator: Xavier CAILLAUD <thetsmr@gmail.com>, 2026\n"
+"Language-Team: French (France) (https://app.transifex.com/pluginsGLPI/teams/73419/fr_FR/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: fr_FR\n"
+"Plural-Forms: nplurals=3; plural=(n == 0 || n == 1) ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2;\n"
+
+#: src/Filter.php:155
+msgid "Add a filter"
+msgstr "Ajouter un filtre"
+
+#: src/Addressing.php:870 templates/addressing.html.twig:65
+#: templates/config.html.twig:47
+msgid "Assigned IP"
+msgstr "Ip attribuées"
+
+#: src/PingInfo.php:189 src/Report.php:435 src/Report.php:955
+#: src/Report.php:1130
+msgid "Automatic action has not be launched"
+msgstr "L'action automatique n'a pas été lancée"
+
+#: templates/addressing.html.twig:228 templates/reserveip.html.twig:222
+msgid "Comment"
+msgid_plural "Comments"
+msgstr[0] "Commentaire"
+msgstr[1] "Commentaires"
+msgstr[2] "Commentaires"
+
+#: templates/addressing.html.twig:267
+msgid "Default fields for reservation"
+msgstr "Champs par défaut pour la réservation"
+
+#: templates/config.html.twig:41
+msgid "Display"
+msgstr "Affichage"
+
+#: src/Report.php:591
+msgid "Failed"
+msgstr "Sans succès"
+
+#: src/Addressing.php:917 src/Filter.php:56 templates/addressing.html.twig:237
+msgid "Filter"
+msgid_plural "Filters"
+msgstr[0] "Filtre"
+msgstr[1] "Filtres"
+msgstr[2] "Filtres"
+
+#: src/Addressing.php:160 src/Addressing.php:262 src/Filter.php:192
+#: templates/addressing.html.twig:83 templates/filter.html.twig:84
+msgid "First IP"
+msgstr "Première IP"
+
+#: src/Addressing.php:844 src/Addressing.php:882
+#: templates/addressing.html.twig:92 templates/config.html.twig:54
+msgid "Free IP"
+msgstr "Ip libres"
+
+#: src/Profile.php:54
+msgid "Generate reports"
+msgstr "Générer des rapports"
+
+#: setup.php:93 src/Addressing.php:64 src/IpComment.php:48 src/PingInfo.php:54
+#: src/Profile.php:80
+msgid "IP Addressing"
+msgid_plural "IP Addressing"
+msgstr[0] "Adressage IP"
+msgstr[1] "Adressages IP"
+msgstr[2] "Adressages IP"
+
+#: templates/reserveip.html.twig:104
+msgid "IP address"
+msgid_plural "IP addresses"
+msgstr[0] "Adresse IP"
+msgstr[1] "Adresses IP"
+msgstr[2] "Adresses IP"
+
+#: ajax/addressing.php:72 src/Ping_Equipment.php:106
+#: src/Ping_Equipment.php:122 src/Report.php:301 src/Report.php:313
+#: src/Report.php:718 src/Report.php:729 src/Report.php:910 src/Report.php:928
+#: src/Report.php:1087 src/Report.php:1105
+msgid "IP ping"
+msgstr "Ping IP"
+
+#: src/Report.php:472 src/Report.php:583 src/Report.php:773
+#: src/Report.php:1154 src/ReserveIp.php:52
+msgid "IP reservation"
+msgstr "Réservation IP"
+
+#: src/Addressing.php:260
+msgid "Invalid data !!"
+msgstr "Données saisies incorrectes !!"
+
+#: src/Addressing.php:168 src/Addressing.php:265 src/Filter.php:193
+#: templates/addressing.html.twig:110 templates/filter.html.twig:93
+msgid "Last IP"
+msgstr "Dernière IP"
+
+#: hook.php:394
+msgid "Last ping KO"
+msgstr "Dernier ping KO"
+
+#: hook.php:389
+msgid "Last ping OK"
+msgstr "Dernier ping OK"
+
+#: src/PingInfo.php:196 src/PingInfo.php:200 src/PingInfo.php:209
+#: src/PingInfo.php:213 src/Report.php:488 src/Report.php:537
+#: src/Report.php:960 src/Report.php:1135
+msgid "Last ping attempt"
+msgstr "Dernier essai de ping"
+
+#: src/PingInfo.php:66
+msgid "Launch ping for each ip report"
+msgstr "Lancement du ping sur chaque rapport IP"
+
+#: templates/reserveip.html.twig:193
+msgid "MAC address"
+msgstr "Adresse MAC"
+
+#: src/Addressing.php:902 src/Addressing.php:906
+#: templates/pinginfo.html.twig:62 templates/pinginfo.html.twig:68
+msgctxt "button"
+msgid "Manual launch of ping"
+msgstr "Lancement manuel du ping"
+
+#: templates/addressing.html.twig:55 templates/filter.html.twig:58
+#: templates/reserveip.html.twig:122
+msgid "Name"
+msgstr "Nom"
+
+#: templates/reserveip.html.twig:161
+msgid "Name already in use"
+msgstr "Nom déjà utilisé"
+
+#: templates/reserveip.html.twig:211
+msgid "Network"
+msgstr "Réseau"
+
+#: src/Ping_Equipment.php:143
+msgid "No IP for this equipment"
+msgstr "Aucune ip pour cet équipement"
+
+#: src/Addressing.php:808
+msgid "Number of assigned IP (no doubles)"
+msgstr "Nombre d'IP affectées (hors doublons)"
+
+#: src/Addressing.php:812
+msgid "Number of doubles IP"
+msgstr "Nombre d'IP en doubles"
+
+#: src/Addressing.php:800
+msgid "Number of free IP"
+msgstr "Nombre d'IP libres"
+
+#: src/Addressing.php:804
+msgid "Number of reserved IP"
+msgstr "Nombre d'IP réservées"
+
+#: src/ReserveIp.php:161
+msgid "Object's name"
+msgstr "Nom de l'objet"
+
+#: templates/reserveip.html.twig:166
+msgid "Ok you can use this name"
+msgstr "OK vous pouvez utiliser ce nom"
+
+#: src/Addressing.php:112
+msgid "Ping free IP"
+msgstr "Pinger les IP libres"
+
+#: hook.php:399 src/PingInfo.php:192
+msgid "Ping informations not available"
+msgstr "Informations du ping non disponibles"
+
+#: hook.php:354 src/Ping_Equipment.php:127 src/Report.php:229
+#: src/Report.php:243 templates/pinginfo.html.twig:53
+msgid "Ping result"
+msgstr "Résultat du ping"
+
+#: src/Ping_Equipment.php:158
+msgid "Ping unavailable in cloud mode"
+msgstr "Ping non disponible en mode Cloud"
+
+#: src/Addressing.php:833 src/Addressing.php:894 src/Ping_Equipment.php:327
+#: src/Report.php:938 src/ReserveIp.php:221
+msgid "Ping: got a response - used IP"
+msgstr "Réponse au ping - IP utilisée"
+
+#: src/Addressing.php:839 src/Addressing.php:890 src/Ping_Equipment.php:324
+#: src/Report.php:1113 src/Report.php:1121 src/ReserveIp.php:214
+msgid "Ping: no response - free IP"
+msgstr "Pas de réponse au ping - IP libre"
+
+#: front/config.form.php:49 front/config.php:49
+msgid "Please activate the plugin"
+msgstr "Merci d'activer ce plugin"
+
+#: src/Addressing.php:1001
+msgid "Problem detected with the IP Range"
+msgstr "Problème dans le choix de la plage IP"
+
+#: front/addressing.form.php:60 front/addressing.form.php:95
+msgid "Problem when adding, required fields are not here"
+msgstr "Problème lors de l'ajout, des champs requis sont manquant"
+
+#: src/Addressing.php:993
+msgid "Real free IP (Ping=KO)"
+msgstr "IP libres réelles (Ping=KO)"
+
+#: src/Addressing.php:201 templates/addressing.html.twig:185
+#: templates/filter.html.twig:119
+msgid "Report for the IP Range"
+msgstr "Rapport pour la plage IP"
+
+#: src/Report.php:231 src/Report.php:245
+msgid "Reservation"
+msgstr "Réservation"
+
+#: src/Report.php:456 src/Report.php:566 src/Report.php:765
+#: src/Report.php:1144
+msgid "Reserve IP"
+msgstr "Réserver une IP"
+
+#: src/Report.php:529 src/Report.php:598
+msgid "Reserved"
+msgstr "Réservée"
+
+#: src/Report.php:502 src/Report.php:549
+msgid "Reserved Address"
+msgstr "Adresse réservée"
+
+#: src/Addressing.php:850 src/Addressing.php:878
+#: templates/addressing.html.twig:169 templates/config.html.twig:68
+msgid "Reserved IP"
+msgstr "IP réservées"
+
+#: src/Addressing.php:823 src/Addressing.php:874
+#: templates/addressing.html.twig:138 templates/config.html.twig:61
+msgid "Same IP"
+msgstr "Ip en double"
+
+#: templates/config.html.twig:109 templates/profile.html.twig:34
+msgctxt "button"
+msgid "Save"
+msgstr "Sauvegarder"
+
+#: templates/reserveip.html.twig:185
+msgid "Status"
+msgstr "Statut"
+
+#: src/Report.php:521 src/Report.php:968
+msgid "Success"
+msgstr "Succès"
+
+#: templates/config.html.twig:83 templates/config.html.twig:97
+msgid "System for ping"
+msgstr "Système pour le ping"
+
+#: front/reserveip.form.php:42
+msgid "The address has been reserved"
+msgstr "L'IP a été réservée"
+
+#: templates/addressing.html.twig:258
+msgid "The display of items depends on these criterias"
+msgstr "L'affichage des objets dépend de ces critères"
+
+#: templates/filter.html.twig:76 templates/reserveip.html.twig:116
+msgid "Type"
+msgstr "Type"
+
+#: templates/addressing.html.twig:210
+msgid "Use Ping"
+msgstr "Utiliser le Ping"
+
+#: templates/config.html.twig:75
+msgid "Use Ping on IP ranges"
+msgstr "Utiliser Ping sur les plages IP"
+
+#: src/Profile.php:60
+msgid "Use ping on equipment form"
+msgstr "Utiliser le Ping sur la fiche des equipements"
+
+#: templates/addressing.html.twig:257
+msgid "Use the networks as filter"
+msgstr "Utiliser les réseaux comme filtre"

@@ -1,0 +1,157 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * addressing plugin for GLPI
+ * Copyright (C) 2016-2026 by the addressing Development Team.
+ *
+ * https://github.com/pluginsGLPI/addressing
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of addressing.
+ *
+ * addressing is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * addressing is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with addressing. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use Glpi\Exception\Http\AccessDeniedHttpException;
+use GlpiPlugin\Addressing\Addressing;
+use GlpiPlugin\Addressing\Filter;
+use GlpiPlugin\Addressing\Ping_Equipment;
+use GlpiPlugin\Addressing\ReserveIp;
+
+use function Safe\json_encode;
+
+Session::checkRight('plugin_addressing', UPDATE);
+
+Html::header_nocache();
+header("Content-Type: text/html; charset=UTF-8");
+
+if (isset($_GET['action']) && $_GET['action'] == 'isName') {
+    header("Content-Type: application/json; charset=UTF-8");
+
+    // type/name are attacker-controlled ($_GET). Restrict the itemtype to the plugin's
+    // supported network port types, require the caller to hold READ on that itemtype and
+    // scope the search to the caller's entities, otherwise this endpoint becomes a
+    // cross-itemtype / cross-entity existence oracle for any authenticated plugin user.
+    $type = $_GET['type'] ?? '';
+    $item = in_array($type, Addressing::getTypes(true), true) ? getItemForItemtype($type) : false;
+
+    if (!($item instanceof CommonDBTM) || !$item->canView()) {
+        echo json_encode(false);
+    } else {
+        // % and _ keep their wildcard meaning inside a LIKE, so a raw name turns this
+        // existence check into a pattern-based enumeration of the entity's assets:
+        // name=% matches every asset instead of testing the string the UI submitted.
+        // Escape them so the posted value is only ever matched literally.
+        $name     = addcslashes((string) ($_GET['name'] ?? ''), '%_');
+        $criteria = ['name' => ['LIKE', $name]];
+        if ($item->isEntityAssign()) {
+            $criteria = array_merge(
+                $criteria,
+                getEntitiesRestrictCriteria($item->getTable(), '', '', $item->maybeRecursive()),
+            );
+        }
+        $datas = $item->find($criteria);
+        echo json_encode(count($datas) > 0);
+    }
+} elseif (isset($_POST['action']) && $_POST['action'] == 'viewFilter') {
+    if (isset($_POST['items_id'])
+       && isset($_POST["id"])) {
+        $filter = new Filter();
+        // 'id' is -1 for the "add" form and a real filter id for the "edit" form:
+        // require CREATE for a new filter, READ for an existing one, entity-aware.
+        $filter_id = (int) $_POST['id'];
+        $filter->check($filter_id, $filter_id > 0 ? READ : CREATE, $_POST);
+        $filter->showForm($_POST["id"], ['items_id' => $_POST['items_id']]);
+    } else {
+        throw new AccessDeniedHttpException();
+    }
+} elseif (isset($_POST['action']) && $_POST['action'] == 'entities_networkip') {
+    if (!Session::haveAccessToEntity((int) $_POST['entities_id'])) {
+        throw new AccessDeniedHttpException();
+    }
+    IPNetwork::showIPNetworkProperties($_POST['entities_id']);
+} elseif (isset($_POST['action']) && in_array($_POST['action'], ['entities_location', 'entities_fqdn'], true)) {
+    $entities_id = (int) ($_POST['entities_id'] ?? 0);
+    if (!Session::haveAccessToEntity($entities_id)) {
+        throw new AccessDeniedHttpException();
+    }
+    $itemtype = $_POST['action'] === 'entities_location' ? Location::class : FQDN::class;
+
+    // The preselected value is posted too: Dropdown::show() prints the label of any id it is
+    // given, so an id taken from another entity disclosed the name of a location or FQDN
+    // outside the perimeter of the caller. Keep it only when that item may be seen.
+    $value = (int) ($_POST['value'] ?? 0);
+    $dropdown = new $itemtype();
+    if (
+        $value > 0
+        && (!$dropdown->getFromDB($value)
+            || !Session::haveAccessToEntity($dropdown->fields['entities_id'], (bool) $dropdown->fields['is_recursive']))
+    ) {
+        $value = 0;
+    }
+
+    // Only the input is reloaded: the label stays in the form, outside the updated container.
+    $itemtype::dropdown([
+        'name'   => $itemtype::getForeignKeyField(),
+        'value'  => $value,
+        'entity' => $entities_id,
+        'width'  => '100%',
+    ]);
+} elseif (isset($_GET['action']) && $_GET['action'] == 'ping') {
+    Html::popHeader(__s('IP ping', 'addressing'), $_SERVER['PHP_SELF']);
+
+    $ip = filter_var($_GET['ip'] ?? '', FILTER_VALIDATE_IP);
+    // showIPForm() issues a server-side ping against $ip. Restrict the target to an
+    // IP contained in a range the caller may READ so this cannot be abused as an
+    // arbitrary internal-network scan oracle. The range itself is handed over: it carries
+    // the ping flag showIPForm() now confronts the request with.
+    $range = $ip === false ? null : Addressing::findReadableRangeForIp($ip);
+    if ($range !== null) {
+        $Ping_Equipment = new Ping_Equipment();
+        $Ping_Equipment->showIPForm($ip, $range);
+    }
+    Html::popFooter();
+} else {
+    $id_addressing = (int) ($_GET['id_addressing'] ?? 0);
+    $rand          = (int) ($_GET['rand'] ?? 0);
+    $ip            = filter_var($_GET['ip'] ?? '', FILTER_VALIDATE_IP);
+
+    // The global right is not entity-aware: enforce READ on the target range
+    // (entity perimeter) before disclosing its reservation form or using it as
+    // a server-side ping oracle.
+    $addressing = new Addressing();
+    if (!$addressing->can($id_addressing, READ)) {
+        throw new AccessDeniedHttpException();
+    }
+
+    // showReservationForm() pings $ip when the range has use_ping enabled. Require the
+    // target to actually belong to this READ-authorized range so a valid range id
+    // cannot be paired with an arbitrary IP to turn the endpoint into a scan oracle.
+    if ($ip !== false && !$addressing->containsIp($ip)) {
+        throw new AccessDeniedHttpException();
+    }
+
+    Html::popHeader(ReserveIp::getTypeName());
+
+    if ($ip !== false) {
+        $ReserveIp = new ReserveIp();
+        $ReserveIp->showReservationForm($ip, $id_addressing, $rand);
+    }
+
+    Html::popFooter();
+}

@@ -1,0 +1,14 @@
+2026-11-05 08:34:38 [@dbhqitmuatappsrv]
+[login] 3: user1 log in from IP 172.23.250.46
+2026-11-05 09:02:47 [@dbhqitmuatappsrv]
+[login] 3: user1 log in from IP 172.23.250.46
+2026-11-05 10:34:27 [@dbhqitmuatappsrv]
+[login] 3: user1 login from IP 172.23.250.120
+2026-11-05 11:35:37 [@dbhqitmuatappsrv]
+[login] 3: Failed login for  from IP 172.23.250.46
+2026-11-05 14:01:13 [@dbhqitmuatappsrv]
+[login] 3: Failed login for user1 from IP 192.168.21.5
+2026-11-05 14:01:39 [@dbhqitmuatappsrv]
+[login] 3: Failed login for mulualemaa from IP 192.168.21.5
+2026-11-05 14:02:00 [@dbhqitmuatappsrv]
+[login] 3: user1 login from IP 192.168.21.5

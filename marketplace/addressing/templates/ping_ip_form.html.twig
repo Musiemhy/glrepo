@@ -1,0 +1,59 @@
+{#
+ # -------------------------------------------------------------------------
+ # addressing plugin for GLPI
+ # Copyright (C) 2016-2026 by the addressing Development Team.
+ #
+ # https://github.com/pluginsGLPI/addressing
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of addressing.
+ #
+ # addressing is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # addressing is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with addressing. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{#
+ # "state" tells whether the probe was actually run: the form is also rendered when the ping is
+ # turned off, globally or on the range, and when the caller has just used its quota of probes.
+ # "error" only means something in the "done" state.
+ #}
+<div class='alert {{ state == 'done' ? 'alert-warning' : 'alert-info' }}'>
+    <div class='d-flex'>
+        <div class='me-2'>
+            {% if state != 'done' %}
+                <i class='ti ti-plug-connected-x plugin_addressing_icon'></i>
+            {% elseif error %}
+                <i class='ti ti-circle-check plugin_addressing_icon plugin_addressing_icon_saved'></i>
+            {% else %}
+                <i class='ti ti-alert-triangle plugin_addressing_icon plugin_addressing_icon_warning'></i>
+            {% endif %}
+        </div>
+        <div>
+            <h4>{{ _n('IP address', 'IP addresses', 1) }} : {{ ip }}</h4>
+            <div class='text-muted'>
+                {% if state == 'disabled' %}
+                    <span>&nbsp;{{ __('Ping is disabled for this IP range', 'addressing') }}</span>
+                {% elseif state == 'unavailable' %}
+                    <span>&nbsp;{{ __('A ping has just been run for this address, please retry in a few seconds', 'addressing') }}</span>
+                {% elseif error %}
+                    <span class='plugin_addressing_icon_saved'>&nbsp;{{ __('Ping: no response - free IP', 'addressing') }}</span>
+                {% else %}
+                    <span class='plugin_addressing_icon_warning'>&nbsp;{{ __('Ping: got a response - used IP', 'addressing') }}</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>

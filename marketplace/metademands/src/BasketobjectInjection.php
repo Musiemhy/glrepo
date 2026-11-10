@@ -1,0 +1,82 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * metademands plugin for GLPI
+ * Copyright (C) 2018-2026 by the metademands Development Team.
+ *
+ * https://github.com/InfotelGLPI/metademands
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of metademands.
+ *
+ * metademands is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * metademands is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Metademands;
+
+use PluginDatainjectionCommonInjectionLib;
+use PluginDatainjectionInjectionInterface;
+use Search;
+
+class BasketobjectInjection extends Basketobject implements PluginDatainjectionInjectionInterface
+{
+    public static function getTable($classname = null)
+    {
+        return Basketobject::getTable();
+    }
+
+    public function isPrimaryType()
+    {
+        return true;
+    }
+
+    public function connectedTo()
+    {
+        return [];
+    }
+
+    /**
+     * @see plugins/datainjection/inc/PluginDatainjectionInjectionInterface::getOptions()
+     **/
+    public function getOptions($primary_type = '')
+    {
+
+        $tab = Search::getOptions(get_parent_class($this));
+
+        //Remove some options because some fields cannot be imported
+        $blacklist = PluginDatainjectionCommonInjectionLib::getBlacklistedOptions(get_parent_class($this));
+
+        $options['ignore_fields'] = [];
+        $options['displaytype'] = [
+            "text" => [3, 4],
+            "dropdown" => [7],
+            //            "decimal" => [5],
+        ];
+        return PluginDatainjectionCommonInjectionLib::addToSearchOptions($tab, $options, $this);
+    }
+
+    /**
+     * @see plugins/datainjection/inc/PluginDatainjectionInjectionInterface::addOrUpdateObject()
+     **/
+    public function addOrUpdateObject($values = [], $options = [])
+    {
+        $lib = new PluginDatainjectionCommonInjectionLib($this, $values, $options);
+        $lib->processAddOrUpdate();
+        return $lib->getInjectionResults();
+    }
+}

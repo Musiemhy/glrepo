@@ -1,0 +1,175 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * DatabaseInventory plugin for GLPI
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of DatabaseInventory.
+ *
+ * DatabaseInventory is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * DatabaseInventory is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with DatabaseInventory. If not, see <http://www.gnu.org/licenses/>.
+ * -------------------------------------------------------------------------
+ * @copyright Copyright (C) 2021-2023 by Teclib'.
+ * @license   GPLv3 https://www.gnu.org/licenses/gpl-3.0.html
+ * @link      https://services.glpi-network.com
+ * -------------------------------------------------------------------------
+ */
+
+
+
+class PluginDatabaseinventoryCredentialType extends CommonDropdown
+{
+    public static $rightname = 'dropdown';
+
+    private const MYSQL       = 1;
+
+    private const ORACLE      = 2;
+
+    private const DB2         = 3;
+
+    private const MSSQL       = 4;
+
+    private const POSTGRE_SQL = 5;
+
+    private const MONGO_DB    = 6;
+
+    public static function canCreate(): bool
+    {
+        return false;
+    }
+
+    public static function canUpdate(): bool
+    {
+        return false;
+    }
+
+    public static function canPurge(): bool
+    {
+        return false;
+    }
+
+    public static function canDelete(): bool
+    {
+        return false;
+    }
+
+    public static function canView(): bool
+    {
+        return false;
+    }
+
+    public function canViewItem(): bool
+    {
+        return false;
+    }
+
+    public static function getTypeName($nb = 0)
+    {
+        return _sn('Credential type', 'Credential types', $nb, 'databaseinventory');
+    }
+
+    public function pre_deleteItem()
+    {
+        Session::addMessageAfterRedirect(
+            __s('You cannot remove this type', 'databaseinventory') . ': '
+                                       . $this->fields['name'],
+            false,
+            ERROR,
+        );
+
+        return false;
+    }
+
+    public static function getModuleKeyById($credential_type_id)
+    {
+        return match ($credential_type_id) {
+            self::MYSQL => 'mysql',
+            self::ORACLE => 'oracle',
+            self::DB2 => 'db2',
+            self::MSSQL => 'mssql',
+            self::POSTGRE_SQL => 'postgresql',
+            self::MONGO_DB => 'mongodb',
+            default => null,
+        };
+    }
+
+    public static function getModuleKeyByName($credential_type)
+    {
+        return match ($credential_type) {
+            'mysql' => self::MYSQL,
+            'oracle' => self::ORACLE,
+            'db2' => self::DB2,
+            'mssql' => self::MSSQL,
+            'postgresql' => self::POSTGRE_SQL,
+            'mongodb' => self::MONGO_DB,
+            default => null,
+        };
+    }
+
+    public static function install(Migration $migration)
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+
+        $table = self::getTable();
+        if ($DB->tableExists('glpi_plugin_databaseinventory_credentials_types')) {
+            // PluginDatabaseinventoryCredentialType was named PluginDatabaseinventoryCredential_Type prior to v1.0.0
+            $migration->renameTable('glpi_plugin_databaseinventory_credentials_types', $table);
+        } elseif (!$DB->tableExists($table)) {
+            $migration->displayMessage('Installing ' . $table);
+            $query = <<<SQL
+                CREATE TABLE IF NOT EXISTS `{$table}` (
+                    `id` int {$default_key_sign} NOT NULL auto_increment,
+                    `name` varchar(255) default NULL,
+                    `comment` text,
+                    PRIMARY KEY  (`id`),
+                    KEY `name` (`name`)
+                ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;
+SQL;
+            $DB->doQuery($query);
+        }
+
+        $state = new self();
+        foreach (
+            [
+                1 => __s('MySQL', 'databaseinventory'),
+                2 => __s('Oracle', 'databaseinventory'),
+                3 => __s('DB2', 'databaseinventory'),
+                4 => __s('Microsoft SQL', 'databaseinventory'),
+                5 => __s('PostgreSQL', 'databaseinventory'),
+                6 => __s('MongoDB', 'databaseinventory'),
+            ] as $id => $label
+        ) {
+            if (!countElementsInTable($table, ['id' => $id])) {
+                $state->add([
+                    'id'   => $id,
+                    'name' => $label,
+                ]);
+            }
+        }
+    }
+
+    public static function uninstall()
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        $DB->doQuery('DROP TABLE IF EXISTS `' . self::getTable() . '`');
+    }
+}

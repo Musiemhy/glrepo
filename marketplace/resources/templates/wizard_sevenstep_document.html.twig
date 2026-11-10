@@ -1,0 +1,82 @@
+{#
+ # -------------------------------------------------------------------------
+ # resources plugin for GLPI
+ # Copyright (C) 2015-2026 by the resources Development Team.
+ #
+ # https://github.com/InfotelGLPI/resources
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of resources.
+ #
+ # resources is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 2 of the License, or
+ # (at your option) any later version.
+ #
+ # resources is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with resources. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{% import 'components/form/basic_inputs_macros.html.twig' as inputs %}
+
+{# Seventh wizard step: attach documents to the resource being created. The two blocks
+ # below are rendered by Resource::showAddFormForItem() and Document_Item::showListForItem(),
+ # captured as strings; neither opens a form, so this one stays the only one. #}
+<div class="card container" style="min-width: 80%;">
+    {% include '@resources/wizard_header.html.twig' with {
+        'title': params['title'],
+        'img': params['img'],
+        'icon': params['icon'],
+    } only %}
+
+    <div class="card-body">
+        <form method="post" action="{{ params['target'] }}" enctype="multipart/form-data">
+            <div class="row">
+                {{ add_document_form|raw }}
+            </div>
+            <div class="row">
+                {{ documents_list|raw }}
+            </div>
+
+            {{ inputs.hidden('plugin_resources_resources_id', params['plugin_resources_resources_id']) }}
+            {{ inputs.hidden('_glpi_csrf_token', csrf_token()) }}
+
+            {% if can_edit %}
+                <div class="hr mt-3 mb-3"></div>
+                <div class="row">
+                    <div class="hstack gap-1">
+                        <div class="pe-5 ms-auto">
+                            {% if can_purge %}
+                                {{ inputs.submit('cancel_request',
+                                    _x('button', 'Cancel the request', 'resources'),
+                                    1,
+                                    {class: 'btn btn-danger ms-1',
+                                        icon: 'ti ti-x'}) }}
+                            {% endif %}
+
+                            {{ inputs.submit('undo_seven_step',
+                                _x('button', 'Previous', 'resources'),
+                                1,
+                                {class: 'btn btn-primary ms-1',
+                                    icon: 'ti ti-chevron-left'}) }}
+
+                            {{ inputs.submit('eight_step',
+                                _x('button', 'Next', 'resources'),
+                                1,
+                                {class: 'btn btn-success ms-1',
+                                    icon: 'ti ti-chevron-right'}) }}
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        </form>
+    </div>
+</div>

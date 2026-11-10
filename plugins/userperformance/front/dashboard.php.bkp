@@ -1,0 +1,217 @@
+<?php
+
+include('../../../inc/includes.php');
+
+Session::checkLoginUser();
+
+if (!Session::haveRight('ticket', READ)) {
+    Html::displayErrorAndDie(__('You do not have permission to view ticket data.'));
+}
+
+require_once __DIR__ . '/../inc/menu.class.php';
+
+global $DB, $CFG_GLPI;
+
+$date_to_default = date('Y-m-d');
+$date_from_default = date('Y-m-01');
+$date_from = isset($_GET['date_from']) ? trim($_GET['date_from']) : $date_from_default;
+$date_to = isset($_GET['date_to']) ? trim($_GET['date_to']) : $date_to_default;
+$group_id = isset($_GET['group_id']) ? (int)$_GET['group_id'] : 0;
+$user_id = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
+$category_id = isset($_GET['category_id']) ? (int)$_GET['category_id'] : 0;
+$status = isset($_GET['status']) ? (int)$_GET['status'] : -1;
+$priority = isset($_GET['priority']) ? (int)$_GET['priority'] : -1;
+
+function up_escape($value): string
+{
+    global $DB;
+    return $DB->escape($value);
+}
+
+function up_filters_sql(): string
+{
+    global $date_from, $date_to, $group_id, $user_id, $category_id, $status, $priority;
+
+    $where = [];
+    $where[] = "t.is_deleted = 0";
+    $where[] = "t.date >= '" . up_escape($date_from . ' 00:00:00') . "'";
+    $where[] = "t.date < DATE_ADD('" . up_escape($date_to . ' 00:00:00') . "', INTERVAL 1 DAY)";
+
+    if ($user_id > 0) {
+        $where[] = "u.id = {$user_id}";
+    }
+    if ($category_id > 0) {
+        $where[] = "t.itilcategories_id = {$category_id}";
+    }
+    if ($status >= 0) {
+        $where[] = "t.status = {$status}";
+    }
+    if ($priority >= 0) {
+        $where[] = "t.priority = {$priority}";
+    }
+    if ($group_id > 0) {
+        $where[] = "EXISTS (SELECT 1 FROM glpi_groups_users guf WHERE guf.users_id = u.id AND guf.groups_id = {$group_id})";
+    }
+    return implode(' AND ', $where);
+}
+
+$base_where = up_filters_sql();
+
+$sql = "
+SELECT
+    u.id AS user_id,
+    CONCAT(COALESCE(u.firstname,''), CASE WHEN u.firstname <> '' AND u.realname <> '' THEN ' ' ELSE '' END, COALESCE(u.realname,'')) AS technician,
+    COUNT(DISTINCT t.id) AS assigned_tickets,
+    COUNT(DISTINCT CASE WHEN t.status IN (5,6) THEN t.id END) AS resolved_closed,
+    COUNT(DISTINCT CASE WHEN t.status = 3 THEN t.id END) AS pending,
+    COUNT(DISTINCT CASE WHEN t.status = 2 THEN t.id END) AS processing,
+    COUNT(DISTINCT CASE WHEN t.status = 1 THEN t.id END) AS new_tickets,
+    COUNT(DISTINCT f.items_id) AS written_tickets,
+    COUNT(f.id) AS followups,
+    ROUND(100 * COUNT(DISTINCT CASE WHEN t.status IN (5,6) THEN t.id END) / NULLIF(COUNT(DISTINCT t.id),0), 2) AS resolution_rate,
+    COUNT(DISTINCT CASE WHEN t.time_to_resolve IS NOT NULL AND (
+        (t.solvedate IS NOT NULL AND t.solvedate > t.time_to_resolve)
+        OR (t.solvedate IS NULL AND NOW() > t.time_to_resolve)
+    ) THEN t.id END) AS sla_breaches,
+    COUNT(DISTINCT CASE WHEN t.time_to_resolve IS NOT NULL THEN t.id END) AS sla_eligible,
+    ROUND(100 * (
+        COUNT(DISTINCT CASE WHEN t.time_to_resolve IS NOT NULL THEN t.id END)
+        - COUNT(DISTINCT CASE WHEN t.time_to_resolve IS NOT NULL AND (
+            (t.solvedate IS NOT NULL AND t.solvedate > t.time_to_resolve)
+            OR (t.solvedate IS NULL AND NOW() > t.time_to_resolve)
+        ) THEN t.id END)
+    ) / NULLIF(COUNT(DISTINCT CASE WHEN t.time_to_resolve IS NOT NULL THEN t.id END),0), 2) AS sla_compliance,
+    ROUND(AVG(CASE WHEN t.solvedate IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.date, t.solvedate) END) / 60, 2) AS avg_ttr_hours,
+    ROUND(AVG(CASE WHEN fr.first_response IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, t.date, fr.first_response) END), 2) AS avg_tto_minutes
+FROM glpi_users u
+JOIN glpi_tickets_users tu ON tu.users_id = u.id AND tu.type = 2
+JOIN glpi_tickets t ON t.id = tu.tickets_id
+LEFT JOIN glpi_itilfollowups f ON f.itemtype = 'Ticket' AND f.items_id = t.id AND f.users_id = u.id
+LEFT JOIN (
+    SELECT items_id, users_id, MIN(date) AS first_response
+    FROM glpi_itilfollowups
+    WHERE itemtype = 'Ticket'
+    GROUP BY items_id, users_id
+) fr ON fr.items_id = t.id AND fr.users_id = u.id
+WHERE {$base_where}
+GROUP BY u.id, u.firstname, u.realname
+ORDER BY resolved_closed DESC, assigned_tickets DESC, technician ASC";
+
+$result = $DB->request($sql);
+$rows = [];
+foreach ($result as $row) {
+    $rows[] = $row;
+}
+
+$totals = [
+    'assigned_tickets' => 0,
+    'resolved_closed' => 0,
+    'pending' => 0,
+    'processing' => 0,
+    'new_tickets' => 0,
+    'written_tickets' => 0,
+    'followups' => 0,
+    'sla_breaches' => 0,
+    'sla_eligible' => 0,
+];
+$weighted_ttr_minutes = 0;
+$ttr_count = 0;
+$tto_sum = 0;
+$tto_count = 0;
+foreach ($rows as $r) {
+    foreach ($totals as $k => $_) {
+        $totals[$k] += (int)$r[$k];
+    }
+    if ($r['avg_ttr_hours'] !== null) {
+        $weighted_ttr_minutes += ((float)$r['avg_ttr_hours']) * 60;
+        $ttr_count++;
+    }
+    if ($r['avg_tto_minutes'] !== null) {
+        $tto_sum += (float)$r['avg_tto_minutes'];
+        $tto_count++;
+    }
+}
+$overall_resolution = $totals['assigned_tickets'] ? round(100 * $totals['resolved_closed'] / $totals['assigned_tickets'], 2) : 0;
+$overall_sla = $totals['sla_eligible'] ? round(100 * ($totals['sla_eligible'] - $totals['sla_breaches']) / $totals['sla_eligible'], 2) : 0;
+$avg_ttr = $ttr_count ? round($weighted_ttr_minutes / $ttr_count / 60, 2) : 0;
+$avg_tto = $tto_count ? round($tto_sum / $tto_count, 2) : 0;
+
+$groups = $DB->request("SELECT id, name FROM glpi_groups WHERE is_deleted = 0 ORDER BY name");
+$users = $DB->request("SELECT id, firstname, realname FROM glpi_users WHERE is_deleted = 0 ORDER BY realname, firstname");
+$categories = $DB->request("SELECT id, completename FROM glpi_itilcategories WHERE is_deleted = 0 ORDER BY completename");
+
+Html::header(__('User Performance KPI', 'userperformance'), '', 'tools', 'PluginUserperformanceMenu');
+?>
+<link rel="stylesheet" href="<?= htmlspecialchars($CFG_GLPI['root_doc']) ?>/plugins/userperformance/css/dashboard.css">
+<div class="up-container">
+    <div class="up-header">
+        <div>
+            <h1><?= htmlspecialchars(__('User Performance KPI', 'userperformance')) ?></h1>
+            <p><?= htmlspecialchars(__('Comparison of technician workload, productivity, responsiveness and SLA indicators.')) ?></p>
+        </div>
+        <div class="up-actions">
+            <a class="up-btn" href="<?= htmlspecialchars($CFG_GLPI['root_doc']) ?>/plugins/userperformance/front/export.php?<?= htmlspecialchars(http_build_query($_GET)) ?>">CSV Export</a>
+            <button class="up-btn" onclick="window.print()">Print / PDF</button>
+        </div>
+    </div>
+
+    <form method="get" class="up-filters">
+        <label>From<input type="date" name="date_from" value="<?= htmlspecialchars($date_from) ?>"></label>
+        <label>To<input type="date" name="date_to" value="<?= htmlspecialchars($date_to) ?>"></label>
+        <label>Technician<select name="user_id"><option value="0">All</option><?php foreach ($users as $u): ?><option value="<?= (int)$u['id'] ?>" <?= $user_id == $u['id'] ? 'selected' : '' ?>><?= htmlspecialchars(trim($u['firstname'].' '.$u['realname'])) ?></option><?php endforeach; ?></select></label>
+        <label>Group<select name="group_id"><option value="0">All</option><?php foreach ($groups as $g): ?><option value="<?= (int)$g['id'] ?>" <?= $group_id == $g['id'] ? 'selected' : '' ?>><?= htmlspecialchars($g['name']) ?></option><?php endforeach; ?></select></label>
+        <label>Category<select name="category_id"><option value="0">All</option><?php foreach ($categories as $c): ?><option value="<?= (int)$c['id'] ?>" <?= $category_id == $c['id'] ? 'selected' : '' ?>><?= htmlspecialchars($c['completename']) ?></option><?php endforeach; ?></select></label>
+        <label>Status<select name="status"><option value="-1">All</option><?php foreach ([1=>'New',2=>'Processing',3=>'Pending',4=>'Closed',5=>'Solved',6=>'Closed'] as $sid=>$sname): ?><option value="<?= $sid ?>" <?= $status === $sid ? 'selected' : '' ?>><?= $sname ?></option><?php endforeach; ?></select></label>
+        <label>Priority<select name="priority"><option value="-1">All</option><?php foreach ([1=>'Very Low',2=>'Low',3=>'Medium',4=>'High',5=>'Very High',6=>'Major'] as $pid=>$pname): ?><option value="<?= $pid ?>" <?= $priority === $pid ? 'selected' : '' ?>><?= $pname ?></option><?php endforeach; ?></select></label>
+        <button class="up-btn up-primary" type="submit">Apply</button>
+    </form>
+
+    <div class="up-cards">
+        <?php $cards = [
+            ['Assigned', $totals['assigned_tickets']],
+            ['Resolved / Closed', $totals['resolved_closed']],
+            ['Written / Follow-ups', $totals['written_tickets']],
+            ['Resolution Rate', $overall_resolution.'%'],
+            ['SLA Compliance', $overall_sla.'%'],
+            ['SLA Breaches', $totals['sla_breaches']],
+            ['Avg. TTO', $avg_tto.' min'],
+            ['Avg. TTR', $avg_ttr.' hrs'],
+        ]; foreach ($cards as $card): ?>
+        <div class="up-card"><div class="up-card-label"><?= htmlspecialchars($card[0]) ?></div><div class="up-card-value"><?= htmlspecialchars((string)$card[1]) ?></div></div>
+        <?php endforeach; ?>
+    </div>
+
+    <div class="up-panel">
+        <h2>Technician Comparison</h2>
+        <div class="up-table-wrap">
+        <table class="up-table">
+            <thead><tr>
+                <th>Technician</th><th>Assigned</th><th>Resolved/Closed</th><th>Pending</th><th>Processing</th><th>New</th><th>Written</th><th>Resolution %</th><th>SLA Breaches</th><th>SLA %</th><th>TTO (min)</th><th>TTR (hrs)</th>
+            </tr></thead>
+            <tbody>
+            <?php foreach ($rows as $r): ?>
+            <tr>
+                <td><?= htmlspecialchars($r['technician'] ?: '(No name)') ?></td>
+                <td><?= (int)$r['assigned_tickets'] ?></td>
+                <td><?= (int)$r['resolved_closed'] ?></td>
+                <td><?= (int)$r['pending'] ?></td>
+                <td><?= (int)$r['processing'] ?></td>
+                <td><?= (int)$r['new_tickets'] ?></td>
+                <td><?= (int)$r['written_tickets'] ?></td>
+                <td><?= htmlspecialchars((string)$r['resolution_rate']) ?>%</td>
+                <td><?= (int)$r['sla_breaches'] ?></td>
+                <td><?= $r['sla_compliance'] === null ? 'N/A' : htmlspecialchars((string)$r['sla_compliance']).'%' ?></td>
+                <td><?= $r['avg_tto_minutes'] === null ? 'N/A' : htmlspecialchars((string)$r['avg_tto_minutes']) ?></td>
+                <td><?= $r['avg_ttr_hours'] === null ? 'N/A' : htmlspecialchars((string)$r['avg_ttr_hours']) ?></td>
+            </tr>
+            <?php endforeach; if (!$rows): ?><tr><td colspan="12" class="up-empty">No data found for the selected filters.</td></tr><?php endif; ?>
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+    <div class="up-note">
+        <strong>Evaluation note:</strong> this dashboard is intended to provide comparable operational indicators. It does not assign an overall performance score. Ticket counts should be interpreted together with priority, complexity, SLA compliance, responsiveness and resolution time.
+    </div>
+</div>
+<?php Html::footer(); ?>

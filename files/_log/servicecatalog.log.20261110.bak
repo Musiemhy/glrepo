@@ -1,0 +1,44 @@
+2026-11-09 13:49:08 [11@dbhqitmuatappsrv]
+Saving Ticket 234. Custom Data: Array
+(
+    [Type] => new
+    [new] => fffffff
+)
+
+2026-11-09 13:50:12 [11@dbhqitmuatappsrv]
+Saving Ticket 235. Custom Data: Array
+(
+    [Type] => new
+    [new] => ddddddd
+)
+
+2026-11-09 13:51:35 [11@dbhqitmuatappsrv]
+Saving Ticket 236. Custom Data: Array
+(
+    [Request Type] => change
+    [loan amount] => ttt
+    [loan owner] => 2
+)
+
+2026-11-09 16:02:24 [11@dbhqitmuatappsrv]
+Saving Ticket 237. Custom Data: Array
+(
+    [Type] => new
+    [new] => sudo systemctl restart php8.*-fpm  echo "✅ Done!"
+)
+
+2026-11-09 16:03:35 [11@dbhqitmuatappsrv]
+Saving Ticket 238. Custom Data: Array
+(
+    [Request Type] => change
+    [loan amount] => 
+    [loan owner] => 2
+)
+
+2026-11-09 16:15:25 [11@dbhqitmuatappsrv]
+Saving Ticket 239. Custom Data: Array
+(
+    [Type] => new
+    [new] => sudo systemctl restart php8.2-fpm
+)
+

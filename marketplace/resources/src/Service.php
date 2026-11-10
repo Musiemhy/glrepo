@@ -1,0 +1,237 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * resources plugin for GLPI
+ * Copyright (C) 2015-2026 by the resources Development Team.
+ *
+ * https://github.com/InfotelGLPI/resources
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of resources.
+ *
+ * resources is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * resources is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with resources. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Resources;
+
+use CommonDropdown;
+use DBConnection;
+use Dropdown;
+use Migration;
+use Session;
+
+/**
+ * Class Service
+ */
+class Service extends CommonDropdown
+{
+    public static $rightname = 'plugin_resources';
+
+    /**
+     * @param $nb
+     **@since 0.85
+     *
+     */
+    public static function getTypeName($nb = 0)
+    {
+        return _n('Service', 'Services', $nb, 'resources');
+    }
+
+    /**
+     * @return
+     */
+    public static function canView(): bool
+    {
+        return Session::haveRight(self::$rightname, READ);
+    }
+
+    /**
+     * @return
+     */
+    public static function canCreate(): bool
+    {
+        return Session::haveRightsOr(self::$rightname, [CREATE, UPDATE, DELETE]);
+    }
+
+    /**
+     * Return Additional Fields for this type
+     *
+     * @return array
+     **/
+    public function getAdditionalFields()
+    {
+        return [
+            [
+                'name' => 'departments_services',
+                'label' => Department_Service::getTypeName(2),
+                'type' => 'multiple_departments_services',
+                'list' => true,
+            ],
+        ];
+    }
+
+    /**
+     * @return array
+     */
+    public function rawSearchOptions()
+    {
+        $tab = parent::rawSearchOptions();
+
+        return $tab;
+    }
+
+
+    /**
+     * is_active = 1 during a creation
+     *
+     * @return
+     */
+    public function post_getEmpty()
+    {
+        $this->fields['is_active'] = 1;
+    }
+
+    /**
+     * @since 0.85
+     * @see CommonDropdown::displaySpecificTypeField()
+     **/
+    public function displaySpecificTypeField($ID, $field = [], array $options = [])
+    {
+        switch ($field['type']) {
+            case 'multiple_departments_services':
+                $department = new Department();
+                $values = $department->find(['entities_id' => $_SESSION['glpiactiveentities']]);
+                $datas = [];
+                foreach ($values as $key => $v) {
+                    $datas[$v['id']] = $v['name'];
+                }
+                $department_service = new Department_Service();
+                $department_service_values = $department_service->find(
+                    ['plugin_resources_services_id' => $this->fields['id']],
+                );
+                $values_selected = [];
+                foreach ($department_service_values as $department_service_value) {
+                    $values_selected[] = $department_service_value['plugin_resources_departments_id'];
+                }
+
+                Dropdown::showFromArray(
+                    'departments_services',
+                    $datas,
+                    ['values' => $values_selected, 'multiple' => true, 'display' => true],
+                );
+                break;
+        }
+    }
+
+    public function post_addItem()
+    {
+        $test = true;
+        $departments_services = $this->input["departments_services"];
+        if (is_array($departments_services)) {
+            $department_service = new Department_Service();
+            foreach ($departments_services as $key => $id_department) {
+                $department_service->add(
+                    [
+                        'plugin_resources_services_id' => $this->getID(),
+                        'plugin_resources_departments_id' => $id_department,
+                    ],
+                );
+            }
+        }
+    }
+
+    public function post_updateItem($history = 1)
+    {
+        $departments_services = $this->input["departments_services"];
+        $department_service = new Department_Service();
+        $roleServices = $department_service->find(['plugin_resources_services_id' => $this->fields['id']]);
+        $current_roles_services = [];
+        foreach ($roleServices as $key => $val) {
+            $current_roles_services[] = $val['plugin_resources_departments_id'];
+        }
+
+        foreach ($departments_services as $id_department) {
+            if (!$department_service->getFromDBByCrit(
+                ['plugin_resources_services_id' => $this->getID(), 'plugin_resources_departments_id' => $id_department],
+            )) {
+                $department_service->add(
+                    [
+                        'plugin_resources_services_id' => $this->getID(),
+                        'plugin_resources_departments_id' => $id_department,
+                    ],
+                );
+            }
+        }
+
+        foreach ($current_roles_services as $id_department) {
+            if (!in_array($id_department, $departments_services)) {
+                if ($department_service->getFromDBByCrit(
+                    [
+                        'plugin_resources_services_id' => $this->getID(),
+                        'plugin_resources_departments_id' => $id_department,
+                    ],
+                )) {
+                    $department_service->deleteByCriteria(
+                        [
+                            'plugin_resources_services_id' => $this->getID(),
+                            'plugin_resources_departments_id' => $id_department,
+                        ],
+                    );
+                }
+            }
+        }
+    }
+
+    public static function dropdownFromDepart($departments_id, $opt = [])
+    {
+        $department_service = new Department_Service();
+        $department_services = $department_service->find(['plugin_resources_departments_id' => $departments_id]);
+        $services = [0];
+        foreach ($department_services as $s) {
+            $services[] = $s['plugin_resources_services_id'];
+        }
+        $options = array_merge(['condition' => ['id' => $services]], $opt);
+        return self::dropdown($options);
+    }
+
+    public static function install(Migration $migration)
+    {
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+        $table  = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $query = "CREATE TABLE `$table` (
+                        `id`           int {$default_key_sign} NOT NULL auto_increment,
+                        `entities_id`  int {$default_key_sign} NOT NULL                   DEFAULT '0',
+                        `is_recursive` tinyint      NOT NULL                   DEFAULT '0',
+                        `name`         varchar(255) COLLATE utf8mb4_unicode_ci default NULL,
+                        `comment`      TEXT COLLATE utf8mb4_unicode_ci,
+                        PRIMARY KEY (`id`),
+                        KEY `name` (`name`),
+                        KEY `entities_id` (`entities_id`),
+                        KEY `is_recursive` (`is_recursive`)
+               ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
+
+            $DB->doQuery($query);
+        }
+    }
+}

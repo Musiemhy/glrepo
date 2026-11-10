@@ -1,0 +1,49 @@
+{#
+ # -------------------------------------------------------------------------
+ # resources plugin for GLPI
+ # Copyright (C) 2015-2026 by the resources Development Team.
+ #
+ # https://github.com/InfotelGLPI/resources
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of resources.
+ #
+ # resources is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 2 of the License, or
+ # (at your option) any later version.
+ #
+ # resources is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with resources. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{#
+ # Planning item of a resource task.
+ #
+ # Rendered by TaskPlanning::displayPlanningItem(), whose return value the core concatenates into
+ # the planning markup (Planning::displayPlanningItem(), src/Planning.php). Everything printed
+ # with {{ }} is escaped by Twig: the resource name, the task type and the user name used to be
+ # concatenated in PHP without escaping, so any of those labels could carry a stored XSS to every
+ # user displaying the planning.
+ #}
+{% set dom_id = 'content_task_' ~ id ~ rand %}
+<a href="{{ task_url }}" onmouseout="cleanhide('{{ dom_id }}')" onmouseover="cleandisplay('{{ dom_id }}')">{{ heading_format|format(time_label, task_name) }}{% if user_name is not empty %} - {{ __('User') }} {{ user_name }}{% endif %}</a><br>
+{{ resource_type_name }} : <a href="{{ resource_url }}">{{ resource }}</a>
+<div class="over_link" id="{{ dom_id }}">
+    {% if end_date is not empty %}<strong>{{ __('End date') }}</strong> : {{ end_date }}<br>{% endif %}
+    {% if type is not empty %}<strong>{{ task_type_name }}</strong> : {{ type }}<br>{% endif %}
+    {% if content is not empty %}
+        {# Already escaped upstream: populatePlanning() stores the comment through
+         # Html::resume_text(), which truncates and calls htmlescape(). Printing it as an escaped
+         # value would encode the entities a second time. #}
+        <strong>{{ __('Description') }}</strong> : {{ content|raw }}
+    {% endif %}
+</div>

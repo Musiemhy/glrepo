@@ -1,0 +1,133 @@
+<?php
+
+/**
+ * LICENSE
+ *
+ * This file is part of Behaviors plugin for GLPI.
+ *
+ * Behaviors is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Behaviors is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with Behaviors. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * @author    Infotel, Remi Collet, Nelly Mahu-Lasson
+ * @copyright Copyright (c) 2018-2026 Behaviors plugin team
+ * @license   AGPL License 3.0 or (at your option) any later version
+ * @link      https://github.com/InfotelGLPI/behaviors/
+ * @link      http://www.glpi-project.org/
+ * @package   behaviors
+ * @since     2010
+ * http://www.gnu.org/licenses/agpl-3.0-standalone.html
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Behaviors;
+
+use Session;
+
+class Change
+{
+    private $input;
+
+    /**
+     * @param Change $change
+     * @return false|void
+     */
+    public static function beforeAdd(\Change $change)
+    {
+        global $DB;
+
+        if (!is_array($change->input) || !count($change->input)) {
+            // Already cancel by another plugin
+            return false;
+        }
+
+        if (defined('GLPI_INSTALL_MODE') && GLPI_INSTALL_MODE !== 'CLOUD') {
+            $config = Config::getInstance();
+
+            if ($config->getField('changes_id_format')) {
+                $max = 0;
+                $sql = [
+                    'SELECT' => ['MAX' => 'id AS max'],
+                    'FROM' => 'glpi_changes',
+                ];
+                foreach ($DB->request($sql) as $data) {
+                    $max = $data['max'];
+                }
+                $want = (int) date($config->getField('changes_id_format'));
+                // Borne max = YYYYMMDDHHMMSS (14 chiffres) pour éviter la corruption de séquence
+                if ($want > $max && $want > 0 && $want <= 99999999999999) {
+                    // Force the new record id to the date-based value via DML instead of a
+                    // runtime `ALTER TABLE ... AUTO_INCREMENT` (raw DDL). Since $want > current
+                    // MAX(id), inserting this explicit id is collision-free and advances MySQL's
+                    // AUTO_INCREMENT to $want + 1, matching the previous behaviour without raw SQL.
+                    $change->input['id'] = $want;
+                }
+            }
+        }
+    }
+
+    /**
+     * @param Change $change
+     * @return false|void
+     */
+    public static function beforeUpdate(\Change $change)
+    {
+        global $DB;
+
+        if (!is_array($change->input) || !count($change->input)) {
+            // Already cancel by another plugin
+            return false;
+        }
+
+        $config = Config::getInstance();
+
+        // Check is the connected user is a tech
+        if (!is_numeric(Session::getLoginUserID(false))
+            || !Session::haveRight('change', UPDATE)) {
+            return false; // No check
+        }
+
+        if (isset($change->input['status'])
+            && in_array(
+                $change->input['status'],
+                array_merge(
+                    \Change::getSolvedStatusArray(),
+                    \Change::getclosedStatusArray(),
+                ),
+            )) {
+
+            if ($config->getField('is_changetasktodo')) {
+                $crit = [
+                    'FROM' => 'glpi_changetasks',
+                    'WHERE' => [
+                        'changes_id' => $change->getField('id'),
+                    ],
+                ];
+                foreach (
+                    $DB->request($crit) as $task
+                ) {
+                    if ($task['state'] == 1) {
+                        Session::addMessageAfterRedirect(
+                            __(
+                                "You cannot solve/close a change with task do to",
+                                'behaviors',
+                            ),
+                            true,
+                            ERROR,
+                        );
+                        unset($change->input['status']);
+                    }
+                }
+            }
+        }
+    }
+}

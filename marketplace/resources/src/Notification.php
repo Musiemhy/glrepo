@@ -1,0 +1,250 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * resources plugin for GLPI
+ * Copyright (C) 2015-2026 by the resources Development Team.
+ *
+ * https://github.com/InfotelGLPI/resources
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of resources.
+ *
+ * resources is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * resources is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with resources. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Resources;
+
+use CommonDBTM;
+use DBConnection;
+use DbUtils;
+use Glpi\Application\View\TemplateRenderer;
+use Migration;
+use Session;
+
+/**
+ * Class Notification
+ */
+class Notification extends CommonDBTM
+{
+    public static $rightname = 'plugin_resources';
+
+    /**
+     * Return the localized name of the current Type
+     * Should be overloaded in each new class
+     *
+     * @param integer $nb Number of items
+     *
+     * @return string
+     **/
+    public static function getTypeName($nb = 0)
+    {
+        return __('Notification history', 'resources');
+    }
+
+    /**
+     * Have I the global right to "create" the Object
+     * May be overloaded if needed (ex KnowbaseItem)
+     *
+     * @return
+     **/
+    public static function canCreate(): bool
+    {
+        return Session::haveRight(self::$rightname, [CREATE, UPDATE, DELETE]);
+    }
+
+    /**
+     * Have I the global right to "view" the Object
+     *
+     * Default is true and check entity if the objet is entity assign
+     *
+     * May be overloaded if needed
+     *
+     * @return
+     **/
+    public static function canView(): bool
+    {
+        return Session::haveRight(self::$rightname, READ);
+    }
+
+    /**
+     * Function list items
+     *
+     * @param  $ID
+     */
+    public function listItems($ID)
+    {
+        // Start
+        $start = (int) ($_REQUEST["start"] ?? 0);
+
+        // Get data
+        $data = $this->getItems($ID, $start);
+        if (empty($data)) {
+            return;
+        }
+
+        $dbu = new DbUtils();
+
+        $entries = [];
+        foreach ($data as $field) {
+            $entries[] = [
+                'user' => $dbu->formatUserName(
+                    $field['users_id'],
+                    $field['name'],
+                    $field['realname'],
+                    $field['firstname'],
+                ),
+                'date' => $field['date_mod'],
+                'type' => self::getStatus($field['type']),
+            ];
+        }
+
+        // Scope the pager count to this resource: getItems() is already filtered on it.
+        $total = $dbu->countElementsInTable(
+            $this->getTable(),
+            ['plugin_resources_resources_id' => (int) $ID],
+        );
+
+        TemplateRenderer::getInstance()->display('components/datatable.html.twig', [
+            'super_header'    => self::getTypeName(1),
+            'columns'         => [
+                'user' => __('User'),
+                'date' => __('Date'),
+                'type' => __('Type'),
+            ],
+            'formatters'      => ['date' => 'datetime'],
+            'entries'         => $entries,
+            'total_number'    => $total,
+            'filtered_number' => $total,
+            'start'           => $start,
+            'limit'           => (int) $_SESSION['glpilist_limit'],
+            'nofilter'        => true,
+            'nosort'          => true,
+        ]);
+    }
+
+    /**
+     * Function get items for resource
+     *
+     * @param  $recordmodels_id
+     * @param  $start
+     * @return
+     * @global  $DB
+     */
+    public function getItems($resources_id, $start = 0)
+    {
+        global $DB;
+
+        $output = [];
+
+        $table = $this->getTable();
+
+        $iterator = $DB->request([
+            'SELECT'    => [
+                "$table.id",
+                'glpi_users.realname',
+                'glpi_users.firstname',
+                'glpi_users.name',
+                "$table.type",
+                "$table.users_id",
+                "$table.date_mod",
+                "$table.plugin_resources_resources_id",
+            ],
+            'FROM'      => $table,
+            'LEFT JOIN' => [
+                'glpi_users' => [
+                    'ON' => [
+                        'glpi_users' => 'id',
+                        $table       => 'users_id',
+                    ],
+                ],
+            ],
+            'WHERE'     => ["$table.plugin_resources_resources_id" => (int) $resources_id],
+            'ORDER'     => "$table.date_mod DESC",
+            'START'     => (int) $start,
+            'LIMIT'     => (int) $_SESSION['glpilist_limit'],
+        ]);
+        foreach ($iterator as $data) {
+            $output[$data['id']] = $data;
+        }
+
+        return $output;
+    }
+
+    /**
+     * Function get the Status
+     *
+     * @return  array
+     */
+    public static function getStatus($value)
+    {
+        $data = self::getAllStatusArray();
+        return $data[$value];
+    }
+
+    /**
+     * Get the SNMP Status list
+     *
+     * @return array array
+     */
+    public static function getAllStatusArray()
+    {
+        // To be overridden by class
+        $tab = [
+            'report' => __('Resource creation', 'resources'),
+            'other' => __('Other', 'resources'),
+        ];
+
+        return $tab;
+    }
+
+    /**
+     * if profile deleted
+     *
+     * @param Resource $resource
+     */
+    public static function purgeNotification(Resource $resource)
+    {
+        $temp = new self();
+        $temp->deleteByCriteria(['plugin_resources_resources_id' => $resource->getField("id")]);
+    }
+
+    public static function install(Migration $migration)
+    {
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+        $table  = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $query = "CREATE TABLE `$table` (
+                        `id`           int {$default_key_sign} NOT NULL auto_increment,
+                        `plugin_resources_resources_id` int {$default_key_sign} NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_plugin_resources_resources (id)',
+                        `date_mod`                      timestamp    NULL     DEFAULT NULL,
+                        `users_id`                      int {$default_key_sign} NOT NULL DEFAULT '0',
+                        `type`                          varchar(50)           default NULL,
+                        PRIMARY KEY (`id`),
+                        KEY `users_id` (`users_id`),
+                        KEY `date_mod` (`date_mod`)
+               ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
+
+            $DB->doQuery($query);
+        }
+    }
+}

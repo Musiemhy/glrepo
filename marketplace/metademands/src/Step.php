@@ -1,0 +1,1584 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * metademands plugin for GLPI
+ * Copyright (C) 2018-2026 by the metademands Development Team.
+ *
+ * https://github.com/InfotelGLPI/metademands
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of metademands.
+ *
+ * metademands is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * metademands is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Metademands;
+
+use Ajax;
+use CommonDBChild;
+use CommonGLPI;
+use DBConnection;
+use DbUtils;
+use Glpi\Application\View\TemplateRenderer;
+use Glpi\Exception\Http\AccessDeniedHttpException;
+use Glpi\RichText\RichText;
+use GlpiPlugin\Metademands\Fields\Signature;
+use Group_User;
+use Html;
+use Migration;
+use Plugin;
+use Session;
+use User;
+
+/**
+ * Step Class
+ *
+ **/
+class Step extends CommonDBChild
+{
+    public static $rightname = 'plugin_metademands';
+
+    public static $itemtype = Metademand::class;
+    public static $items_id = 'plugin_metademands_metademands_id';
+
+    /**
+     * Return the localized name of the current Type
+     * Should be overloaded in each new class
+     *
+     * @param int $nb Number of items
+     *
+     * @return string
+     **/
+    public static function getTypeName($nb = 0)
+    {
+        return _n('Step-by-Step block', 'Step-by-Step blocks', $nb, 'metademands');
+    }
+
+    public static function canView(): bool
+    {
+        return Session::haveRight(self::$rightname, READ);
+    }
+
+    /**
+     * @return bool
+     */
+    public static function canCreate(): bool
+    {
+        return Session::haveRightsOr(self::$rightname, [CREATE, UPDATE, DELETE]);
+    }
+
+    public static function canUpdate(): bool
+    {
+        return Session::haveRightsOr(self::$rightname, [CREATE, UPDATE, DELETE]);
+    }
+
+    public static function getIcon()
+    {
+        return "ti ti-device-ipad-pause";
+    }
+
+    public static function install(Migration $migration)
+    {
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+        $table  = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $query = "CREATE TABLE `$table` (
+                        `id` int {$default_key_sign} NOT NULL auto_increment,
+                        `plugin_metademands_metademands_id` int {$default_key_sign} NOT NULL           DEFAULT '0',
+                        `block_id`                          int {$default_key_sign} NOT NULL           DEFAULT '0',
+                        `groups_id`                         int {$default_key_sign} NOT NULL           DEFAULT '0',
+                        `only_by_supervisor`                tinyint      NOT NULL           DEFAULT '0',
+                        `reminder_delay`                    text COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+                        `message`                           text COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+                        PRIMARY KEY (`id`),
+                        KEY `plugin_metademands_metademands_id` (`plugin_metademands_metademands_id`)
+               ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
+
+            $DB->doQuery($query);
+        }
+
+        //version 3.3.0
+        if (!isIndex($table, "plugin_metademands_metademands_id")) {
+            $migration->addKey($table, "plugin_metademands_metademands_id");
+        }
+        $migration->migrationOneTable($table);
+
+        //version 3.3.24
+        if (!$DB->fieldExists($table, "only_by_supervisor")) {
+            $migration->addField($table, "only_by_supervisor", "tinyint NOT NULL DEFAULT '0'");
+            $migration->migrationOneTable($table);
+        }
+    }
+
+    public static function uninstall()
+    {
+        global $DB;
+
+        $DB->dropTable(self::getTable(), true);
+    }
+
+    /**
+     * Get the standard massive actions which are forbidden
+     *
+     * @return array an array of massive actions
+     **@since version 0.84
+     *
+     * This should be overloaded in Class
+     *
+     */
+    public function getForbiddenStandardMassiveAction()
+    {
+        $forbidden = parent::getForbiddenStandardMassiveAction();
+        $forbidden[] = 'update';
+        return $forbidden;
+    }
+
+    /**
+     * @param CommonGLPI $item
+     * @param int $withtemplate
+     *
+     * @return array|string
+     * @see CommonGLPI::getTabNameForItem()
+     */
+    public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0)
+    {
+        switch ($item->getType()) {
+            case Metademand::getType():
+                if ($item->fields['step_by_step_mode'] == 1) {
+                    return self::createTabEntry(self::getTypeName(2));
+                } else {
+                    return false;
+                }
+
+                break;
+        }
+    }
+
+    /**
+     * @param $item            CommonGLPI object
+     * @param $tabnum (default 1)
+     * @param $withtemplate (default 0)
+     **
+     *
+     * @return bool
+     */
+    public static function displayTabContentForItem(CommonGLPI $item, $tabnum = 1, $withtemplate = 0)
+    {
+        switch ($item->getType()) {
+            case Metademand::getType():
+                self::showStepByBlock($item);
+                break;
+        }
+        return true;
+    }
+
+    public static function defineStepblocks($plugin_metademands_metademands_id)
+    {
+        $list_blocks = [];
+
+        $groups = [];
+        $group_user = new Group_User();
+        $groups_users = $group_user->find(['users_id' => Session::getLoginUserID()]);
+        if (count($groups_users) > 0) {
+            foreach ($groups_users as $gu) {
+                $groups[] = $gu['groups_id'];
+            }
+        }
+
+        $step = new self();
+
+        if ($steps = $step->find(['plugin_metademands_metademands_id' => $plugin_metademands_metademands_id])) {
+            foreach ($steps as $s) {
+                $list_blocks[] = $s['block_id'];
+            }
+
+            $list_blocks_bygroup = [];
+            if ($steps = $step->find(['plugin_metademands_metademands_id' => $plugin_metademands_metademands_id])) {
+
+                foreach ($steps as $s) {
+                    if ($s['groups_id'] > 0) {
+                        $list_blocks_bygroup[$s['groups_id']][] = $s['block_id'];
+                    }
+                }
+            }
+
+            $hidden_blocks = [];
+            foreach ($list_blocks_bygroup as $group => $blocks) {
+                foreach ($blocks as $block_ids) {
+                    if (!in_array($group, $groups)) {
+                        $hidden_blocks[] = $list_blocks_bygroup[$group];
+                    }
+                }
+            }
+
+            if (count($hidden_blocks) > 0) {
+                foreach ($hidden_blocks as $blocks) {
+                    foreach ($blocks as $block_ids) {
+                        if (($key = array_search($block_ids, $list_blocks)) !== false) {
+                            unset($list_blocks[$key]);
+                        }
+                    }
+                }
+            }
+
+            $steps_validator = $step->find([
+                'plugin_metademands_metademands_id' => $plugin_metademands_metademands_id,
+                'only_by_supervisor' => 1,
+            ]);
+            if (count($steps_validator) > 0) {
+                foreach ($steps_validator as $s) {
+                    if (($key = array_search($s['block_id'], $list_blocks)) !== false) {
+                        unset($list_blocks[$key]);
+                    }
+                }
+            }
+        } else {
+            $field = new Field();
+            if ($fields = $field->find(['plugin_metademands_metademands_id' => $plugin_metademands_metademands_id])) {
+                foreach ($fields as $s) {
+                    $list_blocks[] = $s['rank'];
+                }
+            }
+        }
+
+        return array_unique($list_blocks);
+    }
+
+    /**
+     * @param $plugin_metademands_metademands_id
+     * @param $block_id
+     *
+     * @return false|mixed
+     */
+    public static function getGroupForNextBlock($plugin_metademands_metademands_id, $block_id)
+    {
+        $self = new self();
+        $condition = [
+            'block_id' => $block_id,
+            'plugin_metademands_metademands_id' => $plugin_metademands_metademands_id,
+        ];
+
+        $steps = $self->find($condition);
+        if (count($steps) > 0) {
+            foreach ($steps as $step) {
+                if (isset($step['groups_id'])) {
+                    return $step['groups_id'];
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @param $plugin_metademands_metademands_id
+     * @param $block_id
+     *
+     * @return false|mixed
+     */
+    public static function getMsgForNextBlock($plugin_metademands_metademands_id, $block_id)
+    {
+        global $DB;
+
+        $rank = 0;
+        $ranks = $DB->request([
+            'SELECT' => ['MAX' => 'rank AS maxblock'],
+            'FROM' => 'glpi_plugin_metademands_fields',
+            'WHERE' => ['plugin_metademands_metademands_id' => $plugin_metademands_metademands_id],
+        ]);
+
+        foreach ($ranks as $data) {
+            $rank = $data['maxblock'];
+        }
+
+        $self = new self();
+        $condition = [
+            'block_id' => $block_id,
+            'NOT' => ['block_id' => $rank],
+            'plugin_metademands_metademands_id' => $plugin_metademands_metademands_id,
+        ];
+
+        $steps = $self->find($condition);
+        if (count($steps) > 0) {
+            foreach ($steps as $step) {
+                if (isset($step['message'])) {
+                    return $step['message'];
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Display all translated field for a dropdown
+     *
+     * @param $item a Dropdown item
+     *
+     * @return bool
+     **/
+    public static function showStepByBlock($item)
+    {
+        global $DB, $CFG_GLPI;
+
+        $rand = mt_rand();
+        $canedit = $item->can($item->getID(), UPDATE);
+
+        $add_script_html = '';
+        $viewstep_div_id = "viewstepbybloc" . $item->getID() . $rand;
+        $add_fn_name     = "addstepbybloc" . $item->getID() . $rand;
+        if ($canedit) {
+            $params = [
+                'type' => __CLASS__,
+                'parenttype' => get_class($item),
+                $item->getForeignKeyField() => $item->getID(),
+                'id' => -1,
+            ];
+            ob_start();
+            echo "<script type='text/javascript' >\n";
+            echo "function addstepbybloc" . $item->getID() . "$rand() {\n";
+            Ajax::updateItemJsCode(
+                "viewstepbybloc" . $item->getID() . "$rand",
+                $CFG_GLPI["root_doc"] . "/ajax/viewsubitem.php",
+                $params,
+            );
+            echo "};";
+            echo "</script>\n";
+            $add_script_html = ob_get_clean();
+        }
+        $iterator = $DB->request([
+            'FROM' => getTableForItemType(__CLASS__),
+            'WHERE' => [
+                'plugin_metademands_metademands_id' => $item->getID(),
+            ],
+            'ORDER' => [
+                'block_id ASC',
+            ],
+        ]);
+
+        $field = new Field();
+        $fields = $field->find(["plugin_metademands_metademands_id" => $item->getID()]);
+        $blocks = [];
+        $self = new self();
+        foreach ($fields as $f) {
+            $steps = $self->find([
+                'plugin_metademands_metademands_id' => $item->getID(),
+                'block_id' => intval($f['rank']),
+            ]);
+
+            foreach ($steps as $step) {
+                if (!isset($blocks[$f['rank']])
+                    && (!$self->getFromDBByCrit([
+                        'plugin_metademands_metademands_id' => $item->getID(),
+                        'block_id' => intval($f['rank']),
+                        'id' => $step['id'],
+                    ]))) {
+                    $blocks[intval($f['rank'])] = sprintf(__("Block %s", 'metademands'), $f["rank"]);
+                }
+            }
+        }
+        ksort($blocks);
+        $warning_blocks = count($blocks) > 0;
+
+        $fields = new Field();
+        $cond['plugin_metademands_metademands_id'] = $item->getID();
+        $dataf = $fields->find(
+            $cond,
+            ['rank', 'order'],
+        );
+        $databyblocks = [];
+        $blocks = [];
+        $subblocks = [];
+        foreach ($dataf as $id => $value) {
+            $databyblocks[$value['rank']][] = $dataf[$id];
+        }
+
+        foreach ($databyblocks as $blockid => $blockfields) {
+            $i = 0;
+            foreach ($blockfields as $value) {
+                if ($value['type'] == 'title-block' && $value['rank'] == $blockid) {
+                    $i++;
+                    if ($i > 0) {
+                        $name = $value['name'];
+                        $blocks[$blockid] = $name;
+                    }
+                }
+                if ($i == 0) {
+                    $title = __('Block', 'metademands') . " " . $value['rank'];
+                    $blocks[$blockid] = $title;
+                }
+
+                $fieldopt = new FieldOption();
+                if ($opts = $fieldopt->find(
+                    [
+                        "plugin_metademands_fields_id" => $value['id'],
+                        "hidden_block_same_block" => 1,
+                    ],
+                )) {
+                    foreach ($opts as $opt) {
+                        $subblocks[] = $opt['hidden_block'];
+                    }
+                }
+            }
+        }
+        $all_blocks = [];
+        if (count($iterator)) {
+            foreach ($iterator as $data) {
+                $all_blocks[$data['block_id']][] = $data;
+            }
+        }
+
+        $css_html = Html::css(PLUGIN_METADEMANDS_WEBDIR . "/css/_process-chart.css");
+
+        $configStep = new Configstep();
+        $configStep->getFromDBByCrit([
+            'plugin_metademands_metademands_id' => $item->getID(),
+        ]);
+        $added = [];
+        $cards = [];
+        if (count($all_blocks)) {
+            $multiple_blocks = [];
+            $already_see = [];
+
+            foreach ($all_blocks as $blockid => $blockdata) {
+
+                if (count($blockdata) > 1) {
+                    foreach ($blockdata as $blockdataid => $multipleblockdata) {
+                        $multiple_blocks[$multipleblockdata['block_id']][] = $multipleblockdata['groups_id'];
+                    }
+                }
+
+                foreach ($blockdata as $data) {
+
+                    if (in_array($blockid, $already_see)) {
+                        continue;
+                    }
+                    $added[] = $blockid;
+
+                    $onhover          = '';
+                    $edit_script_html = '';
+                    if ($canedit) {
+                        $onhover = "style='cursor:pointer'
+                       onClick=\"viewEditstepbyblock" . $data['id'] . "$rand();\"";
+
+                        ob_start();
+                        echo "\n<script type='text/javascript' >\n";
+                        echo "function viewEditstepbyblock" . $data['id'] . "$rand() {\n";
+                        $params = [
+                            'type' => __CLASS__,
+                            'parenttype' => get_class($item),
+                            $item->getForeignKeyField() => $item->getID(),
+                            'id' => $data["id"],
+                        ];
+                        Ajax::updateItemJsCode(
+                            "viewstepbybloc" . $item->getID() . "$rand",
+                            $CFG_GLPI["root_doc"] . "/ajax/viewsubitem.php",
+                            $params,
+                        );
+                        echo "};";
+                        echo "</script>\n";
+                        $edit_script_html = ob_get_clean();
+                    }
+
+                    if (in_array($blockid, $subblocks)) {
+                        $block_type_label = __("Sub Block", 'metademands');
+                    } else {
+                        $block_type_label = __("Block", 'metademands');
+                    }
+
+                    if (isset($blocks[$data['block_id']])) {
+                        $block_label = $blocks[$data['block_id']];
+                    } else {
+                        $block_label = $data['block_id'];
+                    }
+
+                    // Visibility of the block: the groups it is restricted to, its
+                    // supervisor, or everybody. The legacy code built this fragment with
+                    // echo, and gated the multiple-groups branch on count($multiple_blocks)
+                    // instead of on the block being in it: a block restricted to a single
+                    // group showed no visibility at all as soon as another block of the
+                    // same metademand was restricted to several.
+                    $visibility = ['mode' => 'all', 'groups' => [], 'message' => ''];
+                    if ($data['only_by_supervisor'] != 0 || $data['groups_id'] != 0) {
+                        $visibility['mode'] = 'none';
+                        if (isset($configStep->fields['supervisor_validation'])
+                            && $configStep->fields['supervisor_validation'] == 0) {
+                            if (isset($multiple_blocks[$data['block_id']])) {
+                                foreach ($multiple_blocks[$data['block_id']] as $gdata) {
+                                    $visibility['groups'][] = \Dropdown::getDropdownName(
+                                        \Group::getTable(),
+                                        $gdata,
+                                    );
+                                    $already_see[] = $data['block_id'];
+                                }
+                            } elseif ($data['groups_id'] != 0) {
+                                $visibility['groups'][] = \Dropdown::getDropdownName(
+                                    \Group::getTable(),
+                                    $data['groups_id'],
+                                );
+                            }
+                            if (count($visibility['groups']) > 0) {
+                                $visibility['mode'] = 'groups';
+                            }
+                        } elseif ($data['only_by_supervisor'] != 0) {
+                            $visibility['mode'] = 'supervisor';
+                        }
+                    }
+
+                    if (!empty($data['message'])) {
+                        $visibility['message'] = RichText::getTextFromHtml($data['message']);
+                    }
+
+                    $target = PLUGIN_METADEMANDS_WEBDIR . "/front/step.form.php";
+
+                    ob_start();
+                    Html::showSimpleForm(
+                        $target,
+                        'delete',
+                        _sx('button', 'Delete visibility', 'metademands'),
+                        ['id' => $data['id']],
+                        'ti-trash',
+                    );
+                    $delete_form_html = ob_get_clean();
+
+                    $cards[] = [
+                        'edit_script_html' => $edit_script_html,
+                        'onhover'          => $onhover,
+                        'block_type_label' => $block_type_label,
+                        'block_label'       => $block_label,
+                        'visibility'       => $visibility,
+                        'delete_form_html' => $delete_form_html,
+                    ];
+                }
+            }
+        }
+
+        $ko = 0;
+        foreach ($blocks as $k => $block) {
+            if (!in_array($k, $added)) {
+                $ko++;
+            }
+        }
+        $setup_problem = count($blocks) > 0 && count($added) > 0 && $ko > 0;
+
+        TemplateRenderer::getInstance()->display('@metademands/forms/step_by_block.html.twig', [
+            'canedit'         => $canedit,
+            'viewstep_div_id' => $viewstep_div_id,
+            'add_fn_name'     => $add_fn_name,
+            'add_script_html' => $add_script_html,
+            'warning_blocks'  => $warning_blocks,
+            'css_html'        => $css_html,
+            'has_blocks'      => count($all_blocks) > 0,
+            'cards'           => $cards,
+            'setup_problem'   => $setup_problem,
+        ]);
+
+        return true;
+    }
+
+    /**
+     * Display translation form
+     *
+     * @param int $ID field (default -1)
+     * @param     $options   array
+     *
+     * @return bool
+     */
+    public function showForm($ID = -1, $options = [])
+    {
+        if (isset($options['parent']) && !empty($options['parent'])) {
+            $item = $options['parent'];
+        }
+        if ($ID > 0) {
+            $this->check($ID, UPDATE);
+        } else {
+            $options['itemtype'] = get_class($item);
+            $options['items_id'] = $item->getID();
+            $options['plugin_metademands_metademands_id'] = $options['items_id'];
+
+            // Create item
+            $this->check(-1, CREATE, $options);
+        }
+
+        $configStep = new Configstep();
+        $configStep->getFromDBByCrit([
+            'plugin_metademands_metademands_id' => $item->getID(),
+        ]);
+
+        $field  = new Field();
+        $fields = $field->find(['plugin_metademands_metademands_id' => $item->getID()]);
+        $blocks = [];
+        $self   = new self();
+
+        if (isset($configStep->fields['multiple_link_groups_blocks'])
+            && $configStep->fields['multiple_link_groups_blocks'] == 1) {
+            foreach ($fields as $f) {
+                $blocks[intval($f['rank'])] = sprintf(__("Block %s", 'metademands'), $f['rank']);
+            }
+        } else {
+            foreach ($fields as $f) {
+                if (!isset($blocks[$f['rank']])
+                    && (!$self->getFromDBByCrit([
+                        'plugin_metademands_metademands_id' => $item->getID(),
+                        'block_id' => intval($f['rank']),
+                    ])
+                        || $self->getFromDBByCrit([
+                            'plugin_metademands_metademands_id' => $item->getID(),
+                            'block_id' => intval($f['rank']),
+                            'id' => $ID,
+                        ]))) {
+                    $blocks[intval($f['rank'])] = sprintf(__("Block %s", 'metademands'), $f['rank']);
+                }
+            }
+        }
+        ksort($blocks);
+
+        ob_start();
+        if ($this->fields['block_id']) {
+            \Dropdown::showFromArray('block_id', $blocks, [
+                'value'  => $this->fields['block_id'],
+                'width'  => '100%',
+                'entity' => $_SESSION['glpiactiveentities'],
+            ]);
+        } else {
+            \Dropdown::showFromArray('block_id', $blocks, [
+                'values'   => [$this->fields['block_id']],
+                'width'    => '100%',
+                'multiple' => true,
+                'entity'   => $_SESSION['glpiactiveentities'],
+            ]);
+        }
+        $block_dropdown_html = ob_get_clean();
+
+        $supervisor_validation = isset($configStep->fields['supervisor_validation'])
+            ? (int) $configStep->fields['supervisor_validation']
+            : null;
+
+        $groups_dropdown_html     = '';
+        $supervisor_dropdown_html = '';
+
+        if ($supervisor_validation === 0) {
+            ob_start();
+            $meta_group  = new Group();
+            $meta_groups = $meta_group->find(['plugin_metademands_metademands_id' => $item->getID()]);
+            $groups = [];
+            foreach ($meta_groups as $group) {
+                $gr = new \Group();
+                $gr->getFromDB($group['groups_id']);
+                $groups[$group['groups_id']] = $gr->getFriendlyName();
+            }
+            if (!empty($groups)) {
+                \Dropdown::showFromArray('groups_id', $groups, [
+                    'value'    => $this->fields['groups_id'],
+                    'width'    => '100%',
+                    'multiple' => true,
+                    'entity'   => $_SESSION['glpiactiveentities'],
+                ]);
+            } else {
+                \Group::dropdown([
+                    'name'  => 'groups_id',
+                    'value' => $this->fields['groups_id'],
+                ]);
+            }
+            $groups_dropdown_html = ob_get_clean();
+        }
+
+        if ($supervisor_validation === 1) {
+            ob_start();
+            \Dropdown::showYesNo('only_by_supervisor', $this->fields['only_by_supervisor']);
+            $supervisor_dropdown_html = ob_get_clean();
+        }
+
+        TemplateRenderer::getInstance()->display('@metademands/step_form.html.twig', [
+            'action'                   => PLUGIN_METADEMANDS_WEBDIR . '/front/step.form.php',
+            'metademand_id'            => $item->getID(),
+            'step_id'                  => $this->fields['id'] ?? 0,
+            'is_new'                   => $ID <= 0,
+            'block_dropdown_html'      => $block_dropdown_html,
+            'supervisor_validation'    => $supervisor_validation,
+            'groups_dropdown_html'     => $groups_dropdown_html,
+            'supervisor_dropdown_html' => $supervisor_dropdown_html,
+            'message'                  => $this->fields['message'] ?? '',
+        ]);
+
+        return true;
+    }
+
+    /**
+     * @param $metademands_id
+     *
+     * @return bool
+     */
+    public static function isUserHaveRight($metademands_id)
+    {
+        $dbu = new DbUtils();
+        // Get metademand groups
+        $metademands_groups_data = $dbu->getAllDataFromTable(
+            'glpi_plugin_metademands_steps',
+            ['`plugin_metademands_metademands_id`' => $metademands_id, 'block_id' => 1, ['NOT' => ['groups_id' => 0]]],
+        );
+
+        $metademand = new Metademand();
+        $metademand->getFromDB($metademands_id);
+        if (!empty($metademands_groups_data) && $metademand->fields['step_by_step_mode'] == 1) {
+            $metademands_groups_id = [];
+            foreach ($metademands_groups_data as $groups) {
+                $metademands_groups_id[] = $groups['groups_id'];
+            }
+
+            // Is the user allowed with his groups ?
+            $group_user_data = Group_User::getUserGroups(Session::getLoginUserID());
+            foreach ($group_user_data as $groups) {
+                if (in_array($groups['id'], $metademands_groups_id)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // No restrictions if no group was added in metademand
+        return true;
+    }
+
+    /**
+     * @param $metademands_id
+     * @param $block_id
+     * @param $user_id
+     *
+     *
+     * @return bool
+     */
+    public static function canSeeBlock($metademand_id, $block_id)
+    {
+        $return = false;
+        $user_id = Session::getLoginUserID();
+        $metademandStep = new self();
+        $steps = $metademandStep->find(
+            [
+                'plugin_metademands_metademands_id' => $metademand_id,
+                'block_id' => $block_id,
+            ],
+        );
+        $groups_id = [];
+        foreach ($steps as $step) {
+            $groups_id[] = $step['groups_id'];
+        }
+        $groupsUser = Group_User::getUserGroups($user_id);
+        foreach ($groupsUser as $gu) {
+            if (in_array($gu['id'], $groups_id)) {
+                $return = true;
+            }
+        }
+
+        $steps = $metademandStep->find(
+            [
+                'plugin_metademands_metademands_id' => $metademand_id,
+                'only_by_supervisor' => 1,
+            ],
+        );
+        if (count($steps) > 0) {
+            $return = true;
+        }
+
+        if (!$return && count($groups_id) > 0 && ($groups_id[0] === 0 || $groups_id[0] === '0')) {
+            $return = true;
+        }
+
+        return $return;
+    }
+
+    public static function checkSupervisorForUser($metademand_id)
+    {
+        $metademandStep = new self();
+        $steps = $metademandStep->find(
+            [
+                'plugin_metademands_metademands_id' => $metademand_id,
+                'only_by_supervisor' => 1,
+            ],
+        );
+        if (isset($_SESSION['plugin_metademands'][$metademand_id]['plugin_metademands_stepforms_id'])
+            && $_SESSION['plugin_metademands'][$metademand_id]['plugin_metademands_stepforms_id'] > 0) {
+            $stepform = new Stepform();
+            $stepforms = $stepform->find([
+                'plugin_metademands_metademands_id' => $metademand_id,
+                'users_id_dest' => Session::getLoginUserID(),
+                'id' => $_SESSION['plugin_metademands'][$metademand_id]['plugin_metademands_stepforms_id'],
+            ]);
+
+            $msg = self::getMsgForNextBlock(
+                $metademand_id,
+                $_SESSION['plugin_metademands'][$metademand_id]['block_id'],
+            );
+            if ($msg) {
+                // Same plain-text step message as ajax/getNextMessage.php: the template escapes
+                // it, otherwise this parallel path stays exploitable.
+                TemplateRenderer::getInstance()->display('@metademands/wizard/step_supervisor.html.twig', [
+                    'step_message' => (string) $msg,
+                ]);
+            }
+
+            if (count($stepforms) > 0) {
+                return true;
+            }
+        }
+
+        if (count($steps) > 0) {
+            $users_id_supervisor = 0;
+            $user = new User();
+            if ($user->getFromDB(Session::getLoginUserID())) {
+                $users_id_supervisor = $user->fields['users_id_supervisor'];
+            }
+
+            // getUserName() returns the raw realname/firstname columns in GLPI 11; the template
+            // escapes them. An empty supervisor is a blocking condition, not a warning.
+            TemplateRenderer::getInstance()->display('@metademands/wizard/step_supervisor.html.twig', [
+                'has_supervisor'  => (bool) $users_id_supervisor,
+                'supervisor_name' => $users_id_supervisor ? getUserName($users_id_supervisor) : '',
+            ]);
+
+            if (!$users_id_supervisor) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public function prepareInputForAdd($input)
+    {
+        $steps = new Step();
+        $condition = [
+            'block_id' => $input['block_id'],
+            'groups_id' => $input['groups_id'],
+            'plugin_metademands_metademands_id' => $input['plugin_metademands_metademands_id'],
+        ];
+        $result = $steps->getFromDBByCrit($condition);
+        if ($result) {
+            Session::addMessageAfterRedirect(
+                __('This group is already assigned to this block', 'metademands'),
+                false,
+                ERROR,
+            );
+            $input = [];
+        }
+        return $input;
+    }
+
+    /**
+     * Keys of the wizard payload the step flow actually reads back from the session
+     * (see showModalForm() and nextUser()). Anything else posted to ajax/showStep.php
+     * is dropped instead of being stored as-is.
+     *
+     * @var string[]
+     */
+    private const STEP_SESSION_KEYS = [
+        'metademands_id',
+        'form_metademands_id',
+        'plugin_metademands_stepforms_id',
+        'tickets_id',
+        'resources_id',
+        'resources_step',
+        'block_id',
+        'form_name',
+        '_users_id_requester',
+        'create_metademands',
+        'step',
+        'action',
+        'update_stepform',
+        'users_id_dest',
+        'groups_id_dest',
+        'field',
+    ];
+
+    /**
+     * display the next group modal
+     *
+     * @return string
+     */
+    public static function showStep()
+    {
+        global $CFG_GLPI;
+        $config = new Config();
+
+        $user_id = Session::getLoginUserID();
+
+        $block_id = (int) ($_POST['block_id'] ?? 0);
+        if ($block_id > 0) {
+            $_SESSION['plugin_metademands'][$user_id] = array_intersect_key(
+                $_POST,
+                array_flip(self::STEP_SESSION_KEYS),
+            );
+            $_SESSION['plugin_metademands'][$user_id]['block_id'] = $block_id;
+
+            $url = PLUGIN_METADEMANDS_WEBDIR . '/front/nextGroup.form.php?block_id=' . $block_id;
+            $return = Ajax::createIframeModalWindow(
+                'modalgroup',
+                $url,
+                [
+                    'title' => __('Next recipient', 'metademands'),
+                    'display' => false,
+                    'reloadonclose' => !$config->fields['redirect_to_ticket_list_when_change_user_step_by_step'],
+                    'autoopen' => true,
+                    'width' => 400,
+                    'height' => 400,
+                ],
+            );
+
+            if ($config->fields['redirect_to_ticket_list_when_change_user_step_by_step']) {
+                if (Plugin::isPluginActive('servicecatalog')
+                    && Session::haveRight("plugin_servicecatalog", READ)) {
+                    $redirect_url = jsescape(
+                        $CFG_GLPI['root_doc'] . PLUGIN_METADEMANDS_WEBDIR . "/front/stepform.php",
+                    );
+                } else {
+                    $redirect_url = jsescape(
+                        $CFG_GLPI['root_doc'] . '/front/ticket.php',
+                    );
+                }
+
+                $return .= Html::scriptBlock("
+                $(function() {
+                    var modalEl = document.getElementById('modalgroup');
+                    if (modalEl) {
+                        modalEl.addEventListener('hide.bs.modal', function () {
+                            window.location.href = '$redirect_url';
+                        });
+                    }
+                });
+            ");
+            }
+        } else {
+            $return = "<div class='alert alert-danger d-flex'>";
+            $return .= "<b>" . __('There is a problem with the setup', 'metademands') . "</b></div>";
+        }
+
+        return $return;
+    }
+
+    /**
+     * Create and display the form inside next group modal
+     *
+     * @return string
+     */
+    public static function showModalForm()
+    {
+        $conf = new Configstep();
+        $step = new Step();
+        $groupUser = new Group_User();
+        $user_id = Session::getLoginUserID();
+
+        $nextGroups = [];
+        //        $rand = mt_rand();
+        if (isset($_SESSION['plugin_metademands'][$user_id])) {
+            $meta_id = $_SESSION['plugin_metademands'][$user_id]['metademands_id'];
+            $conf->getFromDBByCrit(['plugin_metademands_metademands_id' => $meta_id]);
+        }
+        $block_id = 0;
+        if (isset($_GET['block_id']) && !empty($_GET['block_id'])) {
+            $block_id = $_GET['block_id'];
+        }
+
+        $form_action = PLUGIN_METADEMANDS_WEBDIR . "/front/nextGroup.form.php";
+        $session_set = isset($_SESSION['plugin_metademands'][$user_id]);
+
+        // Hidden fields shared by both branches, only emitted when a session payload exists
+        $common_hidden_html = '';
+        $post               = [];
+        if ($session_set) {
+            if (isset($_SESSION['plugin_metademands'][$meta_id]['plugin_metademands_stepforms_id'])) {
+                $common_hidden_html .= Html::hidden(
+                    'plugin_metademands_stepforms_id',
+                    ['value' => $_SESSION['plugin_metademands'][$meta_id]['plugin_metademands_stepforms_id']],
+                );
+            }
+            $post = $_SESSION['plugin_metademands'][$user_id];
+            $common_hidden_html .= Html::hidden('tickets_id', ['value' => $post['tickets_id']]);
+            $common_hidden_html .= Html::hidden('resources_id', ['value' => $post['resources_id']]);
+            $common_hidden_html .= Html::hidden('resources_step', ['value' => $post['resources_step']]);
+            $common_hidden_html .= Html::hidden('block_id', ['value' => $post['block_id']]);
+            $common_hidden_html .= Html::hidden('form_name', ['value' => $post['form_name']]);
+            $common_hidden_html .= Html::hidden('_users_id_requester', ['value' => $post['_users_id_requester']]);
+            $common_hidden_html .= Html::hidden('form_metademands_id', ['value' => $post['form_metademands_id']]);
+            $common_hidden_html .= Html::hidden('metademands_id', ['value' => $post['metademands_id']]);
+            $common_hidden_html .= Html::hidden('create_metademands', ['value' => $post['create_metademands']]);
+            $common_hidden_html .= Html::hidden('step', ['value' => $post['step']]);
+            $common_hidden_html .= Html::hidden('action', ['value' => $post['action']]);
+            $common_hidden_html .= Html::hidden('update_stepform', ['value' => $post['update_stepform']]);
+        }
+
+        $submit_html = Html::submit(
+            _sx(
+                'button',
+                'Validate',
+                'metademands',
+            ),
+            [
+                'name' => 'execute',
+                'id' => 'formsubmit',
+                'class' => 'btn btn-primary',
+            ],
+        );
+
+        if ($conf->fields['supervisor_validation']) {
+            $has_supervisor       = false;
+            $supervisor_name      = '';
+            $next_users_id_hidden = '';
+            if ($session_set) {
+                $users_id_supervisor = 0;
+                $user = new User();
+                if ($user->getFromDB($user_id)) {
+                    $users_id_supervisor = $user->fields['users_id_supervisor'];
+                }
+
+                if ($users_id_supervisor) {
+                    $has_supervisor       = true;
+                    $supervisor_name      = getUserName($users_id_supervisor);
+                    $next_users_id_hidden = Html::hidden('next_users_id', ['value' => $users_id_supervisor]);
+                }
+            }
+
+            TemplateRenderer::getInstance()->display('@metademands/forms/step_modal_supervisor.html.twig', [
+                'form_action'          => $form_action,
+                'session_set'          => $session_set,
+                'common_hidden_html'   => $common_hidden_html,
+                'has_supervisor'       => $has_supervisor,
+                'supervisor_name'      => $supervisor_name,
+                'next_users_id_hidden' => $next_users_id_hidden,
+                'submit_html'          => $submit_html,
+            ]);
+        } else {
+            if ($session_set) {
+                $block_id = $post['block_id'];
+            }
+
+            $steps = $step->find([
+                'plugin_metademands_metademands_id' => $meta_id,
+                'block_id' => $block_id,
+            ]);
+
+            // Single source of truth with the sink: nextUser() validates the posted
+            // destination against this very list.
+            $nextGroups = self::getNextGroupsForBlock($meta_id ?? 0, $block_id);
+
+            $group_dropdown_html = '';
+            if (count($steps) > 0) {
+                ob_start();
+                $rand = \Dropdown::showFromArray(
+                    'next_groups_id',
+                    $nextGroups,
+                    [
+                        'display_emptychoice' => true,
+                        'on_change' => 'plugin_md_reloaduser()',
+                    ],
+                );
+                $group_dropdown_html = ob_get_clean();
+            }
+
+            $rand_set          = isset($rand);
+            $link_user_block   = $rand_set && $conf->fields['link_user_block'];
+            $group_script_html = '';
+            if ($rand_set) {
+                ob_start();
+                echo "<script type='text/javascript'>";
+                echo "function plugin_md_reloaduser(){";
+                $params = [
+                    'action' => 'reloadUser',
+                    'next_groups_id' => '__VALUE__',
+                ];
+                Ajax::updateItemJsCode(
+                    'show_users_by_group',
+                    PLUGIN_METADEMANDS_WEBDIR . "/ajax/dropdownNextUser.php",
+                    $params,
+                    'dropdown_next_groups_id' . $rand,
+                );
+                echo "};";
+                echo "</script>";
+                $group_script_html = ob_get_clean();
+            }
+
+            TemplateRenderer::getInstance()->display('@metademands/forms/step_modal_nextgroup.html.twig', [
+                'form_action'         => $form_action,
+                'common_hidden_html'  => $common_hidden_html,
+                'has_groups'          => count($steps) > 0,
+                'group_label'         => __('Select the next group', 'metademands'),
+                'group_dropdown_html' => $group_dropdown_html,
+                'rand_set'            => $rand_set,
+                'group_script_html'   => $group_script_html,
+                'link_user_block'     => $link_user_block,
+                'submit_html'         => $submit_html,
+            ]);
+        }
+    }
+
+    /**
+     * Display drop-down list of users groups
+     *
+     * @param $groupUsers
+     */
+    public static function displayNextUser($groupUsers)
+    {
+        $user = new User();
+        $users = [];
+        foreach ($groupUsers as $grpUsr) {
+            $res = $user->getFromDBByCrit(['id' => $grpUsr['users_id']]);
+            if ($res) {
+                $users[$grpUsr['users_id']] = getUserName($grpUsr['users_id'], 0, true);
+            }
+        }
+
+        TemplateRenderer::getInstance()->display('@metademands/forms/step_next_user.html.twig', [
+            'dropdown_html' => \Dropdown::showFromArray(
+                'next_users_id',
+                $users,
+                [
+                    'display_emptychoice' => true,
+                    'display' => false,
+                ],
+            ),
+        ]);
+    }
+
+    /**
+     * Groups the "next recipient" modal is allowed to forward a step form to, for a
+     * given meta-demand and block. Shared by the list builder (showModalForm()) and by
+     * the sink (nextUser()) so a posted destination can be checked against exactly what
+     * the interface offered, and never against a looser rule.
+     *
+     * @param int|string $metademands_id
+     * @param int|string $block_id
+     *
+     * @return array<int, string> groups_id => group name
+     */
+    private static function getNextGroupsForBlock($metademands_id, $block_id): array
+    {
+        $self  = new self();
+        $group = new \Group();
+
+        $next_groups = [];
+
+        $steps = $self->find([
+            'plugin_metademands_metademands_id' => (int) $metademands_id,
+            'block_id'                          => (int) $block_id,
+        ]);
+
+        foreach ($steps as $s) {
+            if ($s['groups_id'] > 0) {
+                // Destination explicitly configured on the step: honoured as-is, the
+                // administrator may legitimately have designated a group of another entity.
+                if ($group->getFromDBByCrit(['id' => $s['groups_id']])) {
+                    $next_groups[$group->fields['id']] = $group->fields['name'];
+                }
+            } else {
+                // "Any group" only ever meant any group the caller can see, so restrict on
+                // the active entities: without it the wildcard turns into a cross-entity
+                // destination for anyone replaying the request.
+                $dbu = new DbUtils();
+                foreach ($group->find($dbu->getEntitiesRestrictCriteria(\Group::getTable(), '', '', true)) as $g) {
+                    $next_groups[$g['id']] = $g['name'];
+                }
+            }
+        }
+
+        return $next_groups;
+    }
+
+    /**
+     * Check whether a posted next user is one the modal could actually have offered:
+     * either the caller's own supervisor (supervisor validation branch, which posts no
+     * group at all), or a member of the retained destination group, which is what
+     * ajax/dropdownNextUser.php feeds the dropdown with.
+     *
+     * @param int        $users_id
+     * @param int        $groups_id
+     * @param int|string $metademands_id
+     *
+     * @return bool
+     */
+    private static function isAllowedNextUser(int $users_id, int $groups_id, $metademands_id): bool
+    {
+        $conf = new Configstep();
+        if ($conf->getFromDBByCrit(['plugin_metademands_metademands_id' => (int) $metademands_id])
+            && $conf->fields['supervisor_validation']) {
+            $user = new User();
+
+            return $user->getFromDB((int) Session::getLoginUserID())
+                && (int) $user->fields['users_id_supervisor'] === $users_id;
+        }
+
+        if ($groups_id <= 0) {
+            return false;
+        }
+
+        $group_user = new Group_User();
+
+        return count($group_user->find([
+            'users_id'  => $users_id,
+            'groups_id' => $groups_id,
+        ])) > 0;
+    }
+
+    /**
+     * Check whether the current user is legitimately entitled to advance the
+     * given step form. A client-supplied step form id must never be trusted on
+     * its own: the caller must be the author of the form, its dedicated
+     * recipient user, a member of its recipient group (when no dedicated
+     * recipient user is set), or an explicit actor of the form. Mirrors the
+     * recipient logic of Stepform::getWaitingForms() and prevents reassigning
+     * another user's workflow step (IDOR) via front/nextGroup.form.php.
+     *
+     * @param int|string $stepforms_id
+     * @return bool
+     */
+    public static function canActOnStepform($stepforms_id)
+    {
+        $stepforms_id = (int) $stepforms_id;
+        if ($stepforms_id <= 0) {
+            return false;
+        }
+
+        $form = new Stepform();
+        if (!$form->getFromDB($stepforms_id)) {
+            return false;
+        }
+
+        $user_id = (int) Session::getLoginUserID();
+
+        // Author of the step form.
+        if ((int) $form->fields['users_id'] === $user_id) {
+            return true;
+        }
+
+        // Dedicated recipient user.
+        if ((int) $form->fields['users_id_dest'] === $user_id) {
+            return true;
+        }
+
+        // Recipient group member, only when no dedicated recipient user is set.
+        if ((int) $form->fields['users_id_dest'] === 0
+            && (int) $form->fields['groups_id_dest'] > 0) {
+            $group_user = new Group_User();
+            if (count($group_user->find([
+                'users_id'  => $user_id,
+                'groups_id' => (int) $form->fields['groups_id_dest'],
+            ])) > 0) {
+                return true;
+            }
+        }
+
+        // Explicit actor of the step form.
+        $actor = new Stepform_Actor();
+        if (count($actor->find([
+            'plugin_metademands_stepforms_id' => $stepforms_id,
+            'users_id'                        => $user_id,
+        ])) > 0) {
+            return true;
+        }
+
+        return false;
+    }
+
+    public static function nextUser()
+    {
+        $KO = false;
+        $metademands = new Metademand();
+        $wizard = new Wizard();
+        $fields = new Field();
+        $user_id = Session::getLoginUserID();
+
+        if (isset($_POST['action']) && $_POST['action'] == 'nextUser') {
+            // Fail closed against IDOR: when the client targets an existing step
+            // form, verify the current user is entitled to advance it before any
+            // session mutation or DB write. Prevents hijacking another user's
+            // workflow step by posting an arbitrary step form id.
+            if (!empty($_POST['plugin_metademands_stepforms_id'])
+                && !self::canActOnStepform($_POST['plugin_metademands_stepforms_id'])) {
+                throw new AccessDeniedHttpException(
+                    'You are not allowed to forward this step form.',
+                );
+            }
+
+            // The meta-demand comes straight from the POST and drives
+            // constructMetademands(), the session keys and the row finally written.
+            // Bind it to the caller's entity here, at the sink shared by
+            // ajax/nextUser.php and front/nextGroup.form.php: the page guard on those
+            // two entry points gates the profile, not the entities it may reach.
+            $metademands_id = (int) ($_POST['metademands_id'] ?? 0);
+            if (
+                !$metademands->getFromDB($metademands_id)
+                || !Session::haveAccessToEntity(
+                    $metademands->fields['entities_id'],
+                    $metademands->fields['is_recursive'],
+                )
+            ) {
+                throw new AccessDeniedHttpException(
+                    'You are not allowed to access this metademand.',
+                );
+            }
+
+            // canActOnStepform() above protects the ROW being advanced, not the destination
+            // VALUES posted alongside it. The modal only ever offers the groups declared on
+            // the current block's steps and, as next user, the members of the retained group
+            // (showModalForm() and ajax/dropdownNextUser.php): replay those very criteria
+            // here so a replayed POST cannot route the next step form - and the business data
+            // it carries - to an arbitrary group or user, possibly outside the entity.
+            $next_groups_id = (int) ($_POST['next_groups_id'] ?? 0);
+            if ($next_groups_id > 0) {
+                $allowed_groups = self::getNextGroupsForBlock(
+                    $_POST['metademands_id'] ?? 0,
+                    $_POST['block_id'] ?? 0,
+                );
+                if (!isset($allowed_groups[$next_groups_id])) {
+                    throw new AccessDeniedHttpException(
+                        'You are not allowed to forward this step form to this group.',
+                    );
+                }
+                $_POST['next_groups_id'] = $next_groups_id;
+            }
+
+            $next_users_id = (int) ($_SESSION['plugin_metademands'][$user_id]['users_id_dest'] ?? 0);
+            if ($next_users_id > 0) {
+                if (!self::isAllowedNextUser($next_users_id, $next_groups_id, $_POST['metademands_id'] ?? 0)) {
+                    throw new AccessDeniedHttpException(
+                        'You are not allowed to forward this step form to this user.',
+                    );
+                }
+                $_SESSION['plugin_metademands'][$user_id]['users_id_dest'] = $next_users_id;
+            }
+
+            $nblines = 0;
+            $KO = false;
+
+            if ($nblines == 0) {
+                if (isset($_POST['field'])) {
+                    $post = $_POST['field'];
+                } else {
+                    $post = $_SESSION['plugin_metademands'][$user_id]['field'];
+                }
+                $nblines = 1;
+            }
+
+            if ($KO === false) {
+                $checks = [];
+                $content = [];
+
+                for ($i = 0; $i < $nblines; $i++) {
+                    $_POST['field'] = $post;
+                    $metademands_data = Metademand::constructMetademands($_POST['metademands_id']);
+                    if (count($metademands_data)) {
+                        foreach ($metademands_data as $form_step => $data) {
+                            $docitem = null;
+                            foreach ($data as $form_metademands_id => $line) {
+                                foreach ($line['form'] as $id => $value) {
+                                    // The signature path makes a round trip through the browser, so the
+                                    // posted value is client controlled and must be filtered before it is
+                                    // kept in session or persisted: it ends up concatenated to
+                                    // GLPI_PICTURE_DIR and read from disk by MetademandPdf.
+                                    if ($value['type'] == 'signature') {
+                                        $clean_signature = Signature::sanitizeSubmittedValue($post[$id] ?? '');
+                                        if (isset($post[$id])) {
+                                            $post[$id] = $clean_signature;
+                                        }
+                                        if (isset($_POST['field'][$id])) {
+                                            $_POST['field'][$id] = $clean_signature;
+                                        }
+                                    }
+
+                                    if (!isset($post[$id])) {
+                                        if (isset($_SESSION['plugin_metademands'][$_POST['metademands_id']]['fields'][$id])
+                                            && $value['plugin_metademands_metademands_id'] != $_POST['form_metademands_id']) {
+                                            $_POST['field'][$id] = $_SESSION['plugin_metademands'][$_POST['metademands_id']]['fields'][$id];
+                                        } else {
+                                            $_POST['field'][$id] = [];
+                                        }
+                                    } else {
+                                        $_SESSION['plugin_metademands'][$_POST['metademands_id']]['fields'][$id] = $post[$id];
+                                    }
+
+                                    if ($value['type'] == 'radio') {
+                                        if (!isset($_POST['field'][$id])) {
+                                            $_POST['field'][$id] = null;
+                                        }
+                                    }
+                                    if ($value['type'] == 'checkbox') {
+                                        if (!isset($_POST['field'][$id])) {
+                                            $_POST['field'][$id] = 0;
+                                        }
+                                    }
+                                    if ($value['type'] == 'informations'
+                                        || $value['type'] == 'title') {
+                                        if (!isset($_POST['field'][$id])) {
+                                            $_POST['field'][$id] = 0;
+                                        }
+                                    }
+                                    if ($value['item'] == 'ITILCategory_Metademands') {
+                                        $_POST['field'][$id] = $_POST['field_plugin_servicecatalog_itilcategories_id'] ?? 0;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    $metademands->getFromDB($_POST['metademands_id']);
+                    if ($KO === false) {
+                        // Save requester user
+                        $_SESSION['plugin_metademands'][$_POST['metademands_id']]['fields']['_users_id_requester'] = $_POST['_users_id_requester'];
+                        // Case of simple ticket convertion
+                        if (isset($_POST['items_id']) && $_POST['itemtype'] == 'Ticket') {
+                            $_SESSION['plugin_metademands'][$_POST['metademands_id']]['fields']['tickets_id'] = $_POST['items_id'];
+                        }
+                        // Resources id
+                        $_SESSION['plugin_metademands'][$_POST['metademands_id']]['fields']['resources_id'] = $_POST['resources_id'];
+                        // Resources step
+                        $_SESSION['plugin_metademands'][$_POST['metademands_id']]['fields']['resources_step'] = $_POST['resources_step'];
+
+                        //Category id if have category field
+                        $_SESSION['plugin_metademands'][$_POST['metademands_id']]['field_plugin_servicecatalog_itilcategories_id'] = $_POST['field_plugin_servicecatalog_itilcategories_id'] ?? 0;
+                        $_SESSION['plugin_metademands'][$_POST['metademands_id']]['field_plugin_servicecatalog_itilcategories_id']
+                            = (isset($_POST['basket_plugin_servicecatalog_itilcategories_id'])
+                                && $_SESSION['plugin_metademands'][$_POST['metademands_id']]['field_plugin_servicecatalog_itilcategories_id'] == 0) ? $_POST['basket_plugin_servicecatalog_itilcategories_id'] : 0;
+                    }
+
+                    $forms = new Stepform();
+                    if (!isset($_POST['block_id']) || (isset($_POST['block_id']) && empty($_POST['block_id']))) {
+                        Session::addMessageAfterRedirect(
+                            __('Error assigning to next group', 'metademands'),
+                            false,
+                            ERROR,
+                        );
+                        break;
+                    }
+
+                    $inputs = [];
+                    $inputs['name'] = $_POST['form_name'];
+                    $inputs['users_id'] = Session::getLoginUserID();
+                    // Write the value validated above against getNextGroupsForBlock(),
+                    // not the raw POST: an unchecked 0 slipped through isset() and landed
+                    // in groups_id_dest untouched. Routing 0 to the server-computed group
+                    // is what the absent-key branch below already does.
+                    if ($next_groups_id > 0) {
+                        $inputs['groups_id_dest'] = $next_groups_id;
+                    } else {
+                        $inputs['groups_id_dest'] = self::getGroupForNextBlock(
+                            $_POST['metademands_id'],
+                            $_POST['block_id'],
+                        );
+                    }
+                    $inputs['plugin_metademands_metademands_id'] = $_POST['metademands_id'];
+                    $inputs['date'] = date('Y-m-d H:i:s');
+                    $nbday = 7;
+                    if (isset($_SESSION['plugin_metademands'][$user_id]['users_id_dest'])) {
+                        $inputs['users_id_dest'] = $_SESSION['plugin_metademands'][$user_id]['users_id_dest'];
+                    }
+                    if ($nbday == 0) {
+                        $inputs['reminder_date'] = null;
+                    } elseif ($nbday == 1) {
+                        $inputs['reminder_date'] = date('Y-m-d', strtotime("+ $nbday day"));
+                    } elseif ($nbday > 1) {
+                        $inputs['reminder_date'] = date('Y-m-d', strtotime("+ $nbday days"));
+                    }
+                    $inputs['block_id'] = $_POST['block_id'];
+                    $actor = new Stepform_Actor();
+
+                    if ((isset($_POST['plugin_metademands_stepforms_id'])
+                            && !empty($_POST['plugin_metademands_stepforms_id']))
+                        || $_POST['update_stepform'] == 1) {
+                        $form_new_id = $_POST['plugin_metademands_stepforms_id'];
+
+                        $inputsUpdate = [
+                            'id' => $form_new_id,
+                            'users_id' => $user_id,
+                            'groups_id_dest' => $inputs['groups_id_dest'],
+                            'reminder_date' => $inputs['reminder_date'],
+                            'date' => $inputs['date'],
+                            'block_id' => $inputs['block_id'],
+                        ];
+                        if (isset($inputs['users_id_dest'])) {
+                            $inputsUpdate['users_id_dest'] = $inputs['users_id_dest'];
+                        }
+
+                        $forms->update($inputsUpdate);
+                        $actor->add([
+                            'plugin_metademands_stepforms_id' => $form_new_id,
+                            'users_id' => $user_id,
+                        ]);
+
+                        if (isset($inputs['users_id_dest'])) {
+                            $actor->add([
+                                'plugin_metademands_stepforms_id' => $form_new_id,
+                                'users_id' => $inputsUpdate['users_id_dest'],
+                            ]);
+                        }
+
+                        $metademands_data = Metademand::constructMetademands($_POST['metademands_id']);
+                        if (count($metademands_data) && $form_new_id > 0) {
+                            foreach ($metademands_data as $form_step => $data) {
+                                $docitem = null;
+                                foreach ($data as $form_metademands_id => $line) {
+                                    Stepform_Value::setFormValues(
+                                        $_POST['metademands_id'],
+                                        $line['form'],
+                                        $_POST['field'],
+                                        $form_new_id,
+                                    );
+                                }
+                            }
+                        }
+                    } else {
+                        if ($form_new_id = $forms->add($inputs)) {
+                            $actor->add([
+                                'plugin_metademands_stepforms_id' => $form_new_id,
+                                'users_id' => $inputs['users_id'],
+                            ]);
+                            if (isset($inputs['users_id_dest'])) {
+                                $actor->add([
+                                    'plugin_metademands_stepforms_id' => $form_new_id,
+                                    'users_id' => $inputs['users_id_dest'],
+                                ]);
+                            }
+                            unset($_SESSION['plugin_metademands'][$user_id]);
+
+                            $metademands_data = Metademand::constructMetademands(
+                                $_POST['metademands_id'],
+                            );
+
+                            if (count($metademands_data) && $form_new_id > 0) {
+                                foreach ($metademands_data as $form_step => $data) {
+                                    $docitem = null;
+                                    foreach ($data as $form_metademands_id => $line) {
+                                        Stepform_Value::setFormValues(
+                                            $_POST['metademands_id'],
+                                            $line['form'],
+                                            $_POST['field'],
+                                            $form_new_id,
+                                        );
+                                    }
+                                }
+                            }
+                        } else {
+                            $KO = false;
+                        }
+                    }
+                }
+            }
+        }
+        return $KO;
+    }
+
+}

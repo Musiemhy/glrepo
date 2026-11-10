@@ -1,0 +1,418 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# 
+# Translators:
+# David Stepan <stepand@tiscali.cz>, 2015,2019
+# Pavel Borecki <pavel.borecki@gmail.com>, 2018
+msgid ""
+msgstr ""
+"Project-Id-Version: GLPI Project - reports plugin\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-16 17:10+0200\n"
+"PO-Revision-Date: 2021-03-05 12:54+0000\n"
+"Last-Translator: Nelly Mahu-Lasson <nini.lasson@orange.fr>\n"
+"Language-Team: Czech (Czech Republic) (http://www.transifex.com/yllen/"
+"GLPI_reports/language/cs_CZ/)\n"
+"Language: cs_CZ\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=4; plural=(n == 1 && n % 1 == 0) ? 0 : (n >= 2 && n "
+"<= 4 && n % 1 == 0) ? 1: (n % 1 != 0 ) ? 2 : 3;\n"
+
+#: report/applicationsbylocation/applicationsbylocation.php:66
+msgid "Application"
+msgstr ""
+
+#: src/Report.php:138
+#: report/applicationsbylocation/applicationsbylocation.php:57
+msgid "Applications by locations and versions"
+msgstr ""
+
+#: src/PriorityCriteria.php:80
+msgid "At least"
+msgstr "Přinejmenším"
+
+#: report/applicationsbylocation/applicationsbylocation.php:69
+#: report/softversioninstallations/softversioninstallations.php:69
+msgid "Computer status"
+msgstr "Stav počítače"
+
+#: src/DateIntervalCriteria.php:223 src/TimeIntervalCriteria.php:176
+msgid "Date interval"
+msgstr "Období"
+
+#: report/histohard/histohard.php:55
+msgid "Date of inventory"
+msgstr "Datum inventarizace"
+
+#: src/Report.php:147 report/licenses/licenses.php:56
+msgid "Detailed license report"
+msgstr ""
+
+#: src/Report.php:156 report/softnotinstalled/softnotinstalled.php:56
+msgid "Detailed report of software installation by status"
+msgstr ""
+
+#: report/pcsbyentity/pcsbyentity.php:287
+msgid "Display"
+msgstr "Zobrazit"
+
+#. TRANS: The name of the report = Duplicate computers
+#: src/Report.php:139 report/doublons/doublons.php:46
+#: report/doublons/doublons.php:78 report/doublons/doublons.php:620
+msgid "Duplicate computers"
+msgstr "Duplicitní počítače"
+
+#: report/pcsbyentity/pcsbyentity.php:288
+msgid "Entity tree"
+msgstr "Strom entit"
+
+#: src/Report.php:145 report/infocom/infocom.php:78
+msgid "Financial information"
+msgstr ""
+
+#: report/doublons/doublons.php:497
+msgid "First computer"
+msgstr "První počítač"
+
+#: src/Report.php:142 report/globalhisto/globalhisto.php:65
+msgid "Global History (for Test / example only)"
+msgstr ""
+
+#: src/Report.php:159 report/statticketsbyentity/statticketsbyentity.php:65
+msgid "Helpdesk requesters and tickets by entity"
+msgstr ""
+
+#: src/Report.php:143 report/histohard/histohard.php:46
+#: report/histohard/histohard.php:53
+msgid "History of last hardware's installations"
+msgstr "Historie nedávných změn hardware"
+
+#: src/Report.php:144 report/histoinst/histoinst.php:48
+#: report/histoinst/histoinst.php:55
+msgid "History of last software's installations"
+msgstr "Historie nedávných instalací software"
+
+#: report/doublons/doublons.php:514 report/doublons/doublons.php:529
+msgid "Last inventory date"
+msgstr "Datum poslední inventarizace"
+
+#: src/Report.php:148 report/licensesexpires/licensesexpires.php:56
+msgid "Licenses by expiration date"
+msgstr ""
+
+#: report/location/location.php:59
+msgid "Link"
+msgid_plural "Links"
+msgstr[0] "Odkaz"
+msgstr[1] "Odkazy"
+msgstr[2] "Odkazů"
+msgstr[3] "Odkazy"
+
+#: src/Report.php:140 report/equipmentbygroups/equipmentbygroups.php:38
+msgid "List all devices of a group, ordered by users"
+msgstr ""
+
+#: src/Report.php:149
+#: report/listequipmentbylocation/listequipmentbylocation.php:52
+msgid "List of equipments by location"
+msgstr ""
+
+#: src/Report.php:150 report/listgroups/listgroups.php:52
+msgid "List of groups and members"
+msgstr ""
+
+#: src/Report.php:162 report/transferreditems/transferreditems.php:49
+msgid "List of transfered objects"
+msgstr ""
+
+#: report/listequipmentbylocation/listequipmentbylocation.php:141
+msgid "Location not selected"
+msgstr ""
+
+#: src/Report.php:151 report/location/location.php:49
+msgid "Location tree"
+msgstr ""
+
+#: report/histohard/histohard.php:59
+msgid "Modification"
+msgstr "Změna"
+
+#: report/statticketsbyentity/statticketsbyentity.php:107
+msgid "Newer"
+msgstr "Novější"
+
+#: src/Profile.php:133
+msgid "No right on Assistance / Statistics"
+msgstr "Žádná práva na Podporu / Statistiky"
+
+#: src/Profile.php:134
+msgid "No right on Tools / Reports"
+msgstr "Žádná práva na Nástroje / Výkazy"
+
+#: report/statusertask/statusertask.php:65
+msgid "Number created tasks"
+msgstr ""
+
+#: src/Report.php:141 report/equipmentbylocation/equipmentbylocation.php:46
+msgid "Number of equipments by location"
+msgstr ""
+
+#. TRANS: The name of the report = Number of items by entity
+#: src/Report.php:152 report/pcsbyentity/pcsbyentity.php:241
+#: report/pcsbyentity/pcsbyentity.php:250
+msgid "Number of items by entity"
+msgstr "Počet položek v jednotlivých entitách"
+
+#: src/TimeIntervalCriteria.php:75 src/TimeIntervalCriteria.php:84
+msgid "Number pending"
+msgstr "Počet čekajících"
+
+#: report/statticketsbyentity/statticketsbyentity.php:102
+msgid "Older"
+msgstr "Starší"
+
+#: templates/report_config.html.twig:53
+msgctxt "button"
+msgid "Post"
+msgstr ""
+
+#: src/Report.php:153 report/printers/printers.php:68
+msgid "Printers"
+msgstr ""
+
+#: src/Profile.php:130
+msgid "Profiles rights"
+msgstr ""
+
+#: front/report.form.php:93 front/report.form.php:129 src/AutoReport.php:250
+msgid "Report"
+msgstr ""
+
+#: front/report.form.php:40 front/report.form.php:127
+msgid "Reports plugin configuration"
+msgstr "Nastavení zásuvného modulu Výkazy"
+
+#: front/report.form.php:128
+msgid "Rights management by report"
+msgstr "Správa oprávnění dle výkazu"
+
+#. TRANS: The name of the report = Rule's catalog
+#: src/Report.php:154 report/rules/rules.php:50 report/rules/rules.php:103
+#: report/rules/rules.php:121
+msgid "Rule's catalog"
+msgstr ""
+
+#: templates/profile.html.twig:37
+msgctxt "button"
+msgid "Save"
+msgstr ""
+
+#: src/AutoReport.php:946
+msgid "Search criteria"
+msgstr "Vyhledávací kritéria"
+
+#: src/Report.php:155 report/searchinfocom/searchinfocom.php:60
+msgid "Search in the financial information"
+msgstr ""
+
+#: report/doublons/doublons.php:498
+msgid "Second computer"
+msgstr "Druhý počítač"
+
+#: report/pcsbyentity/pcsbyentity.php:357
+msgid "Selection of type is mandatory"
+msgstr "Výběr typu je povinný"
+
+#: src/Report.php:157
+#: report/softversioninstallations/softversioninstallations.php:57
+msgid "Software version installations"
+msgstr ""
+
+#: report/softversioninstallations/softversioninstallations.php:62
+msgid "Software version status"
+msgstr "Stav verzí software"
+
+#: report/pcsbyentity/pcsbyentity.php:291
+msgid "Sort by count"
+msgstr "Seřadit dle počtu"
+
+#: report/transferreditems/transferreditems.php:94
+msgid "Source entity"
+msgstr "Zdrojová entita"
+
+#: report/transferreditems/transferreditems.php:95
+msgid "Target entity"
+msgstr "Cílová entita"
+
+#: report/statusertask/statusertask.php:51
+msgid "Tasks created"
+msgstr ""
+
+#: src/Report.php:161 report/statusertask/statusertask.php:48
+msgid "Tasks list per user"
+msgstr ""
+
+#: report/histohard/histohard.php:204
+msgid "The list is limited to 100 items and 21 days"
+msgstr "Seznam je omezen na 100 položek a 21 dní"
+
+#: report/histoinst/histoinst.php:143
+msgid "The list is limited to 200 items and 21 days"
+msgstr "Seznam je omezen na 200 položek a 21 dní"
+
+#: report/statticketsbyentity/statticketsbyentity.php:96
+msgid "Tickets count"
+msgstr "Počet požadavků"
+
+#: src/Report.php:160 report/statticketsbypriority/statticketsbypriority.php:54
+msgid "Tickets no closed, sorted by priority"
+msgstr ""
+
+#: src/Report.php:158
+#: report/statnightticketsbypriority/statnightticketsbypriority.php:54
+msgid "Tickets opened at night, sorted by priority"
+msgstr ""
+
+#: src/Report.php:146 report/iteminstall/iteminstall.php:58
+msgid "Time before equipment start-up"
+msgstr ""
+
+#: src/DateIntervalCriteria.php:225 src/TimeIntervalCriteria.php:178
+msgid "Time interval"
+msgstr "Časový interval"
+
+#: report/transferreditems/transferreditems.php:96
+msgid "Transfert date"
+msgstr "Datum přenosu"
+
+#: report/pcsbyentity/pcsbyentity.php:314
+#: report/pcsbyentity/pcsbyentity.php:343
+msgid "Unknown"
+msgstr "Neznámý"
+
+#: templates/report_rights.html.twig:52
+msgctxt "button"
+msgid "Update"
+msgstr ""
+
+#: report/licenses/licenses.php:75
+msgid "Used version"
+msgstr "Použitá verze"
+
+#: report/statticketsbyentity/statticketsbyentity.php:90
+msgid "Users count"
+msgstr "Počet uživatelů"
+
+#: src/Report.php:163 report/zombies/zombies.php:71
+msgid "Users with no right"
+msgstr ""
+
+#: report/licensesexpires/licensesexpires.php:58
+msgid "Valid to"
+msgstr "Platné do"
+
+#: report/zombies/zombies.php:77
+msgid "With no ticket"
+msgstr "Bez požadavků"
+
+#~ msgid "_report_title"
+#~ msgstr "_report_title"
+
+#~ msgid "Rights management by profil"
+#~ msgstr "Správa oprávnění dle profilu"
+
+#~ msgid "Profils rights"
+#~ msgstr "Oprávnění profilů"
+
+#~ msgid "applicationsbylocation_report_title"
+#~ msgstr "Aplikace podle umístění a verzí"
+
+#~ msgid "Applications"
+#~ msgstr "Aplikace"
+
+#~ msgid "doublons_report_title"
+#~ msgstr "Duplicitní počítače"
+
+#~ msgid "equipmentbygroups_report_title"
+#~ msgstr "Seznam všech zařízení skupiny"
+
+#~ msgid "equipmentbylocation_report_title"
+#~ msgstr "Počet zařízení v jednotlivých umístěních"
+
+#~ msgid "globalhisto_report_title"
+#~ msgstr "globalhisto_report_title "
+
+#~ msgid "histohard_report_title"
+#~ msgstr "Historie nedávných změn hardware"
+
+#~ msgid "histoinst_report_title"
+#~ msgstr "Historie nedávných instalací software"
+
+#~ msgid "infocom_report_title"
+#~ msgstr "Finanční informace"
+
+#~ msgid "iteminstall_report_title"
+#~ msgstr "Doba od koupě, než bylo nasazeno do provozu"
+
+#~ msgid "licensesexpires_report_title"
+#~ msgstr "Licence dle data skončení platnosti"
+
+#~ msgid "licenses_report_title"
+#~ msgstr "Podrobný výkaz o licencích"
+
+#~ msgid "listequipmentbylocation_report_title"
+#~ msgstr "Seznam položek dle umístění"
+
+#~ msgid "listgroups_report_title"
+#~ msgstr "Seznam skupin a jejich členů"
+
+#~ msgid "location_report_title"
+#~ msgstr "Strom umístění"
+
+#~ msgid "pcsbyentity_report_title"
+#~ msgstr "Počet položek v jednotlivých entitách"
+
+#~ msgid "printers_report_title"
+#~ msgstr "Tiskárny"
+
+#~ msgid "Computers in the group"
+#~ msgstr "Počítače ve skupině"
+
+#~ msgid "Users in the group"
+#~ msgstr "Uživatelé ve skupině"
+
+#~ msgid "Computers in the location"
+#~ msgstr "Počítače v umístění"
+
+#~ msgid "Users in the location"
+#~ msgstr "Uživatelé v umístění"
+
+#~ msgid "rules_report_title"
+#~ msgstr "Katalog pravidel"
+
+#~ msgid "searchinfocom_report_title"
+#~ msgstr "Hledání finančních informací"
+
+#~ msgid "softnotinstalled_report_title"
+#~ msgstr "Nenainstalovaný důležitý software"
+
+#~ msgid "softversioninstallations_report_title"
+#~ msgstr "Nenainstalované důležitý software"
+
+#~ msgid "statnightticketsbypriority_report_title"
+#~ msgstr "Požadavky otevřené v noci"
+
+#~ msgid "statticketsbyentity_report_title"
+#~ msgstr "Zvýšená podpora"
+
+#~ msgid "statticketsbypriority_report_title"
+#~ msgstr "Neuzavřené požadavky"
+
+#~ msgid "transferreditems_report_title"
+#~ msgstr "Seznam přenesených objektů"
+
+#~ msgid "zombies_report_title"
+#~ msgstr "Uživatelé bez oprávnění"

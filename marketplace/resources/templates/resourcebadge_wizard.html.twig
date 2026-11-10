@@ -1,0 +1,51 @@
+{#
+ # -------------------------------------------------------------------------
+ # resources plugin for GLPI
+ # Copyright (C) 2015-2026 by the resources Development Team.
+ #
+ # https://github.com/InfotelGLPI/resources
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of resources.
+ #
+ # resources is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 2 of the License, or
+ # (at your option) any later version.
+ #
+ # resources is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with resources. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+<div class="card container" style="min-width: 80%;">
+    {{ wizard_header|raw }}
+    <div class="card-body">
+        <form method="post" action="{{ form_action }}">
+            <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token() }}">
+            <div class="row">
+                <div class="col-md-4 mb-2">{{ resource_label }}</div>
+                <div class="col-md-4 mb-2">
+                    {{ resource_dropdown|raw }}
+                    {{ load_script|raw }}
+                </div>
+            </div>
+            <div id="plugin_resources_badge"></div>
+            <div class="row">
+                <div class="col-md-12 mb-2">
+                    <div class="preview">
+                        <a href="{{ badges_list_url }}">{{ badges_list_label }}</a>
+                    </div>
+                    <div class="next" id="plugin_resources_button_restitution"></div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>

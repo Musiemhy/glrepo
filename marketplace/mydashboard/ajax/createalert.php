@@ -1,0 +1,109 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * mydashboard plugin for GLPI
+ * Copyright (C) 2016-2026 by the mydashboard Development Team.
+ *
+ * https://github.com/InfotelGLPI/mydashboard
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of mydashboard.
+ *
+ * mydashboard is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * mydashboard is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with mydashboard. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use Glpi\Exception\Http\BadRequestHttpException;
+use GlpiPlugin\Mydashboard\Alert;
+use GlpiPlugin\Mydashboard\ItilAlert;
+
+Session::checkRight("plugin_mydashboard_config", UPDATE);
+
+// PHP_SELF points to the GLPI router, never to this file: the former
+// strpos(PHP_SELF, 'createalert.php') guard was always false and the headers were never sent.
+header("Content-Type: text/html; charset=UTF-8");
+Html::header_nocache();
+
+if (isset($_POST['itemtype'])) {
+    $class = $_POST['itemtype'];
+    $allowed_types = array_merge([\GlpiPlugin\Eventsmanager\Event::class, 'Problem', 'Change'], Alert::getTypes());
+    if (!in_array($class, $allowed_types, true)) {
+        throw new BadRequestHttpException();
+    }
+    // The Eventsmanager class of the allow list only exists when that plugin is installed:
+    // getItemForItemtype() returns false instead of fataling on an unknown class name.
+    $item = getItemForItemtype($class);
+    if (!$item) {
+        throw new BadRequestHttpException();
+    }
+    if ($class == \GlpiPlugin\Eventsmanager\Event::class) {
+        if (isset($_POST['items_id'])) {
+            // Enforce access control on the source item (global right + entity) before
+            // copying its data and updating it: this branch updates the event, so
+            // require UPDATE. can() also loads the record into $item->fields.
+            if ($item->can($_POST['items_id'], UPDATE)) {
+                $reminder       = new Reminder();
+                $reminder_input = ['name'     => $item->fields['name'],
+                    'text'     => $item->fields['comment'],
+                    'users_id' => $_SESSION['glpiID']];
+                // The alert is carried by a reminder of the caller: the core right to create
+                // one applies, whatever the plugin right
+                $reminder->check(-1, CREATE, $reminder_input);
+                $reminders_id = $reminder->add($reminder_input);
+
+                $item->update(['id'           => $_POST['items_id'],
+                    'reminders_id' => $reminders_id]);
+            }
+        }
+    } elseif ($class == 'Problem' || $class == 'Change') {
+        if (isset($_POST['items_id'])) {
+            // Enforce access control on the source item (global right + entity) before
+            // copying its name/content into a reminder. can() also loads $item->fields.
+            if ($item->can($_POST['items_id'], READ)) {
+                $reminder       = new Reminder();
+                $reminder_input = ['name' => $item->fields['name'],
+                    'text' => $item->fields['content'],
+                    'users_id' => $_SESSION['glpiID']];
+                $reminder->check(-1, CREATE, $reminder_input);
+                $reminders_id = $reminder->add($reminder_input);
+                $alert = new ItilAlert();
+                $alert->add(['items_id' => $_POST['items_id'],
+                    'itemtype' => $_POST['itemtype'],
+                    'reminders_id' => $reminders_id]);
+            }
+        }
+    } elseif (in_array($class, Alert::getTypes())) {
+        if (isset($_POST['items_id'])) {
+            // Enforce access control on the source item (global right + entity) before
+            // copying its name/content into a reminder. can() also loads $item->fields.
+            if ($item->can($_POST['items_id'], READ)) {
+                $name = method_exists($item, "getNameAlert") ? $item->getNameAlert() : $item->fields["name"];
+                $content = method_exists($item, "getContentAlert") ? $item->getContentAlert() : $item->fields["content"];
+                $reminder       = new Reminder();
+                $reminder_input = ['name'     => $name,
+                    'text'     => $content,
+                    'users_id' => $_SESSION['glpiID']];
+                $reminder->check(-1, CREATE, $reminder_input);
+                $reminders_id = $reminder->add($reminder_input);
+                $alert        = new ItilAlert();
+                $alert->add(['items_id'  => $_POST['items_id'],
+                    'itemtype'  => $_POST['itemtype'],
+                    'reminders_id' => $reminders_id]);
+            }
+        }
+    }
+}

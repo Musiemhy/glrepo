@@ -1,0 +1,96 @@
+{#
+ # -------------------------------------------------------------------------
+ # mydashboard plugin for GLPI
+ # Copyright (C) 2016-2026 by the mydashboard Development Team.
+ #
+ # https://github.com/InfotelGLPI/mydashboard
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of mydashboard.
+ #
+ # mydashboard is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # mydashboard is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with mydashboard. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{% extends 'generic_show_form.html.twig' %}
+{% import 'components/form/fields_macros.html.twig' as fields %}
+
+{% block form_fields %}
+    {{ fields.dropdownYesNo(
+        'enable_fullscreen',
+        item.fields['enable_fullscreen'],
+        __('Enable the possibility to display Dashboard in full screen', 'mydashboard'),
+        field_options
+    ) }}
+
+    {{ fields.dropdownYesNo(
+        'replace_central',
+        item.fields['replace_central'],
+        __('Replace central interface', 'mydashboard'),
+        field_options
+    ) }}
+
+    {{ fields.dropdownArrayField(
+        'levelCat',
+        item.fields['levelCat'],
+        level_cats,
+        __('Level of categories to show', 'mydashboard'),
+        field_options
+    ) }}
+
+    {{ fields.smallTitle(__('Impact colors for alerts', 'mydashboard')) }}
+    {% for level in 1..5 %}
+        {{ fields.colorField(
+            'impact_' ~ level,
+            item.fields['impact_' ~ level],
+            level,
+            field_options
+        ) }}
+    {% endfor %}
+
+    {{ fields.textField(
+        'title_alerts_widget',
+        item.fields['title_alerts_widget'],
+        __('Title of alerts widget', 'mydashboard'),
+        field_options
+    ) }}
+
+    {{ fields.textField(
+        'title_maintenances_widget',
+        item.fields['title_maintenances_widget'],
+        __('Title of scheduled maintenances widget', 'mydashboard'),
+        field_options
+    ) }}
+
+    {{ fields.textField(
+        'title_informations_widget',
+        item.fields['title_informations_widget'],
+        __('Title of informations widget', 'mydashboard'),
+        field_options
+    ) }}
+
+    <div class="col-12 mt-3">
+        <button type="submit" class="btn btn-primary me-2" name="reconstructBacklog" value="1">
+            {{ _x('button', 'Reconstruct global backlog', 'mydashboard') }}
+        </button>
+        <button type="submit" class="btn btn-primary" name="reconstructIndicators" value="1">
+            {{ _x('button', 'Reconstruct global indicators per week', 'mydashboard') }}
+        </button>
+        <div class="alert alert-warning mt-3">
+            {{ __('Can take many time if you have many tickets', 'mydashboard') }}
+        </div>
+    </div>
+{% endblock %}

@@ -1,0 +1,350 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * resources plugin for GLPI
+ * Copyright (C) 2015-2026 by the resources Development Team.
+ *
+ * https://github.com/InfotelGLPI/resources
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of resources.
+ *
+ * resources is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * resources is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with resources. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Resources;
+
+use Ajax;
+use CommonDBTM;
+use CommonGLPI;
+use DBConnection;
+use Dropdown;
+use Migration;
+use Session;
+use Toolbox;
+use Glpi\Application\View\TemplateRenderer;
+
+/**
+ * Class TransferEntity
+ */
+class TransferEntity extends CommonDBTM
+{
+    public static $rightname = 'plugin_resources';
+
+    /**
+     * functions mandatory
+     * getTypeName(), canCreate(), canView()
+     * */
+    public static function getTypeName($nb = 0)
+    {
+        return __('Transfer entities', 'resources');
+    }
+
+    /**
+     * Have I the global right to "view" the Object
+     *
+     * Default is true and check entity if the objet is entity assign
+     *
+     * May be overloaded if needed
+     *
+     * @return
+     **/
+    public static function canView(): bool
+    {
+        return Session::haveRight(self::$rightname, READ);
+    }
+
+    /**
+     * Have I the global right to "create" the Object
+     * May be overloaded if needed (ex KnowbaseItem)
+     *
+     * @return
+     **/
+    public static function canCreate(): bool
+    {
+        return Session::haveRightsOr(self::$rightname, [CREATE, UPDATE, DELETE]);
+    }
+
+    public static function getIcon()
+    {
+        return "ti ti-trending-up-2";
+    }
+
+    public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0)
+    {
+        return self::createTabEntry(self::getTypeName());
+    }
+
+    /**
+     * @param CommonGLPI $item
+     * @param int $tabnum
+     * @param int $withtemplate
+     *
+     * @return bool
+     * @see CommonGLPI::displayTabContentForItem()
+     */
+    public static function displayTabContentForItem(CommonGLPI $item, $tabnum = 1, $withtemplate = 0)
+    {
+        if ($item->getType() == Config::class) {
+            $self = new self();
+            $self->showConfigForm();
+        }
+        return true;
+    }
+
+    /**
+     * @param $target
+     *
+     * @return bool
+     */
+    public function showConfigForm()
+    {
+        $target = Toolbox::getItemTypeFormURL(Config::class);
+
+        if (!$this->canView()) {
+            return false;
+        }
+        if (!$this->canCreate()) {
+            return false;
+        }
+
+        $used_entities = [];
+
+        $dataEntity = $this->find();
+
+        $canedit = true;
+
+        if ($dataEntity) {
+            foreach ($dataEntity as $field) {
+                $used_entities[] = $field['entities_id'];
+            }
+        }
+
+        if ($canedit) {
+            // Capture the GLPI entity dropdown and keep its rand to wire the AJAX refresh
+            // of the adjacent group placeholder.
+            ob_start();
+            $rand = Dropdown::show(
+                'Entity',
+                ['name' => 'entities_id', 'used' => $used_entities, 'on_change' => 'entity_group()'],
+            );
+            $entity_dropdown = ob_get_clean();
+
+            $params = ['action' => 'groupEntity', 'entities_id' => '__VALUE__'];
+            $ajax   = Ajax::updateItemJsCode(
+                'entity_group',
+                PLUGIN_RESOURCES_WEBDIR . '/ajax/resourceinfo.php',
+                $params,
+                'dropdown_entities_id' . $rand,
+                false,
+            );
+            $entity_group_js = "<script type='text/javascript'>function entity_group(){" . $ajax . "}</script>";
+
+            TemplateRenderer::getInstance()->display('@resources/transferentity_config.html.twig', [
+                'form_action'     => $target,
+                'title'           => self::getTypeName(),
+                'entity_label'    => __('Entity'),
+                'entity_dropdown' => $entity_dropdown,
+                'entity_group_js' => $entity_group_js,
+            ]);
+        }
+        if ($dataEntity) {
+            $this->listItems($dataEntity, $canedit);
+        }
+    }
+
+    /**
+     * @param $fields
+     * @param $canedit
+     */
+    private function listItems($fields, $canedit)
+    {
+        $entries = [];
+        foreach ($fields as $field) {
+            $entries[] = [
+                'itemtype' => self::class,
+                'id'       => $field['id'],
+                'entity'   => Dropdown::getDropdownName('glpi_entities', $field['entities_id']),
+                'group'    => Dropdown::getDropdownName('glpi_groups', $field['groups_id']),
+            ];
+        }
+
+        TemplateRenderer::getInstance()->display('components/datatable.html.twig', [
+            'super_header'        => __('Entities allowed to transfer a resource', 'resources'),
+            'columns'             => [
+                'entity' => __('Entity'),
+                'group'  => __('Group'),
+            ],
+            'entries'             => $entries,
+            'total_number'        => count($entries),
+            'filtered_number'     => count($entries),
+            'showmassiveactions'  => $canedit,
+            'massiveactionparams' => [
+                'num_displayed' => count($entries),
+                'container'     => 'massEntity' . mt_rand(),
+            ],
+        ]);
+    }
+
+    /**
+     * Provides search options configuration. Do not rely directly
+     * on this, @return array a *not indexed* array of search options
+     *
+     * @since 9.3
+     *
+     * This should be overloaded in Class
+     *
+     * @see CommonDBTM::searchOptions instead.
+     *
+     * @see https://glpi-developer-documentation.rtfd.io/en/master/devapi/search.html
+     **/
+    public function rawSearchOptions()
+    {
+        $tab = [];
+
+        $tab[] = [
+            'id' => 'common',
+            'name' => self::getTypeName(2),
+        ];
+
+        $tab[] = [
+            'id' => '1',
+            'table' => $this->getTable(),
+            'field' => 'name',
+            'name' => __('Name'),
+            'datatype' => 'itemlink',
+            'itemlink_type' => $this->getType(),
+            'massiveaction' => false,
+        ];
+
+        $tab[] = [
+            'id' => '2',
+            'table' => $this->getTable(),
+            'field' => 'id',
+            'name' => __('ID'),
+            'massiveaction' => false,
+            'datatype' => 'number',
+        ];
+
+        $tab[] = [
+            'id' => '92',
+            'table' => 'glpi_entities',
+            'field' => 'name',
+            'name' => __('Entity'),
+            'massiveaction' => true,
+            'datatype' => 'dropdown',
+        ];
+
+        $tab[] = [
+            'id' => '93',
+            'table' => 'glpi_groups',
+            'field' => 'name',
+            'name' => __('Group'),
+            'massiveaction' => true,
+            'datatype' => 'dropdown',
+        ];
+        return $tab;
+    }
+
+    /**
+     * Prepare input datas for adding the item
+     *
+     * @param array $input datas used to add the item
+     *
+     * @return array the modified $input array
+     **/
+    public function prepareInputForAdd($input)
+    {
+        if (!$this->checkMandatoryFields($input)) {
+            return false;
+        }
+
+        return $input;
+    }
+
+    /**
+     * Prepare input datas for updating the item
+     *
+     * @param array $input data used to update the item
+     *
+     * @return array the modified $input array
+     **/
+    public function prepareInputForUpdate($input)
+    {
+        if (!$this->checkMandatoryFields($input)) {
+            return false;
+        }
+
+        return $input;
+    }
+
+    /**
+     * @param $input
+     *
+     * @return bool
+     */
+    public function checkMandatoryFields($input)
+    {
+        $msg = [];
+        $checkKo = false;
+
+        $mandatory_fields = ['entities_id' => __('Entity')];
+
+        foreach ($input as $key => $value) {
+            if (array_key_exists($key, $mandatory_fields)) {
+                if (empty($value)) {
+                    $msg[] = $mandatory_fields[$key];
+                    $checkKo = true;
+                }
+            }
+        }
+
+        if ($checkKo) {
+            Session::addMessageAfterRedirect(
+                sprintf(__("Mandatory fields are not filled. Please correct: %s"), implode(', ', $msg)),
+                false,
+                ERROR,
+            );
+            return false;
+        }
+        return true;
+    }
+
+    public static function install(Migration $migration)
+    {
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+        $table  = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $query = "CREATE TABLE `$table` (
+                        `id`           int {$default_key_sign} NOT NULL auto_increment,
+                        `entities_id` int {$default_key_sign} NOT NULL DEFAULT '0',
+                        `groups_id`   int {$default_key_sign} NOT NULL DEFAULT '0',
+                        PRIMARY KEY (`id`),
+                        KEY `entities_id` (`entities_id`),
+                        KEY `groups_id` (`groups_id`)
+               ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
+
+            $DB->doQuery($query);
+        }
+    }
+}

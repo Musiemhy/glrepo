@@ -1,0 +1,76 @@
+{#
+ # -------------------------------------------------------------------------
+ # resources plugin for GLPI
+ # Copyright (C) 2015-2026 by the resources Development Team.
+ #
+ # https://github.com/InfotelGLPI/resources
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of resources.
+ #
+ # resources is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 2 of the License, or
+ # (at your option) any later version.
+ #
+ # resources is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with resources. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{% extends 'generic_show_form.html.twig' %}
+{% import 'components/form/fields_macros.html.twig' as fields %}
+
+{% block form_fields %}
+    <input type="hidden" name="plugin_resources_resources_id" value="{{ resources_id }}">
+    <input type="hidden" name="withtemplate" value="{{ withtemplate_value }}">
+
+    {# Read-only link to the owning resource. #}
+    {{ fields.htmlField('', resource_link, resource_label) }}
+
+    {{ fields.autoNameField('name', item, __('Name'), withtemplate, field_options) }}
+
+    {{ fields.dropdownField(
+        tasktype_class,
+        'plugin_resources_tasktypes_id',
+        item.fields['plugin_resources_tasktypes_id'],
+        tasktype_label
+    ) }}
+
+    {{ fields.dropdownField(
+        'User',
+        'users_id',
+        item.fields['users_id'],
+        __('Technician'),
+        {'right': 'interface'}
+    ) }}
+
+    {# TaskPlanning renders its own clickable block plus the JS that drives it. #}
+    {{ fields.htmlField('', planning_block, __('Planning'), {'wrapper_class': ''}) }}
+
+    {{ fields.dropdownField('Group', 'groups_id', item.fields['groups_id'], __('Group')) }}
+
+    {{ fields.dropdownYesNo('is_finished', item.fields['is_finished'], __('Carried out task', 'resources')) }}
+
+    {{ fields.dropdownTimestampField(
+        'actiontime',
+        item.fields['actiontime'],
+        __('Effective duration', 'resources'),
+        {
+            'min': 0,
+            'max': max_actiontime,
+            'addfirstminutes': true,
+            'inhours': true,
+            'toadd': actiontime_toadd,
+        }
+    ) }}
+
+    {{ fields.textareaField('comment', item.fields['comment'], __('Comments'), {'full_width': true}) }}
+{% endblock %}

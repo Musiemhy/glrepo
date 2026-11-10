@@ -1,0 +1,293 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * metademands plugin for GLPI
+ * Copyright (C) 2018-2026 by the metademands Development Team.
+ *
+ * https://github.com/InfotelGLPI/metademands
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of metademands.
+ *
+ * metademands is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * metademands is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use Glpi\Exception\Http\AccessDeniedHttpException;
+use GlpiPlugin\Metademands\Draft;
+use GlpiPlugin\Metademands\Draft_Value;
+use GlpiPlugin\Metademands\Field;
+use GlpiPlugin\Metademands\Fields\Signature;
+use GlpiPlugin\Metademands\Group;
+use GlpiPlugin\Metademands\Metademand;
+use GlpiPlugin\Metademands\Wizard;
+
+header("Content-Type: application/json; charset=UTF-8");
+
+Html::header_nocache();
+
+// Gate on the same rights as the wizard entry point (see front/wizard.form.php):
+// the check below relies on Group::isUserHaveRight(), which returns true by default
+// when no group is configured on the meta-demand, so it cannot stand in for a right
+// check -- ajax/createmetademands.php already gates on the same three rights.
+Session::checkSeveralRightsOr([
+    'plugin_metademands' => READ,
+    'plugin_metademands_createmeta' => READ,
+    'plugin_metademands_fillform' => READ,
+]);
+
+$KO = false;
+$step = ($_POST['step'] ?? 0) + 1;
+$metademands = new Metademand();
+$wizard = new Wizard();
+$fields = new Field();
+
+if (isset($_POST['save_draft'])) {
+    // Saving a draft binds it to the posted meta-demand: enforce the same access check as
+    // ajax/addform.php (prevents cross-entity/rights enumeration and writes by id). The
+    // ownership check further down only guards overwriting an existing draft, not the
+    // choice of the target meta-demand.
+    $metademands_id = (int) ($_POST['metademands_id'] ?? 0);
+    if (
+        !$metademands->getFromDB($metademands_id)
+        || !($metademands->canCreate() || Group::isUserHaveRight($metademands_id))
+        || !Session::haveAccessToEntity($metademands->fields['entities_id'], $metademands->fields['is_recursive'])
+    ) {
+        throw new AccessDeniedHttpException();
+    }
+
+    $nblines = 0;
+    $KO = false;
+    //Create ticket
+    if ($nblines == 0) {
+        if (isset($_POST['field'])) {
+            $post = $_POST['field'];
+        } else {
+            $post['field'] = [];
+        }
+
+        $nblines = 1;
+    }
+
+    if (isset($_POST['new_draft'])) {
+        //if not unset, session loads existant values (from old draft)
+        unset($_SESSION['plugin_metademands'][$_POST['metademands_id']]['plugin_metademands_drafts_id']);
+        unset($_SESSION['plugin_metademands'][$_POST['metademands_id']]['plugin_metademands_drafts_name']);
+        unset($_SESSION['plugin_metademands'][$_POST['metademands_id']]['fields']);
+    }
+
+    if ($KO === false) {
+        $checks = [];
+        $content = [];
+
+        for ($i = 0; $i < $nblines; $i++) {
+            if (isset($_POST['_filename']) && is_array($_POST['_filename'])) {
+                $form_id = (int) ($_POST['form_metademands_id'] ?? 0);
+                foreach (array_slice($_POST['_filename'], 0, 20) as $key => $filename) {
+                    $_SESSION['plugin_metademands'][$form_id]['fields']['files']['_prefix_filename'][] = $_POST['_prefix_filename'][$key] ?? '';
+                    $_SESSION['plugin_metademands'][$form_id]['fields']['files']['_tag_filename'][] = $_POST['_tag_filename'][$key] ?? '';
+                    $_SESSION['plugin_metademands'][$form_id]['fields']['files']['_filename'][] = $filename;
+                }
+            }
+            foreach (Wizard::extractRichtextFieldUploads($_POST) as $key => $values) {
+                foreach ($values as $value) {
+                    $_SESSION['plugin_metademands'][$_POST['form_metademands_id']]['fields']['files'][$key][] = $value;
+                }
+            }
+
+            //            if (Plugin::isPluginActive('orderfollowup')) {
+            //                if (isset($_SESSION['plugin_orderfollowup']['freeinputs'])) {
+            //                    $freeinputs = $_SESSION['plugin_orderfollowup']['freeinputs'];
+            //                    foreach ($freeinputs as $freeinput) {
+            //                        $_POST['freeinputs'][] = $freeinput;
+            //                    }
+            //                }
+            //            }
+
+            if (isset($_SESSION['plugin_metademands'][$_POST['form_metademands_id']]['freetables'])) {
+                $freetables = $_SESSION['plugin_metademands'][$_POST['form_metademands_id']]['freetables'];
+                foreach ($freetables as $field_id => $freetable) {
+                    $_POST['freetables'][$field_id] = $freetable;
+                }
+            }
+
+            $metademands_data = Metademand::constructMetademands($_POST['metademands_id']);
+
+            if (!isset($_POST['field']) || !is_array($_POST['field'])) {
+                $_POST['field'] = [];
+            }
+
+            if (count($metademands_data)) {
+                foreach ($metademands_data as $form_step => $data) {
+                    $docitem = null;
+                    foreach ($data as $form_metademands_id => $line) {
+                        foreach ($line['form'] as $id => $value) {
+                            // The signature path makes a round trip through the browser, so the
+                            // posted value is client controlled and must be filtered before it is
+                            // kept in session or persisted: it ends up concatenated to
+                            // GLPI_PICTURE_DIR and read from disk by MetademandPdf.
+                            if ($value['type'] == 'signature') {
+                                $clean_signature = Signature::sanitizeSubmittedValue($post[$id] ?? '');
+                                if (isset($post[$id])) {
+                                    $post[$id] = $clean_signature;
+                                }
+                                if (isset($_POST['field'][$id])) {
+                                    $_POST['field'][$id] = $clean_signature;
+                                }
+                            }
+
+                            if (!isset($post[$id])) {
+                                if (isset($_SESSION['plugin_metademands'][$_POST['metademands_id']]['fields'][$id])
+                                    && $value['plugin_metademands_metademands_id'] != $_POST['form_metademands_id']) {
+                                    $_POST['field'][$id] = $_SESSION['plugin_metademands'][$_POST['metademands_id']]['fields'][$id];
+                                }
+                            } else {
+                                $_SESSION['plugin_metademands'][$_POST['metademands_id']]['fields'][$id] = $post[$id];
+                            }
+
+                            if ($value['type'] == 'radio') {
+                                if (!isset($_POST['field'][$id])) {
+                                    $_POST['field'][$id] = null;
+                                }
+                            }
+                            if ($value['type'] == 'checkbox') {
+                                if (!isset($_POST['field'][$id])) {
+                                    $_POST['field'][$id] = 0;
+                                }
+                            }
+                            if ($value['type'] == 'informations'
+                                || $value['type'] == 'title') {
+                                if (!isset($_POST['field'][$id])) {
+                                    $_POST['field'][$id] = 0;
+                                }
+                            }
+                            if ($value['item'] == 'ITILCategory_Metademands') {
+                                $_POST['field'][$id] = $_POST['field_plugin_servicecatalog_itilcategories_id'] ?? 0;
+                            }
+
+                            if ($value['type'] == 'basket' && isset($_POST['quantity'])) {
+                                $_POST['field'][$id] = $_POST['quantity'][$id];
+                            }
+
+                            if ($value['type'] == 'freetable'
+                                && isset($_POST['freetables'])
+                                && !empty($_POST['freetables'])) {
+                                if (isset($_POST['freetables'][$id])) {
+                                    $_POST['field'][$id] = $_POST['freetables'][$id];
+                                } else {
+                                    $_POST['field'][$id] = [];
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            $metademands->getFromDB($_POST['metademands_id']);
+            if ($KO === false) {
+                // Save requester user
+                //                $_SESSION['plugin_metademands'][$_POST['metademands_id']]['fields']['_users_id_requester'] = $_POST['_users_id_requester'];
+                // Case of simple ticket convertion
+                if (isset($_POST['items_id']) && $_POST['itemtype'] == 'Ticket') {
+                    $_SESSION['plugin_metademands'][$_POST['metademands_id']]['fields']['tickets_id'] = $_POST['items_id'];
+                }
+                // Resources id
+                $_SESSION['plugin_metademands'][$_POST['metademands_id']]['fields']['resources_id'] = $_POST['resources_id'];
+                // Resources step
+                $_SESSION['plugin_metademands'][$_POST['metademands_id']]['fields']['resources_step'] = $_POST['resources_step'];
+
+                //Category id if have category field
+                $_SESSION['plugin_metademands'][$_POST['metademands_id']]['field_plugin_servicecatalog_itilcategories_id'] = $_POST['field_plugin_servicecatalog_itilcategories_id'] ?? 0;
+                $_SESSION['plugin_metademands'][$_POST['metademands_id']]['field_plugin_servicecatalog_itilcategories_id'] =
+                    (isset($_POST['basket_plugin_servicecatalog_itilcategories_id'])
+                        && $_SESSION['plugin_metademands'][$_POST['metademands_id']]['field_plugin_servicecatalog_itilcategories_id'] == 0) ? $_POST['basket_plugin_servicecatalog_itilcategories_id'] : 0;
+                //                $_SESSION['plugin_metademands'][$_POST['metademands_id']]['field_type']                                    = $metademands->fields['type'];
+            }
+
+            $drafts = new Draft();
+
+            if (!isset($_POST['draft_name']) || (isset($_POST['draft_name']) && empty($_POST['draft_name']))) {
+                Session::addMessageAfterRedirect(__('Draft name is required', 'metademands'), false, ERROR);
+                //               Html::redirect($wizard->getFormURL() . "?metademands_id=" . $_POST['metademands_id'] . "&step=" . $_POST['step']);
+                break;
+            }
+            $inputs = [];
+            $inputs['name'] = $_POST['draft_name'];
+            //               $inputs['name'] = 'd1';
+            $inputs['users_id'] = Session::getLoginUserID();
+            $inputs['plugin_metademands_metademands_id'] = $_POST['metademands_id'];
+            $inputs['date'] = date('Y-m-d H:i:s');
+
+            if (isset($_POST['plugin_metademands_drafts_id']) && !empty($_POST['plugin_metademands_drafts_id'])) {
+                $draft_id = (int) $_POST['plugin_metademands_drafts_id'];
+
+                // Drafts are personal: only the owner may overwrite one (prevents IDOR).
+                if (!$drafts->getFromDB($draft_id) || (int) $drafts->fields['users_id'] !== Session::getLoginUserID()) {
+                    throw new AccessDeniedHttpException();
+                }
+
+                $metademands_data = Metademand::constructMetademands($_POST['metademands_id']);
+                if (count($metademands_data)) {
+                    foreach ($metademands_data as $form_step => $data) {
+                        $docitem = null;
+                        foreach ($data as $form_metademands_id => $line) {
+                            Draft_Value::updateDraftValues(
+                                $_POST['metademands_id'],
+                                $line['form'],
+                                $_POST['field'],
+                                $draft_id,
+                            );
+                        }
+                    }
+                }
+
+            } else {
+                $draft_id = $drafts->add($inputs);
+
+                $metademands_data = Metademand::constructMetademands($_POST['metademands_id']);
+                if (count($metademands_data)) {
+                    foreach ($metademands_data as $form_step => $data) {
+                        $docitem = null;
+                        foreach ($data as $form_metademands_id => $line) {
+                            Draft_Value::setDraftValues(
+                                $_POST['metademands_id'],
+                                $line['form'],
+                                $_POST['field'],
+                                $draft_id,
+                            );
+                        }
+                    }
+                }
+            }
+
+            //            $_SESSION['my_last_draft'] = $draft_id;
+
+            $_SESSION['plugin_metademands'][$_POST['metademands_id']]['plugin_metademands_drafts_id'] = $draft_id;
+            $_SESSION['plugin_metademands'][$_POST['metademands_id']]['plugin_metademands_drafts_name'] = $_POST['draft_name'];
+        }
+    }
+}
+
+if ($KO === false) {
+    if (isset($_POST['new_draft']) && isset($draft_id) && $draft_id > 0) {
+        echo $draft_id;
+    } else {
+        echo 0;
+    }
+} else {
+    echo $KO;
+}

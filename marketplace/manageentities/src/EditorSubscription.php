@@ -1,0 +1,1066 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * manageentities plugin for GLPI
+ * Copyright (C) 2017-2026 by the manageentities Development Team.
+ *
+ * https://github.com/InfotelGLPI/manageentities
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of manageentities.
+ *
+ * manageentities is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * manageentities is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with manageentities. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Manageentities;
+
+use CommonDBTM;
+use CommonGLPI;
+use CronTask;
+use DBConnection;
+use Dropdown;
+use Glpi\Application\View\TemplateRenderer;
+use Glpi\DBAL\QueryExpression;
+use Glpi\Exception\Http\AccessDeniedHttpException;
+use Migration;
+use Notification;
+use Notification_NotificationTemplate;
+use NotificationEvent;
+use NotificationTemplate;
+use NotificationTemplateTranslation;
+use Session;
+
+class EditorSubscription extends CommonDBTM
+{
+    public static $rightname = 'plugin_manageentities';
+
+    public static function getTypeName($nb = 0)
+    {
+        return _n('Publisher subscription', 'Publisher subscriptions', $nb, 'manageentities');
+    }
+
+    public static function getIcon()
+    {
+        return 'ti ti-certificate';
+    }
+
+    public static function canView(): bool
+    {
+        return Session::haveRight(self::$rightname, READ);
+    }
+
+    public static function canCreate(): bool
+    {
+        return Session::haveRightsOr(self::$rightname, [CREATE, UPDATE, DELETE]);
+    }
+
+    // -----------------------------------------------------------------------
+    // Tab on plugin Entity
+    // -----------------------------------------------------------------------
+
+    public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0)
+    {
+        // Tab is registered directly in Entity::getTabNameForItem() as tab 6
+        // to ensure correct ordering before Interventions reports (tab 7).
+        return '';
+    }
+
+    public static function displayTabContentForItem(CommonGLPI $item, $tabnum = 1, $withtemplate = 0)
+    {
+        return true;
+    }
+
+    // -----------------------------------------------------------------------
+    // Data helpers
+    // -----------------------------------------------------------------------
+
+    /**
+     * Return the subscription row for a given entity, or [].
+     */
+    public static function getForEntity(int $entities_id): array
+    {
+        if ($entities_id <= 0) {
+            return [];
+        }
+        $sub = new self();
+        $rows = $sub->find(['entities_id' => $entities_id], [], 1);
+        return $rows ? reset($rows) : [];
+    }
+
+    // -----------------------------------------------------------------------
+    // CSV export
+    // -----------------------------------------------------------------------
+
+    public static function exportCsv(): void
+    {
+        global $DB;
+
+        if (!self::canView()) {
+            throw new AccessDeniedHttpException();
+        }
+
+        if (Session::getCurrentInterface() === 'helpdesk') {
+            $entity_ids = [$_SESSION['glpiactive_entity']];
+        } else {
+            $entity_ids = $_SESSION['glpiactiveentities'];
+        }
+
+        $config              = Config::getInstance();
+        $archive_entities_id = (int) ($config->fields['wizard_archive_entities_id'] ?? 0);
+        if ($archive_entities_id > 0) {
+            $archive_sons = getSonsOf('glpi_entities', $archive_entities_id);
+            unset($archive_sons[$archive_entities_id]);
+            $entity_ids = array_values(array_diff($entity_ids, array_keys($archive_sons)));
+        }
+
+        $now          = date('Y-m-d');
+        $only_expired = !empty($_GET['sub_expired']);
+        $rows         = [];
+
+        if (!empty($entity_ids)) {
+            $where = ['s.entities_id' => $entity_ids];
+            if ($only_expired) {
+                $where[] = ['s.end_date' => ['<', $now . ' 00:00:00']];
+                $where[] = ['NOT' => ['s.end_date' => null]];
+            }
+
+            $iterator = $DB->request([
+                'SELECT'    => ['s.*', 'e.completename AS entity_completename'],
+                'FROM'      => self::getTable() . ' AS s',
+                'LEFT JOIN' => [
+                    'glpi_entities AS e' => ['FKEY' => ['s' => 'entities_id', 'e' => 'id']],
+                ],
+                'WHERE' => $where,
+                'ORDER' => ['e.completename ASC'],
+            ]);
+
+            foreach ($iterator as $row) {
+                $row['level_name'] = !empty($row['plugin_manageentities_subscriptionlevels_id'])
+                    ? Dropdown::getDropdownName(SubscriptionLevel::getTable(), (int) $row['plugin_manageentities_subscriptionlevels_id'])
+                    : '';
+                $row['type_label'] = $row['cloud_client']
+                    ? __('Cloud client', 'manageentities')
+                    : __('Editor subscription', 'manageentities');
+                $rows[] = $row;
+            }
+        }
+
+        $filename = ($only_expired ? 'subscriptions_expired_' : 'subscriptions_') . date('Ymd_His') . '.csv';
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Cache-Control: no-cache, no-store, must-revalidate');
+        \Html::header_nocache();
+
+        $out = fopen('php://output', 'w');
+        // UTF-8 BOM for Excel
+        fwrite($out, "\xEF\xBB\xBF");
+
+        fputcsv($out, [
+            __('Entity', 'manageentities'),
+            __('Publisher customer account ID', 'manageentities'),
+            __('Referenced name at the publisher', 'manageentities'),
+            __('Type', 'manageentities'),
+            __('Subscription level', 'manageentities'),
+            __('Active editor subscription', 'manageentities'),
+            __('Cloud client', 'manageentities'),
+            __('Internet publication', 'manageentities'),
+            __('Start date', 'manageentities'),
+            __('End date', 'manageentities'),
+            __('Comments'),
+        ], ';');
+
+        // Neutralize CSV formula injection: a spreadsheet interprets a cell starting with
+        // =, +, -, @, TAB or CR as a formula. Prefix such user-controlled values with an
+        // apostrophe so they are treated as text (OWASP CSV injection).
+        $csvSafe = static function ($value): string {
+            $value = (string) $value;
+            if ($value !== '' && strpbrk($value[0], "=+-@\t\r") !== false) {
+                return "'" . $value;
+            }
+            return $value;
+        };
+
+        foreach ($rows as $row) {
+            fputcsv($out, [
+                $csvSafe($row['entity_completename'] ?? ''),
+                $csvSafe($row['customer_account_id'] ?? ''),
+                $csvSafe($row['name'] ?? ''),
+                $row['type_label'],
+                $csvSafe($row['level_name']),
+                $row['active_editor_suscription'] ? '1' : '0',
+                $row['cloud_client'] ? '1' : '0',
+                $row['internet_publication'] ? '1' : '0',
+                !empty($row['begin_date']) ? substr($row['begin_date'], 0, 10) : '',
+                !empty($row['end_date']) ? substr($row['end_date'], 0, 10) : '',
+                $csvSafe($row['comment'] ?? ''),
+            ], ';');
+        }
+
+        fclose($out);
+        exit;
+    }
+
+    // -----------------------------------------------------------------------
+    // Status overview tab
+    // -----------------------------------------------------------------------
+
+    /**
+     * Entities having a publisher subscription but never any contract, same rule as the
+     * "Never had a contract" list of the contracts status overview
+     *
+     * @param int[] $entities_ids
+     *
+     * @return int[]
+     */
+    public static function getNeverContractEntities(array $entities_ids): array
+    {
+        global $DB;
+
+        if ($entities_ids === []) {
+            return [];
+        }
+
+        $iter = $DB->request([
+            'SELECT'   => ['entities_id'],
+            'DISTINCT' => true,
+            'FROM'     => self::getTable(),
+            'WHERE'    => ['entities_id' => $entities_ids],
+        ]);
+        $with_subscription = array_map('intval', array_column(iterator_to_array($iter), 'entities_id'));
+        if ($with_subscription === []) {
+            return [];
+        }
+
+        $iter = $DB->request([
+            'SELECT'     => ['c.entities_id'],
+            'DISTINCT'   => true,
+            'FROM'       => 'glpi_plugin_manageentities_contractdays AS cd',
+            'INNER JOIN' => [
+                'glpi_contracts AS c' => ['FKEY' => ['cd' => 'contracts_id', 'c' => 'id']],
+            ],
+            'WHERE'      => [
+                'c.entities_id' => $with_subscription,
+                'c.is_deleted'  => 0,
+            ],
+        ]);
+        $had_contract = array_map('intval', array_column(iterator_to_array($iter), 'entities_id'));
+
+        return array_values(array_diff($with_subscription, $had_contract));
+    }
+
+    public static function showStatusTab(): void
+    {
+        global $DB;
+
+        $entity_ids = $_SESSION['glpiactiveentities'];
+        $config     = Config::getInstance();
+
+        $parent_id           = (int) ($config->fields['wizard_default_entities_id'] ?? 0);
+        $archive_entities_id = (int) ($config->fields['wizard_archive_entities_id'] ?? 0);
+
+        // concerned_ids: customer entities (non-archived) — used for alerts
+        $concerned_ids = [];
+        // all_scoped_ids: customer + archived entities — used for counters only
+        $all_scoped_ids = [];
+
+        if ($parent_id > 0 && !empty($entity_ids)) {
+            $customer_sons = getSonsOf('glpi_entities', $parent_id);
+            unset($customer_sons[$parent_id]);
+
+            $archive_sons = [];
+            if ($archive_entities_id > 0) {
+                $archive_sons = getSonsOf('glpi_entities', $archive_entities_id);
+                // also include archived sons in the counter scope
+                $archive_son_ids = array_keys($archive_sons);
+                unset($archive_sons[$archive_entities_id]);
+            } else {
+                $archive_son_ids = [];
+            }
+
+            $excluded_ids = $archive_son_ids; // includes root + all sons
+
+            $concerned_ids = array_values(
+                array_diff(
+                    array_intersect($entity_ids, array_keys($customer_sons)),
+                    $excluded_ids,
+                ),
+            );
+
+            $archive_son_ids_in_session = array_values(
+                array_intersect($archive_son_ids, $entity_ids),
+            );
+            $all_scoped_ids = array_values(
+                array_unique(array_merge($concerned_ids, $archive_son_ids_in_session)),
+            );
+        }
+
+        $active_states = json_decode($config->fields['contract_states'] ?? '', true);
+        $active_states = is_array($active_states) && !empty($active_states)
+            ? array_map('intval', $active_states)
+            : [];
+
+        // Entities that have at least one active contract (matching contract_states)
+        $with_active_contract = [];
+        if (!empty($concerned_ids) && !empty($active_states)) {
+            $iter = $DB->request([
+                'SELECT'     => ['c.entities_id'],
+                'DISTINCT'   => true,
+                'FROM'       => 'glpi_plugin_manageentities_contractdays AS cd',
+                'INNER JOIN' => [
+                    'glpi_contracts AS c' => ['FKEY' => ['cd' => 'contracts_id', 'c' => 'id']],
+                ],
+                'WHERE' => [
+                    'c.entities_id' => $concerned_ids,
+                    'cd.plugin_manageentities_contractstates_id' => $active_states,
+                    'c.is_deleted'  => 0,
+                ],
+            ]);
+            $with_active_contract = array_column(iterator_to_array($iter), 'entities_id');
+        }
+
+        // Entities that have at least one subscription
+        $with_subscription = [];
+        if (!empty($concerned_ids)) {
+            $iter = $DB->request([
+                'SELECT'   => ['entities_id'],
+                'DISTINCT' => true,
+                'FROM'     => self::getTable(),
+                'WHERE'    => ['entities_id' => $concerned_ids],
+            ]);
+            $with_subscription = array_column(iterator_to_array($iter), 'entities_id');
+        }
+
+        // Alert 1: active contract but no subscription
+        $ids_no_sub = array_values(array_diff($with_active_contract, $with_subscription));
+        $no_subscription = [];
+        if (!empty($ids_no_sub)) {
+            $iter = $DB->request([
+                'SELECT' => ['completename'],
+                'FROM'   => 'glpi_entities',
+                'WHERE'  => ['id' => $ids_no_sub],
+                'ORDER'  => ['completename ASC'],
+            ]);
+            foreach ($iter as $row) {
+                $no_subscription[] = $row['completename'];
+            }
+        }
+
+        // Alert 2: subscription but no active contract, split by history
+        $ids_no_contract = array_values(array_diff($with_subscription, $with_active_contract));
+        $no_contract = ['had_contract' => [], 'never_contract' => []];
+        if (!empty($ids_no_contract)) {
+            // Entities that have at least one closed contract (any state)
+            $had_iter = $DB->request([
+                'SELECT'   => ['c.entities_id'],
+                'DISTINCT' => true,
+                'FROM'     => 'glpi_plugin_manageentities_contractdays AS cd',
+                'INNER JOIN' => [
+                    'glpi_contracts AS c' => ['FKEY' => ['cd' => 'contracts_id', 'c' => 'id']],
+                ],
+                'WHERE' => [
+                    'c.entities_id' => $ids_no_contract,
+                    'c.is_deleted'  => 0,
+                ],
+            ]);
+            $ids_had_contract = array_column(iterator_to_array($had_iter), 'entities_id');
+            $ids_never_contract = array_values(array_diff($ids_no_contract, $ids_had_contract));
+
+            if (!empty($ids_had_contract)) {
+                $iter = $DB->request([
+                    'SELECT' => ['completename'],
+                    'FROM'   => 'glpi_entities',
+                    'WHERE'  => ['id' => $ids_had_contract],
+                    'ORDER'  => ['completename ASC'],
+                ]);
+                foreach ($iter as $row) {
+                    $no_contract['had_contract'][] = $row['completename'];
+                }
+            }
+            if (!empty($ids_never_contract)) {
+                $iter = $DB->request([
+                    'SELECT' => ['completename'],
+                    'FROM'   => 'glpi_entities',
+                    'WHERE'  => ['id' => $ids_never_contract],
+                    'ORDER'  => ['completename ASC'],
+                ]);
+                foreach ($iter as $row) {
+                    $no_contract['never_contract'][] = $row['completename'];
+                }
+            }
+        }
+
+        // Alert 3: entities with an expired subscription, split by type
+        $expired_subscription = ['cloud' => [], 'onpremise' => []];
+        if (!empty($concerned_ids)) {
+            $now = date('Y-m-d');
+            $iter = $DB->request([
+                'SELECT'   => ['e.completename', 's.cloud_client'],
+                'FROM'     => self::getTable() . ' AS s',
+                'LEFT JOIN' => [
+                    'glpi_entities AS e' => ['FKEY' => ['s' => 'entities_id', 'e' => 'id']],
+                ],
+                'WHERE'    => [
+                    's.entities_id' => $concerned_ids,
+                    ['NOT' => ['s.end_date' => null]],
+                    ['s.end_date' => ['<', $now . ' 00:00:00']],
+                ],
+                'ORDER'    => ['e.completename ASC'],
+            ]);
+            foreach ($iter as $row) {
+                if ($row['cloud_client']) {
+                    $expired_subscription['cloud'][] = $row['completename'];
+                } else {
+                    $expired_subscription['onpremise'][] = $row['completename'];
+                }
+            }
+        }
+
+        // Subscriptions count per level (includes archived entities)
+        $level_counts = [];
+        if (!empty($all_scoped_ids)) {
+            $iter = $DB->request([
+                'SELECT'   => [
+                    'l.name AS level_name',
+                    \Glpi\DBAL\QueryFunction::count('s.id', false, 'cnt'),
+                ],
+                'FROM'     => self::getTable() . ' AS s',
+                'LEFT JOIN' => [
+                    SubscriptionLevel::getTable() . ' AS l' => [
+                        'FKEY' => ['s' => 'plugin_manageentities_subscriptionlevels_id', 'l' => 'id'],
+                    ],
+                ],
+                'WHERE'   => ['s.entities_id' => $all_scoped_ids],
+                'GROUPBY' => ['s.plugin_manageentities_subscriptionlevels_id'],
+                'ORDER'   => ['cnt DESC'],
+            ]);
+            foreach ($iter as $row) {
+                $level_counts[] = [
+                    'name'  => $row['level_name'] ?: __('No level', 'manageentities'),
+                    'count' => (int) $row['cnt'],
+                ];
+            }
+        }
+
+        // Subscriptions count by type (cloud vs on-premise, includes archived entities)
+        $type_counts = ['cloud' => 0, 'onpremise' => 0];
+        if (!empty($all_scoped_ids)) {
+            $iter = $DB->request([
+                'SELECT' => ['cloud_client'],
+                'FROM'   => self::getTable(),
+                'WHERE'  => ['entities_id' => $all_scoped_ids],
+            ]);
+            foreach ($iter as $row) {
+                if ($row['cloud_client']) {
+                    $type_counts['cloud']++;
+                } else {
+                    $type_counts['onpremise']++;
+                }
+            }
+        }
+
+        TemplateRenderer::getInstance()->display(
+            '@manageentities/entity/status_tab.html.twig',
+            [
+                'no_subscription'      => $no_subscription,
+                'no_contract'          => $no_contract,
+                'expired_subscription' => $expired_subscription,
+                'level_counts'         => $level_counts,
+                'type_counts'          => $type_counts,
+            ],
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Display
+    // -----------------------------------------------------------------------
+
+    public static function showForEntity(array $instID): void
+    {
+        global $DB;
+
+        $can_edit = Session::getCurrentInterface() !== 'helpdesk'
+            && Session::haveRightsOr(self::$rightname, [CREATE, UPDATE]);
+
+        // Scope to the entity (or entities, if displayed recursively) currently active
+        $where = !empty($instID) ? ['s.entities_id' => $instID] : [];
+
+        // Exclude the archive entity subtree, mirroring showStatusTab()/exportCsv():
+        // archived customers must not appear in the subscription list.
+        $config              = Config::getInstance();
+        $archive_entities_id = (int) ($config->fields['wizard_archive_entities_id'] ?? 0);
+        if ($archive_entities_id > 0) {
+            $archive_sons = getSonsOf('glpi_entities', $archive_entities_id);
+            unset($archive_sons[$archive_entities_id]);
+            if (!empty($archive_sons)) {
+                $where[] = ['NOT' => ['s.entities_id' => array_keys($archive_sons)]];
+            }
+        }
+
+        $now  = date('Y-m-d');
+        $rows = [];
+
+        $iterator = $DB->request([
+            'SELECT'   => ['s.*', 'e.completename AS entity_completename'],
+            'FROM'     => self::getTable() . ' AS s',
+            'LEFT JOIN' => [
+                'glpi_entities AS e' => ['FKEY' => ['s' => 'entities_id', 'e' => 'id']],
+            ],
+            'WHERE'  => $where,
+            'ORDER'  => [new QueryExpression('ISNULL(s.end_date) DESC'), 's.end_date ASC', 'e.completename ASC'],
+        ]);
+
+        foreach ($iterator as $row) {
+            $row['level_name']       = !empty($row['plugin_manageentities_subscriptionlevels_id'])
+                ? Dropdown::getDropdownName(SubscriptionLevel::getTable(), (int) $row['plugin_manageentities_subscriptionlevels_id'])
+                : '';
+            $row['end_date_expired'] = !empty($row['end_date']) && substr($row['end_date'], 0, 10) < $now;
+            $rows[]                  = $row;
+        }
+
+        $wizard_url = PLUGIN_MANAGEENTITIES_WEBDIR . '/front/editorsubscription.form.php';
+        $export_url = PLUGIN_MANAGEENTITIES_WEBDIR . '/front/entity.php?export=subscriptions';
+
+        TemplateRenderer::getInstance()->display(
+            '@manageentities/entity/editorsubscription_tab.html.twig',
+            [
+                'rows'       => $rows,
+                'can_edit'   => $can_edit,
+                'wizard_url' => $wizard_url,
+                'export_url' => $export_url,
+            ],
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Input preparation
+    // -----------------------------------------------------------------------
+
+    public function prepareInputForAdd($input)
+    {
+        if ((int) ($input['entities_id'] ?? 0) === 0) {
+            Session::addMessageAfterRedirect(
+                __('Publisher subscriptions cannot be created for the root entity.', 'manageentities'),
+                false,
+                ERROR,
+            );
+            return false;
+        }
+        return $this->prepareInput($input);
+    }
+
+    public function prepareInputForUpdate($input)
+    {
+        return $this->prepareInput($input);
+    }
+
+    private function prepareInput(array $input): array
+    {
+        foreach (['active_editor_suscription', 'cloud_client', 'internet_publication'] as $flag) {
+            if (array_key_exists($flag, $input)) {
+                $input[$flag] = $input[$flag] ? 1 : 0;
+            }
+        }
+        // Cloud client always implies internet publication
+        if (!empty($input['cloud_client'])) {
+            $input['internet_publication'] = 1;
+        }
+        foreach (['begin_date', 'end_date'] as $field) {
+            if (array_key_exists($field, $input) && $input[$field] === '') {
+                $input[$field] = null;
+            }
+        }
+        return $input;
+    }
+
+    // -----------------------------------------------------------------------
+    // Propagate booleans to all contracts of the entity
+    // -----------------------------------------------------------------------
+
+    public function post_addItem()
+    {
+        $this->propagateToContracts($this->fields);
+    }
+
+    public function post_updateItem($history = true)
+    {
+        $this->propagateToContracts($this->fields);
+    }
+
+    private function propagateToContracts(array $fields): void
+    {
+        global $DB;
+
+        $entities_id               = (int) ($fields['entities_id'] ?? 0);
+        $active_editor_suscription = (int) ($fields['active_editor_suscription'] ?? 0);
+        $cloud_client              = (int) ($fields['cloud_client'] ?? 0);
+
+        if ($entities_id <= 0) {
+            return;
+        }
+
+        $DB->update(
+            'glpi_plugin_manageentities_contracts',
+            [
+                'active_editor_suscription' => $active_editor_suscription,
+                'cloud_client'              => $cloud_client,
+            ],
+            ['entities_id' => $entities_id],
+        );
+    }
+
+    /**
+     * @return array
+     */
+    public function rawSearchOptions()
+    {
+        $tab = [];
+
+        $tab[] = [
+            'id' => 'common',
+            'name' => self::getTypeName(2),
+        ];
+
+        $tab[] = [
+            'id' => '1',
+            'table' => $this->getTable(),
+            'field' => 'name',
+            'name' => __('Name'),
+            'datatype' => 'itemlink',
+            'itemlink_type' => $this->getType(),
+        ];
+
+        $tab[] = [
+            'id' => '4',
+            'table' => $this->getTable(),
+            'field' => 'begin_date',
+            'name' => __('Begin date'),
+            'datatype' => 'date',
+        ];
+
+        $tab[] = [
+            'id' => '5',
+            'table' => $this->getTable(),
+            'field' => 'end_date',
+            'name' => __('End date'),
+            'datatype' => 'date',
+        ];
+
+
+        $tab[] = [
+            'id' => '8',
+            'table' => $this->getTable(),
+            'field' => 'comment',
+            'name' => __('Comments'),
+            'datatype' => 'text',
+        ];
+
+        $tab[] = [
+            'id' => '9',
+            'table' => $this->getTable(),
+            'field' => 'customer_account_id',
+            'name' => __('Publisher customer account ID', 'manageentities'),
+        ];
+
+        $tab[] = [
+            'id' => '10',
+            'table' => 'glpi_plugin_manageentities_subscriptionlevels',
+            'field' => 'name',
+            'name' => __('Subscription level', 'manageentities'),
+            'datatype' => 'dropdown',
+        ];
+
+        $tab[] = [
+            'id' => '11',
+            'table' => $this->getTable(),
+            'field' => 'active_editor_suscription',
+            'name' => __('Editor subscription', 'manageentities'),
+            'datatype' => 'bool',
+        ];
+
+        $tab[] = [
+            'id' => '12',
+            'table' => $this->getTable(),
+            'field' => 'cloud_client',
+            'name' => __('Cloud client', 'manageentities'),
+            'datatype' => 'bool',
+        ];
+
+        $tab[] = [
+            'id' => '13',
+            'table' => $this->getTable(),
+            'field' => 'internet_publication',
+            'name' => __('Internet publication', 'manageentities'),
+            'datatype' => 'bool',
+        ];
+
+        $tab[] = [
+            'id' => '30',
+            'table' => $this->getTable(),
+            'field' => 'id',
+            'name' => __('ID'),
+            'datatype' => 'number',
+        ];
+
+        $tab[] = [
+            'id' => '80',
+            'table' => 'glpi_entities',
+            'field' => 'completename',
+            'name' => _n('Entity', 'Entities', 1),
+            'datatype' => 'dropdown',
+        ];
+
+        $tab[] = [
+            'id' => '81',
+            'table' => 'glpi_entities',
+            'field' => 'entities_id',
+            'name' => _n('Entity', 'Entities', 1) . "-" . __('ID'),
+        ];
+
+        $tab[] = [
+            'id' => '82',
+            'table' => $this->getTable(),
+            'field' => 'plugin_manageentities_subscriptionlevels_id',
+            'name' => __('Subscription level', 'manageentities') . "-" . __('ID'),
+        ];
+
+        return $tab;
+    }
+
+    public static function install(Migration $migration)
+    {
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+        $table  = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $query = "CREATE TABLE `$table` (
+                            `id` int {$default_key_sign} NOT NULL auto_increment,
+                            `entities_id`               int {$default_key_sign} NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_entities (id)',
+                            `name`                      varchar(255) collate utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Referenced name at the publisher',
+                            `customer_account_id`       varchar(255) collate utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Publisher customer account ID',
+                            `active_editor_suscription` tinyint NOT NULL DEFAULT '0',
+                            `cloud_client`              tinyint NOT NULL DEFAULT '0',
+                            `plugin_manageentities_subscriptionlevels_id`     int {$default_key_sign} NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_plugin_manageentities_subscriptionlevels (id)',
+                            `begin_date`                timestamp NULL DEFAULT NULL,
+                            `end_date`                  timestamp NULL DEFAULT NULL,
+                            `internet_publication`      tinyint NOT NULL DEFAULT '0' COMMENT 'Internet publication flag (migrated from contracts)',
+                            `comment`                   text collate utf8mb4_unicode_ci,
+                            PRIMARY KEY (`id`),
+                            UNIQUE KEY `unicity` (`entities_id`),
+                            KEY `entities_id` (`entities_id`)
+               ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
+
+            $DB->doQuery($query);
+        }
+
+        self::installNotification($migration);
+    }
+
+    /**
+     * Seed the "Alert Expired Subscriptions" notification (template header, default
+     * translation, notification and its mailing link) and register the weekly
+     * automatic action. Fully idempotent: each row is inserted only when missing and
+     * CronTask::register() skips an already-registered task, so it is safe to call on
+     * every install and upgrade.
+     */
+    public static function installNotification(Migration $migration): void
+    {
+        global $DB;
+
+        // Template header (idempotent guard inside).
+        NotificationTargetEditorSubscription::install($migration);
+
+        $template = $DB->request([
+            'SELECT' => 'id',
+            'FROM'   => 'glpi_notificationtemplates',
+            'WHERE'  => ['itemtype' => self::class],
+        ])->current();
+        $templates_id = $template['id'] ?? 0;
+        if (!$templates_id) {
+            return;
+        }
+
+        // Canonical default translation.
+        //
+        // The HTML body is a table, and each FOREACH marker sits inside a hidden full-width
+        // cell of its own row rather than loose between the rows. That placement is what makes
+        // a table usable here: a bare ##FOREACH...## between </tr> and <tr> is not valid table
+        // content, so the GLPI rich-text (TinyMCE) editor hoists it out of the table on the
+        // first round-trip, which orphans the markers and leaves the ##subscription.*## row
+        // outside any FOREACH block -- the tags then reach the recipient as raw text. Wrapped
+        // in a <td>, the markers are ordinary table content and survive untouched.
+        //
+        // NotificationTemplate::getByLanguage() (src/NotificationTemplate.php:388-397) captures
+        // whatever lies between the two markers and repeats it verbatim, markup included, so
+        // each iteration re-emits the closing and opening tags of the hidden rows and the table
+        // stays well-formed.
+        $content_text = '##subscription.action##
+
+##FOREACHsubscriptions####lang.subscription.entity##: ##subscription.entity##
+##lang.subscription.customeraccountid##: ##subscription.customeraccountid##
+##lang.subscription.name##: ##subscription.name##
+##lang.subscription.type##: ##subscription.type##
+##lang.subscription.level##: ##subscription.level##
+##lang.subscription.begindate##: ##subscription.begindate##
+##lang.subscription.enddate##: ##subscription.enddate##
+
+##ENDFOREACHsubscriptions##';
+
+        $content_html = '&lt;p&gt;&lt;strong&gt;##subscription.action##&lt;/strong&gt;&lt;/p&gt;'
+            . '&lt;table border="1" cellspacing="0" cellpadding="5"&gt;'
+            . '&lt;thead&gt;'
+            . '&lt;tr&gt;'
+            . '&lt;th&gt;##lang.subscription.entity##&lt;/th&gt;'
+            . '&lt;th&gt;##lang.subscription.customeraccountid##&lt;/th&gt;'
+            . '&lt;th&gt;##lang.subscription.name##&lt;/th&gt;'
+            . '&lt;th&gt;##lang.subscription.type##&lt;/th&gt;'
+            . '&lt;th&gt;##lang.subscription.level##&lt;/th&gt;'
+            . '&lt;th&gt;##lang.subscription.begindate##&lt;/th&gt;'
+            . '&lt;th&gt;##lang.subscription.enddate##&lt;/th&gt;'
+            . '&lt;/tr&gt;'
+            . '&lt;/thead&gt;'
+            . '&lt;tbody&gt;'
+            . '&lt;tr&gt;&lt;td style="display: none;" colspan="7"&gt;##FOREACHsubscriptions##&lt;/td&gt;&lt;/tr&gt;'
+            . '&lt;tr&gt;'
+            . '&lt;td&gt;##subscription.entity##&lt;/td&gt;'
+            . '&lt;td&gt;##subscription.customeraccountid##&lt;/td&gt;'
+            . '&lt;td&gt;##subscription.name##&lt;/td&gt;'
+            . '&lt;td&gt;##subscription.type##&lt;/td&gt;'
+            . '&lt;td&gt;##subscription.level##&lt;/td&gt;'
+            . '&lt;td&gt;##subscription.begindate##&lt;/td&gt;'
+            . '&lt;td&gt;##subscription.enddate##&lt;/td&gt;'
+            . '&lt;/tr&gt;'
+            . '&lt;tr&gt;&lt;td style="display: none;" colspan="7"&gt;##ENDFOREACHsubscriptions##&lt;/td&gt;&lt;/tr&gt;'
+            . '&lt;/tbody&gt;'
+            . '&lt;/table&gt;';
+
+        // Insert when missing; otherwise repair a translation whose FOREACH block has
+        // been broken by an editor round-trip (empty ##FOREACH...####ENDFOREACH...## with
+        // the row tags stranded outside). Detection: no ##subscription. tag survives
+        // between the two markers. A healthy, admin-customized translation keeps at
+        // least one row tag inside the block and is left untouched.
+        $existing = $DB->request([
+            'FROM'  => 'glpi_notificationtemplatetranslations',
+            'WHERE' => ['notificationtemplates_id' => $templates_id],
+        ]);
+
+        if (count($existing) === 0) {
+            $DB->insert('glpi_notificationtemplatetranslations', [
+                'notificationtemplates_id' => $templates_id,
+                'language'                 => '',
+                'subject'                  => '##subscription.action##',
+                'content_text'             => $content_text,
+                'content_html'             => $content_html,
+            ]);
+        } else {
+            foreach ($existing as $translation) {
+                $html = (string) ($translation['content_html'] ?? '');
+                if (
+                    preg_match('/##FOREACHsubscriptions##(.*?)##ENDFOREACHsubscriptions##/is', $html, $m) !== 1
+                    || strpos($m[1], '##subscription.') === false
+                ) {
+                    $DB->update(
+                        'glpi_notificationtemplatetranslations',
+                        [
+                            'content_text' => $content_text,
+                            'content_html' => $content_html,
+                        ],
+                        ['id' => $translation['id']],
+                    );
+                }
+            }
+        }
+
+        // Notification (only if not already present for this itemtype/event).
+        $has_notification = $DB->request([
+            'COUNT' => 'cpt',
+            'FROM'  => 'glpi_notifications',
+            'WHERE' => [
+                'itemtype' => self::class,
+                'event'    => NotificationTargetEditorSubscription::ExpiredSubscriptions,
+            ],
+        ])->current();
+
+        if ((int) ($has_notification['cpt'] ?? 0) === 0) {
+            $DB->insert('glpi_notifications', [
+                'name'         => 'Alert Expired Subscriptions',
+                'entities_id'  => 0,
+                'itemtype'     => self::class,
+                'event'        => NotificationTargetEditorSubscription::ExpiredSubscriptions,
+                'is_recursive' => 1,
+                'is_active'    => 1,
+            ]);
+            $notifications_id = $DB->insertId();
+
+            $DB->insert('glpi_notifications_notificationtemplates', [
+                'notifications_id'         => $notifications_id,
+                'mode'                     => 'mailing',
+                'notificationtemplates_id' => $templates_id,
+            ]);
+        }
+
+        // Weekly automatic action (register() is idempotent).
+        CronTask::register(self::class, 'ExpiredSubscriptions', WEEK_TIMESTAMP);
+    }
+
+
+    public static function uninstall()
+    {
+        global $DB;
+
+        // Remove the expired subscriptions notification, its template, translations
+        // and mailing links, then the weekly automatic action.
+        $notif = new Notification();
+        foreach (
+            $DB->request([
+                'FROM'  => 'glpi_notifications',
+                'WHERE' => ['itemtype' => self::class],
+            ]) as $data
+        ) {
+            $notif->delete($data);
+        }
+
+        $template       = new NotificationTemplate();
+        $translation    = new NotificationTemplateTranslation();
+        $notif_template = new Notification_NotificationTemplate();
+        foreach (
+            $DB->request([
+                'FROM'  => 'glpi_notificationtemplates',
+                'WHERE' => ['itemtype' => self::class],
+            ]) as $data
+        ) {
+            foreach (
+                $DB->request([
+                    'FROM'  => 'glpi_notificationtemplatetranslations',
+                    'WHERE' => ['notificationtemplates_id' => $data['id']],
+                ]) as $data_translation
+            ) {
+                $translation->delete($data_translation);
+            }
+            foreach (
+                $DB->request([
+                    'FROM'  => 'glpi_notifications_notificationtemplates',
+                    'WHERE' => ['notificationtemplates_id' => $data['id']],
+                ]) as $data_link
+            ) {
+                $notif_template->delete($data_link);
+            }
+            $template->delete($data);
+        }
+
+        CronTask::unregister('manageentities');
+
+        $DB->dropTable(self::getTable(), true);
+    }
+
+    // -----------------------------------------------------------------------
+    // Automatic action (cron) : expired subscriptions alert
+    // -----------------------------------------------------------------------
+
+    /**
+     * Give localized information about the automatic action.
+     *
+     * @param string $name Cron task name
+     *
+     * @return array
+     */
+    public static function cronInfo($name)
+    {
+        switch ($name) {
+            case 'ExpiredSubscriptions':
+                return ['description' => __('Send the list of expired publisher subscriptions', 'manageentities')];
+        }
+        return [];
+    }
+
+    /**
+     * Weekly automatic action: send a single global email listing every expired
+     * publisher subscription. The cron runs without a session, so the entity scope
+     * (archive subtree exclusion) is read from the plugin Config, never $_SESSION.
+     *
+     * @param CronTask|null $task
+     *
+     * @return int 0 = nothing done, 1 = done
+     */
+    public static function cronExpiredSubscriptions($task = null)
+    {
+        global $DB, $CFG_GLPI;
+
+        if (!$CFG_GLPI['notifications_mailing']) {
+            return 0;
+        }
+
+        $now   = date('Y-m-d');
+        $where = [
+            ['NOT' => ['s.end_date' => null]],
+            ['s.end_date' => ['<', $now . ' 00:00:00']],
+        ];
+
+        // Exclude the archive entity subtree, mirroring showStatusTab()/exportCsv().
+        $config              = Config::getInstance();
+        $archive_entities_id = (int) ($config->fields['wizard_archive_entities_id'] ?? 0);
+        if ($archive_entities_id > 0) {
+            $archive_sons = getSonsOf('glpi_entities', $archive_entities_id);
+            unset($archive_sons[$archive_entities_id]);
+            if (!empty($archive_sons)) {
+                $where[] = ['NOT' => ['s.entities_id' => array_keys($archive_sons)]];
+            }
+        }
+
+        $iterator = $DB->request([
+            'SELECT'    => ['s.*', 'e.completename AS entity_completename'],
+            'FROM'      => self::getTable() . ' AS s',
+            'LEFT JOIN' => [
+                'glpi_entities AS e' => ['FKEY' => ['s' => 'entities_id', 'e' => 'id']],
+            ],
+            'WHERE' => $where,
+            'ORDER' => ['s.end_date ASC'],
+        ]);
+
+        $subscriptions = [];
+        foreach ($iterator as $row) {
+            $row['level_name'] = !empty($row['plugin_manageentities_subscriptionlevels_id'])
+                ? Dropdown::getDropdownName(SubscriptionLevel::getTable(), (int) $row['plugin_manageentities_subscriptionlevels_id'])
+                : '';
+            $subscriptions[] = $row;
+        }
+
+        if (empty($subscriptions)) {
+            return 0;
+        }
+
+        NotificationEvent::raiseEvent(
+            NotificationTargetEditorSubscription::ExpiredSubscriptions,
+            new self(),
+            [
+                'entities_id'   => 0,
+                'subscriptions' => $subscriptions,
+            ],
+        );
+
+        if ($task instanceof CronTask) {
+            $task->addVolume(count($subscriptions));
+            $task->log(sprintf(__('%d expired publisher subscriptions notified', 'manageentities'), count($subscriptions)));
+        }
+
+        return 1;
+    }
+}

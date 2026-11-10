@@ -1,0 +1,267 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR Satisfaction Development Team
+# This file is distributed under the same license as the Satisfaction - Accounts plugin package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Satisfaction - Accounts plugin\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-06-28 20:21+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=CHARSET\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
+
+#: setup.php:112
+msgid "More satisfaction"
+msgstr ""
+
+#: src/Dashboard.php:85
+msgid "Summary of satisfaction surveys"
+msgstr ""
+
+#: src/Dashboard.php:100 src/Menu.php:47 src/Profile.php:58 src/Survey.php:63
+msgid "Satisfaction survey"
+msgid_plural "Satisfaction surveys"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/Dashboard.php:117
+msgid "First Trimester"
+msgstr ""
+
+#: src/Dashboard.php:118
+msgid "Second Trimester"
+msgstr ""
+
+#: src/Dashboard.php:119
+msgid "Third Trimester"
+msgstr ""
+
+#: src/Dashboard.php:120
+msgid "Fourth Trimester"
+msgstr ""
+
+#: src/Dashboard.php:121
+msgid "Year"
+msgstr ""
+
+#: src/Dashboard.php:219
+msgid "There are no survey for current entity"
+msgstr ""
+
+#: src/Dashboard.php:300
+msgid "Number of surveys"
+msgstr ""
+
+#: src/Dashboard.php:306
+msgid "Number of concerned tickets"
+msgstr ""
+
+#: src/Dashboard.php:312
+msgid "Survey not answered"
+msgstr ""
+
+#: src/Dashboard.php:318
+msgid "Survey answered"
+msgstr ""
+
+#: src/Dashboard.php:324
+msgid "Global satisfaction"
+msgstr ""
+
+#: src/Dashboard.php:367
+msgid "Periods"
+msgstr ""
+
+#: src/NotificationMailing.php:61
+msgid "Notification satisfaction reminder"
+msgstr ""
+
+#: src/NotificationMailing.php:196
+msgid "Resource creation"
+msgstr ""
+
+#: src/NotificationMailing.php:197
+msgid "Other"
+msgstr ""
+
+#: src/NotificationTargetTicket.php:52 src/NotificationTargetTicket.php:58
+#: src/NotificationTargetTicket.php:64
+msgid "Survey Reminder"
+msgstr ""
+
+#: src/Reminder.php:68
+msgid "Satisfaction reminder"
+msgid_plural "Satisfaction reminders"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/Reminder.php:83
+msgid "Send automaticaly survey reminders"
+msgstr ""
+
+#: src/Survey.php:283 src/Survey.php:318
+msgid "Error : only one survey is allowed by entity"
+msgstr ""
+
+#: src/SurveyAnswer.php:61
+msgid "Answer"
+msgid_plural "Answers"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/SurveyAnswer.php:85
+msgid "Preview"
+msgstr ""
+
+#: src/SurveyQuestion.php:69
+msgid "Question"
+msgid_plural "Questions"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/SurveyQuestion.php:154
+msgid ""
+"You cannot edit the questions when answers exists for this survey. Disable "
+"this survey and create a new one !"
+msgstr ""
+
+#: src/SurveyQuestion.php:177 src/SurveyQuestion.php:246
+msgid "Add a question"
+msgstr ""
+
+#: src/SurveyQuestion.php:184
+msgid "No questions for this survey"
+msgstr ""
+
+#: src/SurveyQuestion.php:294
+msgid "Note on"
+msgstr ""
+
+#: src/SurveyQuestion.php:393 src/SurveyQuestion.php:409
+msgid "Text"
+msgstr ""
+
+#: src/SurveyQuestion.php:394 src/SurveyQuestion.php:411
+msgid "Note"
+msgstr ""
+
+#: src/SurveyReminder.php:83 src/SurveyReminder.php:104
+#: src/SurveyReminder.php:524
+msgid "Reminder"
+msgid_plural "Reminders"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/SurveyReminder.php:193 src/SurveyReminder.php:298
+msgid "Add a reminder"
+msgstr ""
+
+#: src/SurveyReminder.php:197
+msgid "Add a predefined reminder"
+msgstr ""
+
+#: src/SurveyReminder.php:205
+msgid "Setup maximum number of days to send reminder"
+msgstr ""
+
+#: src/SurveyReminder.php:208
+msgid "Maximum number of days to send reminder"
+msgstr ""
+
+#: src/SurveyReminder.php:226
+msgid "No reminders for this survey"
+msgstr ""
+
+#: src/SurveyReminder.php:296
+msgid "Choose a predefined reminder"
+msgstr ""
+
+#: src/SurveyReminder.php:306
+msgid "Predefined Reminders"
+msgstr ""
+
+#: src/SurveyReminder.php:461
+msgid "Month"
+msgstr ""
+
+#: src/SurveyReminder.php:476
+msgid "One Week"
+msgstr ""
+
+#: src/SurveyReminder.php:477
+msgid "Two Week"
+msgstr ""
+
+#: src/SurveyReminder.php:478
+msgid "One Month"
+msgstr ""
+
+#: src/SurveyReminder.php:492
+msgid "Duration Type"
+msgstr ""
+
+#: src/SurveyReminder.php:493
+msgid "Duration"
+msgstr ""
+
+#: src/SurveyReminder.php:576
+#, php-format
+msgid ""
+"You already have a reminder with the same duration type and duration named : "
+"%s"
+msgstr ""
+
+#: src/SurveyReminder.php:608
+msgid "There are nothing to save"
+msgstr ""
+
+#: src/SurveyResult.php:59
+msgid "Result of the survey"
+msgid_plural "Results of the survey"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/SurveyResult.php:81
+msgid "Result"
+msgstr ""
+
+#: src/SurveyResult.php:131
+msgid "No result of the survey"
+msgstr ""
+
+#: src/SurveyResult.php:153
+msgid "Satisfaction with the resolution of the ticket"
+msgstr ""
+
+#: src/SurveyTranslation.php:264
+msgid "No translation has been added yet"
+msgstr ""
+
+#: src/SurveyTranslation.php:437
+#, php-format
+msgid "An %s translation for this Question already exist."
+msgstr ""
+
+#: src/SurveyTranslation.php:451
+msgid "Translation successfully created."
+msgstr ""
+
+#: src/SurveyTranslation.php:468
+msgid "Translation creation failed"
+msgstr ""
+
+#: src/SurveyTranslation.php:483
+msgid "The translation you want to edit does not exist."
+msgstr ""
+
+#: src/SurveyTranslation.php:494
+msgid "Translation successfully edited."
+msgstr ""

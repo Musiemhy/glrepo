@@ -1,0 +1,192 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * metademands plugin for GLPI
+ * Copyright (C) 2018-2026 by the metademands Development Team.
+ *
+ * https://github.com/InfotelGLPI/metademands
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of metademands.
+ *
+ * metademands is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * metademands is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use Glpi\Application\View\TemplateRenderer;
+use GlpiPlugin\Metademands\Config;
+use GlpiPlugin\Metademands\Field;
+use GlpiPlugin\Metademands\FieldParameter;
+use GlpiPlugin\Metademands\Fields\Dropdownobject;
+use GlpiPlugin\Metademands\Metademand;
+use GlpiPlugin\Metademands\Wizard;
+
+$AJAX_INCLUDE = 1;
+
+if (strpos($_SERVER['PHP_SELF'], "umanagerUpdate.php")) {
+    header("Content-Type: text/html; charset=UTF-8");
+    Html::header_nocache();
+}
+
+// Page guard. Gate on the same rights as the wizard entry point
+// (front/wizard.form.php), the only way in to this route, exactly as the
+// neighbouring ajax/condition.php does.
+// This dropdown belongs to the wizard form and resolves a supervisor from a
+// posted users_id; the PII check below is per-user, not per-profile.
+Session::checkSeveralRightsOr([
+    'plugin_metademands' => READ,
+    'plugin_metademands_createmeta' => READ,
+    'plugin_metademands_fillform' => READ,
+]);
+
+if (!isset($_POST['fieldname'])) {
+    $_POST['fieldname'] = "field";
+}
+
+$fieldUser = new Field();
+$fieldparameter = new FieldParameter();
+$readonly = 0;
+$default_use_id_requester_supervisor  = 0;
+$display_type = 0;
+$id = null;
+
+//Update donc $_POST['field'] doesn't exist
+if (isset($_POST['id_fielduser']) && $_POST["id_fielduser"] > 0) {
+    if (!isset($_POST['field'])) {
+        if ($fields = $fieldUser->find(['type'         => "dropdown_object",
+            'plugin_metademands_metademands_id' => $_POST['metademands_id'],
+            'item'         => User::getType()])) {
+            foreach ($fields as $f) {
+                if ($fieldparameter->getFromDBByCrit([
+                    'plugin_metademands_fields_id' => $f['id'],
+                    'link_to_user' => $_POST['id_fielduser'],
+                ])) {
+                    if ($fieldparameter->fields['readonly'] == 1) {
+                        $readonly = 1;
+                    }
+                    if ($fieldparameter->fields['default_use_id_requester_supervisor'] == 1) {
+                        $default_use_id_requester_supervisor = 1;
+                    }
+                    $display_type = (int) ($fieldparameter->fields['display_type'] ?? 0);
+                    $id = $f['id'];
+                    $_POST["field"] = $_POST['fieldname'] . "[$id]";
+                    $_POST["fields_id"] = $id;
+                    $_POST["is_mandatory"] = $fieldparameter->fields['is_mandatory'];
+                }
+            }
+        }
+    }
+}
+
+$val = 0;
+if (isset($_POST['users_id'])
+    && $_POST["users_id"] > 0
+    && $default_use_id_requester_supervisor == 1) {
+    $users_id = (int) $_POST["users_id"];
+    $user = new User();
+    // Only expose another user's profile attribute when the requester lookup legitimately
+    // allows it (self, User READ, or same entity scope) — prevents PII enumeration by id
+    // while keeping "fill a form for another user" working (see Config helper).
+    if (
+        Config::canCurrentUserViewRequester($users_id)
+        && $user->getFromDB($users_id)
+    ) {
+        $val = $user->fields['users_id_supervisor'];
+    }
+}
+
+if (isset($_POST['fields_id'])
+    && isset($_SESSION['plugin_metademands'][$_POST['metademands_id']]['fields'][$_POST['fields_id']])) {
+    $val = $_SESSION['plugin_metademands'][$_POST['metademands_id']]['fields'][$_POST['fields_id']];
+}
+
+// [S3] Normalize the reflected form field name: it is echoed back as the name attribute
+// of the dropdown rendered below (shared rule for the whole u*Update.php family).
+$_POST['field'] = Config::normalizePostedFieldName($_POST['field'] ?? '');
+
+$opt = [
+    'name' => $_POST['field'],
+    'value' => $val,
+    'width' => '200px',
+    'used' => [
+        Session::getLoginUserID(),
+    ],
+    'right'  => 'all',
+];
+
+if ($readonly == 1) {
+    $opt['display_emptychoice'] = false;
+    $opt['readonly'] = true;
+}
+
+if (isset($_POST["is_mandatory"]) && $_POST['is_mandatory'] == 1) {
+    $opt['specific_tags'] = ['required' => 'required'];
+}
+
+if ($display_type == 1 && $id !== null) {
+    $tooltip_moreparams = [
+        'users_id'                           => '__VALUE__',
+        'id_fielduser'                       => (int) $id,
+        'display_type'                       => 1,
+        'metademands_id'                     => (int) $_POST['metademands_id'],
+        'default_use_id_requester'           => 0,
+        'default_use_id_requester_supervisor' => 0,
+    ];
+    $opt['toupdate'] = [[
+        'value_fieldname' => 'value',
+        'to_update'       => "tooltip_user$id",
+        'url'             => PLUGIN_METADEMANDS_WEBDIR . "/ajax/utooltipUpdate.php",
+        'moreparams'      => $tooltip_moreparams,
+    ]];
+}
+
+if ($readonly == 1) {
+    // User::dropdown() writes the widget itself and returns its rand: the legacy `echo`
+    // printed that integer right after the read-only dropdown.
+    $opt['display'] = false;
+    echo User::dropdown($opt);
+    echo Html::hidden($_POST["field"], ['value' => $val]);
+} else {
+    User::dropdown($opt);
+}
+
+if ($display_type == 1 && $id !== null) {
+    echo Ajax::updateItem(
+        "tooltip_user$id",
+        PLUGIN_METADEMANDS_WEBDIR . "/ajax/utooltipUpdate.php",
+        [
+            'users_id'                           => (int) $val,
+            'id_fielduser'                       => (int) $id,
+            'display_type'                       => 1,
+            'metademands_id'                     => (int) $_POST['metademands_id'],
+            'default_use_id_requester'           => 0,
+            'default_use_id_requester_supervisor' => 0,
+        ],
+    );
+}
+
+$_POST['name'] = "manager_user" . $_POST["id_fielduser"] . $_POST['fields_id'];
+$_POST['rand'] = "";
+
+Ajax::commonDropdownUpdateItem($_POST);
+$metademands = new Metademand();
+$metademands->getFromDB($_POST['metademands_id']);
+$metaconditionsparams = Wizard::getConditionsParams($metademands);
+$data['id'] = $_POST['fields_id'];
+$data['item'] = User::getType();
+$data['plugin_metademands_metademands_id'] = $_POST['metademands_id'];
+Dropdownobject::checkConditions($data, $metaconditionsparams);

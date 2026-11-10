@@ -1,0 +1,192 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * resources plugin for GLPI
+ * Copyright (C) 2015-2026 by the resources Development Team.
+ *
+ * https://github.com/InfotelGLPI/resources
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of resources.
+ *
+ * resources is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * resources is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with resources. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Resources;
+
+use CommonDropdown;
+use DBConnection;
+use Migration;
+use Session;
+
+/**
+ * Class HabilitationLevel
+ */
+class HabilitationLevel extends CommonDropdown
+{
+    // From CommonDBTM
+    public $dohistory = true;
+    public $can_be_translated = true;
+
+    /**
+     * @param $nb
+     **@since version 0.85
+     *
+     */
+    public static function getTypeName($nb = 0)
+    {
+        return _n('Habilitation level', 'Habilitations level', $nb, 'resources');
+    }
+
+    /**
+     * Have I the global right to "view" the Object
+     *
+     * Default is true and check entity if the objet is entity assign
+     *
+     * May be overloaded if needed
+     *
+     * @return
+     **/
+    public static function canView(): bool
+    {
+        return Session::haveRight('plugin_resources', READ);
+    }
+
+    /**
+     * Have I the global right to "create" the Object
+     * May be overloaded if needed (ex KnowbaseItem)
+     *
+     * @return
+     **/
+    public static function canCreate(): bool
+    {
+        return Session::haveRightsOr('dropdown', [CREATE, UPDATE, DELETE]);
+    }
+
+    /**
+     * Return Additional Fields for this type
+     *
+     * @return array
+     **/
+    public function getAdditionalFields()
+    {
+        $tab = [
+            [
+                'name' => 'is_mandatory_creating_resource',
+                'label' => __('Mandatory when creating the resource', 'resources'),
+                'type' => 'bool',
+                'list' => true,
+            ],
+            [
+                'name' => "number",
+                'label' => __('Unlimited number of selectable habilitations ', 'resources'),
+                'type' => 'bool',
+                'list' => true,
+            ],
+        ];
+
+        return $tab;
+    }
+
+
+    /**
+     * @return array
+     */
+    public function rawSearchOptions()
+    {
+        $tab = parent::rawSearchOptions();
+
+        $tab[] = [
+            'id' => '15',
+            'table' => $this->getTable(),
+            'field' => 'is_mandatory_creating_resource',
+            'name' => __('Mandatory when creating the resource', 'resources'),
+            'datatype' => 'bool',
+        ];
+        $tab[] = [
+            'id' => '14',
+            'table' => $this->getTable(),
+            'field' => 'number',
+            'name' => __('Unlimited number of selectable habilitations ', 'resources'),
+            'datatype' => 'bool',
+        ];
+
+        return $tab;
+    }
+
+    /**
+     * Transfer
+     *
+     * @param $ID
+     * @param $entity
+     * @return
+     */
+    public static function transfer($ID, $entity)
+    {
+        global $DB;
+
+        if ($ID > 0) {
+            $table = self::getTable();
+            $iterator = $DB->request([
+                'FROM' => $table,
+                'WHERE' => ['id' => $ID],
+            ]);
+
+            foreach ($iterator as $data) {
+                $input['name'] = $data['name'];
+                $input['entities_id'] = $entity;
+                $temp = new self();
+                $newID = $temp->getID();
+                if ($newID < 0) {
+                    $newID = $temp->import($input);
+                }
+
+                return $newID;
+            }
+        }
+        return 0;
+    }
+
+    public static function install(Migration $migration)
+    {
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+        $table  = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $query = "CREATE TABLE `$table` (
+                        `id`           int {$default_key_sign} NOT NULL auto_increment,
+                        `entities_id`                    int {$default_key_sign} NOT NULL                   DEFAULT '0',
+                        `is_recursive`                   tinyint      NOT NULL                   DEFAULT '0',
+                        `name`                           varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+                        `comment`                        TEXT COLLATE utf8mb4_unicode_ci,
+                        `number`                         tinyint      NOT NULL                   DEFAULT '0',
+                        `is_mandatory_creating_resource` tinyint      NOT NULL                   DEFAULT '0',
+                        PRIMARY KEY (`id`),
+                        KEY `name` (`name`),
+                        KEY `entities_id` (`entities_id`),
+                        KEY `is_recursive` (`is_recursive`)
+               ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
+
+            $DB->doQuery($query);
+        }
+    }
+}

@@ -1,0 +1,185 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * mydashboard plugin for GLPI
+ * Copyright (C) 2016-2026 by the mydashboard Development Team.
+ *
+ * https://github.com/InfotelGLPI/mydashboard
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of mydashboard.
+ *
+ * mydashboard is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * mydashboard is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with mydashboard. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Mydashboard\Criterias;
+
+use CommonITILActor;
+use Dropdown;
+use GlpiPlugin\Mydashboard\Criteria;
+use GlpiPlugin\Mydashboard\Preference;
+use Group;
+use Session;
+
+/**
+ * Class TechnicianGroup
+ */
+class TechnicianGroup
+{
+    public static $criteria_name = 'technicians_groups_id';
+    public static $criteria_number = 8;
+
+    public static function getDefaultValue()
+    {
+
+        $technicians_groups_id = [];
+
+        $preference = new Preference();
+        if (!$preference->getFromDB(Session::getLoginUserID())) {
+            $preference->initPreferences(Session::getLoginUserID());
+            $preference->getFromDB(Session::getLoginUserID());
+        }
+        $preferences = $preference->fields;
+        if (isset($preferences['prefered_group'])) {
+            $preferences['prefered_group'] = \Safe\json_decode($preferences['prefered_group'], true);
+            if (is_array($preferences['prefered_group'])
+                && count($preferences['prefered_group']) > 0) {
+                $technicians_groups_id = $preferences['prefered_group'];
+            }
+        }
+        return $technicians_groups_id;
+
+    }
+
+    /**
+     * @param array $opt
+     *
+     * @return array<int, array{label: string, values: array<int, string>}>
+     */
+    public static function getDisplayValue($opt): array
+    {
+        $technicians_groups_id = is_array(
+            $opt[self::$criteria_name],
+        ) ? $opt[self::$criteria_name] : [];
+
+        $technicians_groups_id = array_filter($technicians_groups_id);
+
+        if (count($technicians_groups_id) === 0) {
+            return [];
+        }
+
+        $values = [];
+        foreach ($technicians_groups_id as $group_id) {
+            $values[] = (string) Dropdown::getDropdownName('glpi_groups', $group_id);
+        }
+
+        return [[
+            'label'  => __('Technician group'),
+            'values' => $values,
+        ]];
+    }
+
+    public static function getDisplayForm($default, $opt, $count)
+    {
+
+        $result = getAllDataFromTable(
+            Group::getTable(),
+            ['is_assign' => 1, 'ORDER' => "completename"],
+            false,
+        );
+
+        if (isset($opt[self::$criteria_name])) {
+            $technicians_groups_id = (is_array(
+                $opt[self::$criteria_name],
+            ) ? $opt[self::$criteria_name] : []);
+        } else {
+            $technicians_groups_id = [];
+        }
+
+        $temp = [];
+        foreach ($result as $item) {
+            $temp[$item['id']] = $item['completename'];
+        }
+
+        $params = [
+            "name" => self::$criteria_name,
+            "multiple" => true,
+            "width" => '200px',
+            'values' => $technicians_groups_id ?? $default[self::$criteria_name],
+            'display_emptychoice' => true,
+        ];
+
+
+        $form = Criteria::getFieldHtml(
+            __('Technician group'),
+            $count,
+            [Dropdown::class, 'showFromArray'],
+            [self::$criteria_name, $temp, $params],
+        );
+
+        $defaultcrit = $default['is_recursive_technicians'] ?? 0;
+        $sons = $opt['is_recursive_technicians'] ?? $defaultcrit;
+        if ($sons > 0) {
+            $form .= Criteria::getFieldHtml(
+                __('Child groups'),
+                $count,
+                [Dropdown::class, 'showYesNo'],
+                ['is_recursive_technicians', $sons],
+            );
+        }
+
+        return $form;
+    }
+
+    public static function getQueryLeftJoin($params, $table)
+    {
+
+        return $params['query']['LEFT JOIN'] + [
+            'glpi_groups_tickets' => [
+                'ON' => [
+                    $table => 'id',
+                    'glpi_groups_tickets' => 'tickets_id',
+                    [
+                        'AND' => [
+                            'glpi_groups_tickets.type' => CommonITILActor::ASSIGN,
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+    }
+
+    public static function getQueryCriteria($params)
+    {
+
+        return $params['query']['WHERE'] + ['glpi_groups_tickets.groups_id' => $params[self::$criteria_name]];
+    }
+
+    public static function getSearchCriteria($params, $value = 0)
+    {
+
+        return Criteria::addUrlGroupCriteria(
+            self::$criteria_number,
+            ((isset($params["params"]["is_recursive_technicians"])
+                && !empty($params["params"]["is_recursive_technicians"])) ? 'under' : 'equals'),
+            $params["params"][self::$criteria_name],
+        );
+
+    }
+}

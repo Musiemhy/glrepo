@@ -1,0 +1,342 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * resources plugin for GLPI
+ * Copyright (C) 2015-2026 by the resources Development Team.
+ *
+ * https://github.com/InfotelGLPI/resources
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of resources.
+ *
+ * resources is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * resources is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with resources. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Resources;
+
+use CommonDropdown;
+use DBConnection;
+use DbUtils;
+use Dropdown;
+use Migration;
+use Session;
+use Glpi\Application\View\TemplateRenderer;
+
+/**
+ * Class Rank
+ */
+class Rank extends CommonDropdown
+{
+    public static $rightname = 'plugin_resources';
+    public $can_be_translated = true;
+    /**
+     * @param $nb
+     **@since 0.85
+     *
+     */
+    public static function getTypeName($nb = 0)
+    {
+        return _n('Rank', 'Ranks', $nb, 'resources');
+    }
+
+    /**
+     * Have I the global right to "create" the Object
+     * May be overloaded if needed (ex KnowbaseItem)
+     *
+     * @return
+     **/
+    public static function canCreate(): bool
+    {
+        if (Session::haveRightsOr(self::$rightname, [CREATE, UPDATE, DELETE])
+            && Session::haveRight('plugin_resources_dropdown_public', UPDATE)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Have I the global right to "view" the Object
+     *
+     * Default is true and check entity if the objet is entity assign
+     *
+     * May be overloaded if needed
+     *
+     * @return
+     **/
+    public static function canView(): bool
+    {
+        if (Session::haveRight(self::$rightname, READ)
+            && Session::haveRight('plugin_resources_dropdown_public', READ)) {
+            return true;
+        }
+        return false;
+    }
+
+
+    /**
+     * Return Additional Fields for this type
+     *
+     * @return array
+     **/
+    public function getAdditionalFields()
+    {
+        return [
+            [
+                'name' => 'code',
+                'label' => __('Code', 'resources'),
+                'type' => 'text',
+                'list' => true,
+            ],
+            [
+                'name' => 'short_name',
+                'label' => __('Short name', 'resources'),
+                'type' => 'text',
+                'list' => true,
+            ],
+            [
+                'name' => 'plugin_resources_professions_id',
+                'label' => __('Profession', 'resources'),
+                'type' => 'dropdownValue',
+                'list' => true,
+            ],
+            [
+                'name' => 'begin_date',
+                'label' => __('Begin date'),
+                'type' => 'date',
+                'list' => false,
+            ],
+            [
+                'name' => 'end_date',
+                'label' => __('End date'),
+                'type' => 'date',
+                'list' => false,
+            ],
+            [
+                'name' => 'is_active',
+                'label' => __('Active'),
+                'type' => 'bool',
+                'list' => true,
+            ],
+        ];
+    }
+
+    /**
+     * @return array
+     */
+    public function rawSearchOptions()
+    {
+        $tab = parent::rawSearchOptions();
+
+        $tab[] = [
+            'id' => '24',
+            'table' => $this->getTable(),
+            'field' => 'code',
+            'name' => __('Code', 'resources'),
+        ];
+        $tab[] = [
+            'id' => '25',
+            'table' => $this->getTable(),
+            'field' => 'short_name',
+            'name' => __('Short name', 'resources'),
+        ];
+        $tab[] = [
+            'id' => '27',
+            'table' => 'glpi_plugin_resources_professions',
+            'field' => 'name',
+            'name' => __('Profession', 'resources'),
+            'datatype' => 'dropdown',
+        ];
+        $tab[] = [
+            'id' => '28',
+            'table' => $this->getTable(),
+            'field' => 'is_active',
+            'name' => __('Active'),
+            'datatype' => 'bool',
+        ];
+        $tab[] = [
+            'id' => '29',
+            'table' => $this->getTable(),
+            'field' => 'begin_date',
+            'name' => __('Begin date'),
+            'datatype' => 'date',
+        ];
+        $tab[] = [
+            'id' => '30',
+            'table' => $this->getTable(),
+            'field' => 'end_date',
+            'name' => __('End date'),
+            'datatype' => 'date',
+        ];
+
+        return $tab;
+    }
+
+
+    /**
+     * Display a rank's list depending on profession
+     *
+     * @static
+     * @param $options
+     */
+    public static function showRank($options)
+    {
+        global $DB;
+
+        $professionId = (int) ($options['plugin_resources_professions_id'] ?? 0);
+        $entity       = $options['entity'] ?? 0;
+        $sort         = $options['sort'] ?? false;
+
+        // The rand only builds an element id and comes straight from the request: keep it
+        // numeric so it can never break out of the id attribute.
+        $rand = (int) ($options['rand'] ?? 0);
+
+        $dropdown = '';
+        if ($professionId > 0) {
+            if ($sort) {
+                $values   = [0 => Dropdown::EMPTY_VALUE];
+                // This branch used to list every rank of the profession whatever its entity,
+                // while the branch below hands $entity over to Dropdown::show(). sort is
+                // posted by the client, so setting it was enough to read the ranks of entities
+                // the session cannot reach: apply the same restriction here.
+                $iterator = $DB->request([
+                    'FROM'  => self::getTable(),
+                    'WHERE' => [
+                        'plugin_resources_professions_id' => $professionId,
+                    ] + (new DbUtils())->getEntitiesRestrictCriteria(self::getTable(), '', $entity, true),
+                ]);
+                foreach ($iterator as $data) {
+                    $values[$data['id']] = $data['name'];
+                }
+                $dropdown = (string) Dropdown::showFromArray('plugin_resources_ranks_id', $values, [
+                    'display' => false,
+                ]);
+            } else {
+                $dropdown = (string) Dropdown::show(Rank::class, [
+                    'entity'    => $entity,
+                    'condition' => ['plugin_resources_professions_id' => $professionId],
+                    'display'   => false,
+                ]);
+            }
+        }
+
+        TemplateRenderer::getInstance()->display('@resources/dependent_dropdown.html.twig', [
+            'dropdown'    => $dropdown,
+            'field_name'  => 'plugin_resources_ranks_id',
+            'rand'        => $rand,
+            'empty_value' => Dropdown::EMPTY_VALUE,
+        ]);
+    }
+
+    /**
+     * During resource or employment transfer
+     *
+     * @static
+     * @param $ID
+     * @param $entity
+     * @return
+     */
+    public static function transfer($ID, $entity)
+    {
+        global $DB;
+
+        if ($ID > 0) {
+            $table = self::getTable();
+            $iterator = $DB->request([
+                'FROM' => $table,
+                'WHERE' => ['id' => $ID],
+            ]);
+
+            foreach ($iterator as $data) {
+                $input['name'] = $data['name'];
+                $input['entities_id'] = $entity;
+                $temp = new self();
+                $newID = $temp->getID();
+                if ($newID < 0) {
+                    $newID = $temp->import($input);
+                }
+
+                //transfert of the linked profession
+                $profession = Profession::transfer($temp->fields["plugin_resources_professions_id"], $entity);
+                if ($profession > 0) {
+                    $values["id"] = $newID;
+                    $values["plugin_resources_professions_id"] = $profession;
+                    $temp->update($values);
+                }
+
+                return $newID;
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * when a rank is deleted -> deletion of the linked specialities
+     *
+     * @return
+     */
+    public function cleanDBonPurge()
+    {
+        $temp = new ResourceSpeciality();
+        $temp->deleteByCriteria(['plugin_resources_ranks_id' => $this->fields['id']]);
+    }
+
+    /**
+     * is_active = 1 during a creation
+     *
+     * @return
+     */
+    public function post_getEmpty()
+    {
+        $this->fields['is_active'] = 1;
+    }
+
+    public static function install(Migration $migration)
+    {
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+        $table  = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $query = "CREATE TABLE `$table` (
+                        `id`           int {$default_key_sign} NOT NULL auto_increment,
+                        `entities_id`                     int {$default_key_sign} NOT NULL                   DEFAULT '0',
+                        `is_recursive`                    tinyint      NOT NULL                   DEFAULT '0',
+                        `name`                            varchar(255) COLLATE utf8mb4_unicode_ci default NULL,
+                        `code`                            varchar(255) COLLATE utf8mb4_unicode_ci default NULL,
+                        `short_name`                      varchar(255) COLLATE utf8mb4_unicode_ci default NULL,
+                        `plugin_resources_professions_id` int {$default_key_sign} NOT NULL                   DEFAULT '0' COMMENT 'RELATION to glpi_plugin_resources_professions (id)',
+                        `is_active`                       tinyint      NOT NULL                   DEFAULT '0',
+                        `comment`                         TEXT COLLATE utf8mb4_unicode_ci,
+                        `begin_date`                      timestamp    NULL                       DEFAULT NULL,
+                        `end_date`                        timestamp    NULL                       DEFAULT NULL,
+                        PRIMARY KEY (`id`),
+                        KEY `name` (`name`),
+                        KEY `entities_id` (`entities_id`),
+                        KEY `is_recursive` (`is_recursive`),
+                        KEY `plugin_resources_professions_id` (`plugin_resources_professions_id`),
+                        KEY `is_active` (`is_active`)
+               ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
+
+            $DB->doQuery($query);
+        }
+    }
+
+}

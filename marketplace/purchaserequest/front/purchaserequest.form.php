@@ -1,0 +1,139 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * purchaserequest plugin for GLPI
+ * Copyright (C) 2021-2026 by the purchaserequest Development Team.
+ *
+ * https://github.com/InfotelGLPI/purchaserequest
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of purchaserequest.
+ *
+ * purchaserequest is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * purchaserequest is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with purchaserequest. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use Glpi\Application\View\TemplateRenderer;
+use GlpiPlugin\Purchaserequest\PurchaseRequest;
+use GlpiPlugin\Servicecatalog\Main;
+
+global $DB;
+
+if (!isset($_GET["id"])) {
+    $_GET["id"] = "";
+}
+
+if (Plugin::isPluginActive("order")
+    && $DB->tableExists("glpi_plugin_order_orders")) {
+    $purchase = new PurchaseRequest();
+
+    if (isset($_POST["add"])) {
+        $purchase->check(-1, CREATE, $_POST);
+        $newID = $purchase->add($_POST);
+        $url   = Toolbox::getItemTypeFormURL(PurchaseRequest::class) . "?id=$newID";
+        if ($_SESSION['glpibackcreated']) {
+            Html::redirect($purchase->getFormURL() . "?id=" . $newID);
+        } else {
+            Html::redirect($url);
+        }
+    } elseif (isset($_POST["add_tickets"])) {
+        $purchase->check(-1, CREATE, $_POST);
+        $newID = $purchase->add($_POST);
+        Html::back();
+
+        /* delete purchaserequest */
+    } elseif (isset($_POST["delete"])) {
+        $purchase->check($_POST['id'], DELETE);
+        $purchase->delete($_POST);
+        $purchase->redirectToList();
+    } elseif (isset($_POST["restore"])) {
+        $purchase->check($_POST['id'], DELETE);
+        $purchase->restore($_POST);
+        $purchase->redirectToList();
+    } elseif (isset($_POST["purge"])) {
+        $purchase->check($_POST['id'], PURGE);
+        $purchase->delete($_POST, 1);
+        $purchase->redirectToList();
+
+        /* update purchaserequest */
+    } elseif (isset($_POST["update"]) || (isset($_POST['update_status']))) {
+        $purchase->check($_POST['id'], UPDATE);
+        $purchase->update($_POST);
+        Html::back();
+    }
+
+    if (isset($_POST['action'])) {
+        // Retrieve configuration for generate assets feature
+
+        $purchase_request = new PurchaseRequest();
+        switch ($_POST['chooseAction']) {
+            case 'delete_link':
+                if (isset($_POST["item"])) {
+                    foreach ($_POST["item"] as $key => $val) {
+                        $key = (int) $key;
+                        if ($val == 1 && $key > 0) {
+                            // Enforce UPDATE right + entity access before unlinking
+                            // the request from its order.
+                            $purchase_request->check($key, UPDATE);
+                            $tmp = [
+                                'id'                     => $key,
+                                'plugin_order_orders_id' => 0,
+                            ];
+                            $purchase_request->update($tmp);
+                        }
+                    }
+                }
+                break;
+        }
+        Html::back();
+    }
+
+    if (Session::getCurrentInterface() == 'central') {
+        Html::header(
+            PurchaseRequest::getTypeName(2),
+            $_SERVER['PHP_SELF'],
+            "management",
+            PurchaseRequest::class,
+            "purchaserequest",
+        );
+    } else {
+        if (Plugin::isPluginActive('servicecatalog')) {
+            Main::showDefaultHeaderHelpdesk(PurchaseRequest::getTypeName(2), true);
+        } else {
+            Html::helpHeader(PurchaseRequest::getTypeName(2));
+        }
+    }
+
+    Html::requireJs('tinymce');
+    $purchase->display($_GET);
+} else {
+    Html::header(__('Setup'), '', "tools", PurchaseRequest::class);
+    TemplateRenderer::getInstance()->display('@purchaserequest/alert.html.twig', [
+        'message' => __('Please activate the plugin order', 'purchaserequest'),
+    ]);
+}
+
+if (Session::getCurrentInterface() != 'central'
+    && Plugin::isPluginActive('servicecatalog')) {
+    Main::showNavBarFooter('purchaserequest');
+}
+
+if (Session::getCurrentInterface() == 'central') {
+    Html::footer();
+} else {
+    Html::helpFooter();
+}

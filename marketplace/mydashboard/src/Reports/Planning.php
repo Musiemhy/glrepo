@@ -1,0 +1,162 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * mydashboard plugin for GLPI
+ * Copyright (C) 2016-2026 by the mydashboard Development Team.
+ *
+ * https://github.com/InfotelGLPI/mydashboard
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of mydashboard.
+ *
+ * mydashboard is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * mydashboard is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with mydashboard. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Mydashboard\Reports;
+
+use CommonGLPI;
+use Glpi\Application\View\TemplateRenderer;
+use GlpiPlugin\Mydashboard\Menu;
+use GlpiPlugin\Mydashboard\Widget;
+use GlpiPlugin\Mydashboard\Html as MydashboardHtml;
+use Session;
+
+/**
+ * This class extends GLPI class planning to add the functions to display a widget on Dashboard
+ */
+class Planning extends CommonGLPI
+{
+    // Should return the localized name of the type
+    /**
+     * @param int $nb
+     *
+     * @return string
+     */
+    public static function getTypeName($nb = 0)
+    {
+        return __('Dashboard', 'mydashboard');
+    }
+
+    /**
+     * @return bool
+     */
+    public static function canCreate(): bool
+    {
+        return Session::haveRightsOr('plugin_mydashboard', [CREATE, UPDATE]);
+    }
+
+    /**
+     * @return bool
+     */
+    public static function canView(): bool
+    {
+        return Session::haveRight('plugin_mydashboard', READ);
+    }
+
+
+    /**
+     * @return array
+     */
+    public function getWidgetsForItem()
+    {
+        $widgets = [];
+        if (Session::haveRight(\Planning::$rightname, \Planning::READMY)) {
+            $widgets = [
+                Menu::$TICKET_TECHVIEW => [
+                    "planningwidget" => [
+                        "title" => __('Your planning'),
+                        "type" => Widget::$PLANNING,
+                        "comment" => "",
+                    ],
+                ],
+            ];
+        }
+        return $widgets;
+    }
+
+
+    /**
+     * @param $widgetId
+     *
+     * @return false|MydashboardHtml
+     */
+    public function getWidgetContentForItem($widgetId)
+    {
+        switch ($widgetId) {
+            case "planningwidget":
+                $who_group = "";
+                $who = 0;
+                if (Session::haveRight(\Planning::$rightname, \Planning::READMY)) {
+                    $who = Session::getLoginUserID();
+                }
+                if (Session::haveRightsOr(\Planning::$rightname, [
+                    \Planning::READGROUP,
+                    \Planning::READALL,
+                ])) {
+                    $who_group = "mine";
+                }
+                return self::showCentral($who, $who_group);
+                break;
+        }
+    }
+
+    /**
+     * Show the planning for the central page of a user
+     *
+     * @param $who
+     *
+     * @return MydashboardHtml (display function)
+     */
+    public static function showCentral($who, $who_group = "")
+    {
+        if (!Session::haveRight(\Planning::$rightname, \Planning::READMY)
+            || ($who <= 0 && $who_group == "")
+        ) {
+            return false;
+        }
+        \Html::requireJs('fullcalendar');
+        \Html::requireJs('planning');
+        echo \Html::css("/lib/fullcalendar.css");
+
+        $widget = new MydashboardHtml();
+        $title = __("Your planning");
+        $widget->setWidgetTitle($title);
+
+        $rand = rand();
+        $options = [
+            'full_view' => false,
+            'default_view' => 'listFull',
+            'header' => false,
+            'height' => 'auto',
+            'rand' => $rand,
+            'now' => date("Y-m-d H:i:s"),
+        ];
+
+        $widget->toggleWidgetRefresh();
+
+        $output =  TemplateRenderer::getInstance()->render(
+            'pages/assistance/planning/planning.html.twig',
+            [
+                'options' => $options,
+            ],
+        );
+
+        $widget->setWidgetHtmlContent($output);
+        return $widget;
+    }
+}

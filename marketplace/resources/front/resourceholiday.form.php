@@ -1,0 +1,97 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * resources plugin for GLPI
+ * Copyright (C) 2015-2026 by the resources Development Team.
+ *
+ * https://github.com/InfotelGLPI/resources
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of resources.
+ *
+ * resources is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * resources is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with resources. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use Glpi\Exception\Http\AccessDeniedHttpException;
+use GlpiPlugin\Resources\ResourceHoliday;
+use GlpiPlugin\Servicecatalog\Main;
+use GlpiPlugin\Resources\Menu;
+use GlpiPlugin\Resources\Resource;
+
+if (Session::getCurrentInterface() == 'central') {
+    //from central
+    Html::header(Resource::getTypeName(2), '', "admin", Menu::class, ResourceHoliday::class);
+} else {
+    //from helpdesk
+    if (Plugin::isPluginActive('servicecatalog')) {
+        Main::showDefaultHeaderHelpdesk(Menu::getTypeName(2));
+    } else {
+        Html::helpHeader(Resource::getTypeName(2));
+    }
+}
+
+if (!isset($_GET["id"])) {
+    $_GET["id"] = "";
+}
+
+$holiday = new ResourceHoliday();
+
+if (isset($_POST["addholidayresources"]) && $_POST["plugin_resources_resources_id"] != 0) {
+    $holiday->check(-1, CREATE, $_POST);
+    // ResourceHoliday has no entities_id of its own, so the check() above cannot enforce
+    // any entity boundary: re-check it on the owning Resource.
+    Resource::checkOwnership($_POST["plugin_resources_resources_id"]);
+    $holiday->add($_POST);
+    Html::back();
+} elseif (isset($_POST["updateholidayresources"]) && $_POST["plugin_resources_resources_id"] != 0) {
+    $holiday->check($_POST['id'], UPDATE);
+    // Check the currently owning Resource...
+    Resource::checkChildOwnership($holiday, $_POST['id']);
+    // ...and the posted one too, as the form allows reassigning the holiday to
+    // another Resource: checkChildOwnership() only validates the stored owner.
+    Resource::checkOwnership($_POST["plugin_resources_resources_id"]);
+    $holiday->update($_POST);
+    Html::back();
+} elseif (isset($_POST["deleteholidayresources"]) && $_POST["plugin_resources_resources_id"] != 0) {
+    $holiday->check($_POST['id'], PURGE);
+    Resource::checkChildOwnership($holiday, $_POST['id']);
+    $holiday->delete($_POST, 1);
+    $holiday->redirectToList();
+} else {
+    // Both remaining branches only display, and both used to answer with an empty page when the
+    // right was missing: pose the read guard once and refuse.
+    if (!$holiday->canView() && !Session::haveRight("config", UPDATE)) {
+        throw new AccessDeniedHttpException();
+    }
+    if (isset($_GET['menu'])) {
+        $holiday->showMenu();
+    } else {
+        $holiday->display($_GET);
+    }
+}
+
+if (Session::getCurrentInterface() != 'central'
+    && Plugin::isPluginActive('servicecatalog')) {
+    Main::showNavBarFooter('resources');
+}
+
+if (Session::getCurrentInterface() == 'central') {
+    Html::footer();
+} else {
+    Html::helpFooter();
+}

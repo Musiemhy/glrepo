@@ -1,0 +1,128 @@
+{#
+ # -------------------------------------------------------------------------
+ # metademands plugin for GLPI
+ # Copyright (C) 2018-2026 by the metademands Development Team.
+ #
+ # https://github.com/InfotelGLPI/metademands
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of metademands.
+ #
+ # metademands is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # metademands is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+<div class="tab-pane fade active show" role="tabpanel">
+    <div class="asset" data-select2-id="2392">
+        <form id='wizard_form' data-track-changes="false" enctype="multipart/form-data" data-submit-once=""
+              data-select2-id="2391">
+            <div id="mainformtable" data-select2-id="mainformtable">
+                <div id="header_150288226" style="position:relative"
+                     class="card-header main-header d-flex flex-wrap mx-n2 mt-n2 align-items-stretch  flex-grow-1">
+                    <h3 class="card-title d-flex align-items-center ps-4">
+                        <div class="ribbon ribbon-bookmark ribbon-top ribbon-start bg-blue s-1">
+                            <i class="ti ti-file fa-2x"></i>
+                        </div>
+                        <span> {{ new_draft }} </span>
+
+                    </h3>
+                </div>
+                <table class="tab_cadre_fixe" style="margin: 20px 0">
+                    <tbody>
+                    <tr>
+                        <td>{{ draft_name }}</td>
+                        <td><input type="text" name="draft_name" value="" size="40" class="form-control"></td>
+                        <td>{{ metademand_name }}</td>
+                        <td>
+                            <select name='metademands_id'>
+                                <option value="{{ 0 }}">{{ listMetademand[0] }}</option>
+                                {% for key, value in listMetademand %}
+                                    {% if (value | length > 2) %}
+                                        {% for data in value %}
+                                            <option value="{{ key }}"
+                                                    data-idcat="{{ data['itilcategory'] }}">{{ data['name'] }}</option>
+                                        {% endfor %}
+                                    {% else %}
+                                        <option value="{{ key }}"
+                                                data-idcat="{{ value['itilcategory'] }}">{{ value['name'] }}</option>
+                                    {% endif %}
+
+                                {% endfor %}
+                            </select>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+                <div class="row"></div>
+                <div class="card-body mx-n2 mb-4 border-top d-flex flex-row-reverse align-items-start flex-wrap">
+                    <button form='' class="btn btn-primary me-2" id="submitSave" onclick="addDraft(event)" name="add"
+                            value="1">
+                        <i class="ti ti-plus"></i>
+                        <span>{{ confirmation }}</span>
+                    </button>
+                </div>
+                <input type="hidden" name="_glpi_csrf_token" value="{{ _glpi_csrf_token }}"/>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function addDraft(event) {
+        event.stopPropagation();
+        if (typeof tinyMCE !== 'undefined') {
+            tinyMCE.triggerSave();
+        }
+
+        jQuery('.resume_builder_input').trigger('change');
+
+        $('select[id$=\"_to\"] option').each(function () {
+            $(this).prop('selected', true);
+        });
+
+        $('#ajax_loader').show();
+
+        arrayDatas = $('#wizard_form').serializeArray();
+
+        arrayDatas.push({name: 'save_draft', value: true});
+        arrayDatas.push({name: 'new_draft', value: true});
+        arrayDatas.push({name: 'step', value: 2});
+        arrayDatas.push({name: 'form_metademands_id', value: 0});
+        arrayDatas.push({name: '_users_id_requester', value: {{ _users_id_requester }}});
+        arrayDatas.push({name: 'resources_id', value: 0});
+        arrayDatas.push({name: 'resources_step', value: 0});
+        arrayDatas.push({name: 'plugin_metademands_drafts_id', value: 0});
+        arrayDatas.push({
+            name: 'field_plugin_servicecatalog_itilcategories_id',
+            value: $('#wizard_form select[name="metademands_id"]').find(':selected').data('idcat')
+        });
+
+        $.ajax({
+            url: '{{ path }}/ajax/adddraft.php',
+            type: 'POST',
+            data: arrayDatas,
+            success: function (response) {
+                window.location.href = '{{ path }}/front/draft.form.php?id=' + response;
+            },
+            error: function (xhr, status, error) {
+                console.log(xhr);
+                console.log(status);
+                console.log(error);
+            }
+        });
+
+    };
+</script>

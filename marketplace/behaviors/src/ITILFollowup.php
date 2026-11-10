@@ -1,0 +1,151 @@
+<?php
+
+/**
+ * LICENSE
+ *
+ * This file is part of Behaviors plugin for GLPI.
+ *
+ * Behaviors is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Behaviors is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with Behaviors. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * @author    Infotel, Remi Collet, Nelly Mahu-Lasson
+ * @copyright Copyright (c) 2018-2026 Behaviors plugin team
+ * @license   AGPL License 3.0 or (at your option) any later version
+ * @link      https://github.com/InfotelGLPI/behaviors/
+ * @link      http://www.glpi-project.org/
+ * @package   behaviors
+ * @since     2010
+ * http://www.gnu.org/licenses/agpl-3.0-standalone.html
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Behaviors;
+
+use CommonITILActor;
+use CommonITILObject;
+use Session;
+
+class ITILFollowup
+{
+    /**
+     * @param \ITILFollowup $fup
+     * @return void
+     */
+    public static function beforeAdd(\ITILFollowup $fup)
+    {
+        $config = Config::getInstance();
+
+        // Server-side counterpart of the hidden "add" button (Common::deleteAddSolutionButton()),
+        // so the rule also holds for API calls and direct POSTs. Like the other mandatory
+        // checks, only interactive users are subject to it (mail replies are not refused).
+        if ($config->getField('is_ticketcategory_mandatory_on_update')
+            && is_numeric(Session::getLoginUserID(false))) {
+            $parent = getItemForItemtype($fup->input['itemtype'] ?? '');
+            if ($parent instanceof CommonITILObject
+                && $parent->getFromDB((int) ($fup->input['items_id'] ?? 0))
+                && (int) ($parent->fields['itilcategories_id'] ?? 0) === 0) {
+                Session::addMessageAfterRedirect(
+                    __("Category is mandatory before ticket is updated", 'behaviors'),
+                    true,
+                    ERROR,
+                );
+                $fup->input = false;
+                return;
+            }
+        }
+
+        if ($fup->input['itemtype'] !== 'Ticket') {
+            return;
+        }
+
+        if (!$config->getField('addfup_updatetech')) {
+            return;
+        }
+
+        if (!Session::haveRight('ticket', UPDATE)) {
+            return;
+        }
+
+        $ticket = new \Ticket();
+        if (!$ticket->getFromDB($fup->input['items_id'])) {
+            return;
+        }
+
+        // Cast to int so strict comparisons below behave whatever the raw type
+        // returned by the session/DB layer.
+        $current_user_id = (int) Session::getLoginUserID();
+        $tickets_id = $ticket->getID();
+
+        // Collect all currently assigned users
+        $ticket_user = new \Ticket_User();
+        $assigned_users = $ticket_user->find([
+            'tickets_id' => $tickets_id,
+            'type'       => CommonITILActor::ASSIGN,
+        ]);
+
+        // Already assigned as the sole tech — nothing to do
+        if (count($assigned_users) === 1
+            && (int) reset($assigned_users)['users_id'] === $current_user_id) {
+            return;
+        }
+
+        // Check whether the current user belongs to any group assigned to the ticket
+        $group_ticket = new \Group_Ticket();
+        $assigned_groups = $group_ticket->find([
+            'tickets_id' => $tickets_id,
+            'type'       => CommonITILActor::ASSIGN,
+        ]);
+
+        // Note: an unassigned ticket (no tech AND no group) must still let the
+        // follow-up author become the technician — this is the primary purpose of
+        // the feature (issue #62). We therefore do NOT bail out here; when no group
+        // is assigned the author is eligible unconditionally, and when groups are
+        // assigned the membership check below still gates the assignment.
+        $user_in_assigned_group = false;
+        if (count($assigned_groups) > 0) {
+            foreach ($assigned_groups as $grp) {
+                $group_users = \Group_User::getGroupUsers($grp['groups_id']);
+                $group_user_ids = array_column($group_users, 'id');
+                if (in_array($current_user_id, $group_user_ids)) {
+                    $user_in_assigned_group = true;
+                    break;
+                }
+            }
+            // When groups are assigned, only proceed if the user belongs to one of them
+            if (!$user_in_assigned_group) {
+                return;
+            }
+        }
+
+        // Remove every currently assigned user (there may be several)
+        foreach ($assigned_users as $field) {
+            if (!isset($field['users_id'])) {
+                continue;
+            }
+            $to_delete = new \Ticket_User();
+            $to_delete->deleteByCriteria([
+                'tickets_id' => $tickets_id,
+                'users_id'   => $field['users_id'],
+                'type'       => CommonITILActor::ASSIGN,
+            ]);
+        }
+
+        // Assign the current user exactly once
+        $new_assign = new \Ticket_User();
+        $new_assign->add([
+            'tickets_id' => $tickets_id,
+            'users_id'   => $current_user_id,
+            'type'       => CommonITILActor::ASSIGN,
+        ]);
+    }
+}

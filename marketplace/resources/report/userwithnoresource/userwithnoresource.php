@@ -1,0 +1,155 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * resources plugin for GLPI
+ * Copyright (C) 2015-2026 by the resources Development Team.
+ *
+ * https://github.com/InfotelGLPI/resources
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of resources.
+ *
+ * resources is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * resources is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with resources. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use Glpi\DBAL\QuerySubQuery;
+use GlpiPlugin\Reports\AutoReport;
+use GlpiPlugin\Reports\Column;
+use GlpiPlugin\Reports\ColumnLink;
+
+//Options for GLPI 0.71 and newer : need slave db to access the report
+$USEDBREPLICATE = 1;
+$DBCONNECTION_REQUIRED = 0;
+
+global $HEADER_LOADED, $DB;
+//"Rapport listant les utilisateurs sans ressources";
+//"Report listing user without resource";
+// Instantiate Report with Name
+// Authorization guard: this report script is directly addressable and bypasses the
+// reports plugin dispatcher, so enforce the plugin business right — like every other
+// resources endpoint — before running any query or emitting output.
+Session::checkRight('plugin_resources', READ);
+
+$dbu = new DbUtils();
+
+$report = new AutoReport(__("User without resource", "resources"));
+
+// Columns title (optional)
+$report->setColumns(
+    [
+        new ColumnLink(
+            'user_id',
+            _n('User', 'Users', 1),
+            'User',
+            ['sorton' => 'user_name'],
+        ),
+        new Column(
+            'realname',
+            __('Surname'),
+            ['sorton' => 'realname'],
+        ),
+        new Column(
+            'firstname',
+            __('First name'),
+            ['sorton' => 'firstname'],
+        ),
+        new Column(
+            'location',
+            __('Location'),
+            ['sorton' => 'location'],
+        ),
+    ],
+);
+
+$criteria = [
+    'SELECT' => [
+        'glpi_users.id AS user_id',
+        'glpi_users.name AS user_name',
+        'glpi_users.realname',
+        'glpi_users.firstname',
+        'glpi_locations.completename AS location',
+    ],
+    'FROM' => 'glpi_users',
+    'LEFT JOIN' => [
+        'glpi_locations' => [
+            'ON' => [
+                'glpi_locations' => 'id',
+                'glpi_users' => 'locations_id',
+            ],
+        ],
+    ],
+    'WHERE' => [
+        'glpi_users.is_deleted' => 0,
+        'glpi_users.authtype' => Auth::LDAP,
+        'glpi_users.is_active' => 1,
+        // glpi_users carries no entity of its own: a user belongs to an entity through its
+        // profiles, which is how the core scopes its own user lists. Without this the
+        // report listed every LDAP user of the instance whatever the active entity, while
+        // every other report of the plugin restricts its own result set.
+        'glpi_users.id' => new QuerySubQuery([
+            'SELECT' => 'users_id',
+            'FROM'   => 'glpi_profiles_users',
+            'WHERE'  => $dbu->getEntitiesRestrictCriteria('glpi_profiles_users', '', '', true),
+        ]),
+        'AND' => [
+            [
+                'NOT' => [
+                    'glpi_users.id' => new QuerySubQuery([
+                        'SELECT' => ['items_id'],
+                        'FROM'   => 'glpi_plugin_resources_resources_items',
+                        'WHERE'  => [
+                            'itemtype' => 'User',
+                        ],
+                    ]),
+                ],
+            ],
+            [
+                'NOT' => [
+                    'glpi_users.id' => new QuerySubQuery([
+                        'SELECT' => ['glpi_plugin_resources_resources_items.items_id'],
+                        'FROM'   => 'glpi_plugin_resources_resources_items',
+
+                        'INNER JOIN' => [
+                            'glpi_plugin_resources_resources' => [
+                                'ON' => [
+                                    'glpi_plugin_resources_resources'       => 'id',
+                                    'glpi_plugin_resources_resources_items' => 'plugin_resources_resources_id',
+                                ],
+                            ],
+                        ],
+
+                        'WHERE' => [
+                            'glpi_plugin_resources_resources.is_leaving' => 0,
+                            'glpi_plugin_resources_resources.is_deleted' => 0,
+                            'glpi_plugin_resources_resources.date_begin' => null,
+                        ],
+                    ]),
+                ],
+            ],
+
+        ],
+    ],
+];
+
+$criteria = $criteria + $report->getNewOrderBy('user_id');
+
+$report->setSqlRequest($criteria);
+
+$report->execute();
+
+$report->footer();

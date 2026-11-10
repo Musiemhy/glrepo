@@ -1,0 +1,135 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * resources plugin for GLPI
+ * Copyright (C) 2015-2026 by the resources Development Team.
+ *
+ * https://github.com/InfotelGLPI/resources
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of resources.
+ *
+ * resources is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * resources is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with resources. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Resources;
+
+use CommonDropdown;
+use DBConnection;
+use Migration;
+use Session;
+
+/**
+ * Class BusinessUnit
+ */
+class BusinessUnit extends CommonDropdown
+{
+    public $can_be_translated = true;
+
+    /**
+     * @param $nb
+     **@since 0.85
+     *
+     */
+    public static function getTypeName($nb = 0)
+    {
+        return _n('Business Unit', 'Business Units', $nb, 'resources');
+    }
+
+    /**
+     * Have I the global right to "create" the Object
+     * May be overloaded if needed (ex KnowbaseItem)
+     *
+     * @return
+     **/
+    public static function canCreate(): bool
+    {
+        return Session::haveRight('dropdown', UPDATE);
+    }
+
+    /**
+     * Have I the global right to "view" the Object
+     *
+     * Default is true and check entity if the objet is entity assign
+     *
+     * May be overloaded if needed
+     *
+     * @return
+     **/
+    public static function canView(): bool
+    {
+        return Session::haveRight('dropdown', READ);
+    }
+
+    /**
+     * Return Additional Fields for this type
+     *
+     * @return array
+     **/
+    public function getAdditionalFields()
+    {
+        return [
+            //          ['name'  => 'code',
+            //                         'label' => __('Code', 'resources'),
+            //                         'type'  => 'text',
+            //                         'list'  => true],
+        ];
+    }
+
+
+    /**
+     * @return array
+     */
+    public function rawSearchOptions()
+    {
+        $tab = parent::rawSearchOptions();
+
+        $tab[] = [
+            'id' => '14',
+            'table' => $this->getTable(),
+            'field' => 'name',
+            'name' => __('Name'),
+        ];
+
+        return $tab;
+    }
+
+
+    public static function install(Migration $migration)
+    {
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+        $table  = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $query = "CREATE TABLE `$table` (
+                        `id`           int {$default_key_sign} NOT NULL auto_increment,
+                        `entities_id`  int {$default_key_sign} NOT NULL                   DEFAULT '0',
+                        `is_recursive` tinyint      NOT NULL                   DEFAULT '0',
+                        `name`         varchar(255) COLLATE utf8mb4_unicode_ci default NULL,
+                        `comment`      TEXT COLLATE utf8mb4_unicode_ci,
+                        PRIMARY KEY (`id`)
+               ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
+
+            $DB->doQuery($query);
+        }
+    }
+}

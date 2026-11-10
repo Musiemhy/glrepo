@@ -1,0 +1,99 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * manageentities plugin for GLPI
+ * Copyright (C) 2017-2026 by the manageentities Development Team.
+ *
+ * https://github.com/InfotelGLPI/manageentities
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of manageentities.
+ *
+ * manageentities is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * manageentities is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with manageentities. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use Glpi\Application\View\TemplateRenderer;
+use Glpi\Exception\Http\AccessDeniedHttpException;
+use GlpiPlugin\Manageentities\CriDetail;
+use GlpiPlugin\Manageentities\Entity;
+
+// Enforce the access control BEFORE rendering anything: Html::header()/Report::title()
+// used to be emitted first, leaking the page chrome to users without the right.
+// The right tested here is the plugin's own, not the core "entity" one this used to read
+// through \Entity::canView(): these reports display the plugin's intervention data, so the
+// profile setting an administrator edits to grant or revoke them has to be the one that
+// actually governs the screen. The "config" UPDATE fallback is kept deliberately, so that a
+// technical administration profile keeps its access to the reporting screens.
+if (!Session::haveRight(Entity::$rightname, READ) && !Session::haveRight("config", UPDATE)) {
+    throw new AccessDeniedHttpException();
+}
+
+Html::header(__('Entities portal', 'manageentities'), '', "management", Entity::class);
+
+if (isset($_GET)) {
+    $tab = $_GET;
+}
+if (empty($tab) && isset($_POST)) {
+    $tab = $_POST;
+}
+if (!isset($_POST["tech_num"]) || empty($_POST["tech_num"])) {
+    $owner = Session::getLoginUserID();
+} else {
+    $owner = (int) $_POST["tech_num"];
+}
+if (!isset($_GET["usertype"])) {
+    $_GET["usertype"] = "user";
+}
+$date1 = (string) ($_POST["date1"] ?? '');
+$date2 = (string) ($_POST["date2"] ?? '');
+if ($date1 === '' && $date2 === '') {
+    $lastday = cal_days_in_month(CAL_GREGORIAN, date("m"), date("Y"));
+    if (date("d") == $lastday) {
+        $date2 = date("Y-m-d", mktime(0, 0, 0, date("m"), date("d"), date("Y")));
+        $date1 = date("Y-m-d", mktime(0, 0, 0, date("m"), 1, date("Y")));
+    } else {
+        $month   = date("m");
+        $lastday = $month == 1 ? 31 : cal_days_in_month(CAL_GREGORIAN, $month - 1, date("Y"));
+        $date2   = date("Y-m-d", mktime(0, 0, 0, date("m") - 1, $lastday, date("Y")));
+        $date1   = date("Y-m-d", mktime(0, 0, 0, date("m") - 1, 1, date("Y")));
+    }
+}
+if ($date1 !== '' && $date2 !== '' && strcmp($date2, $date1) < 0) {
+    [$date1, $date2] = [$date2, $date1];
+}
+
+Report::title();
+
+// The submitted usertype (POST) wins; otherwise fall back to the GET/default value.
+$usertype = $_POST["usertype"] ?? ($_GET["usertype"] ?? "user");
+
+TemplateRenderer::getInstance()->display('@manageentities/report_search_form.html.twig', [
+    'form_url' => $_SERVER['REQUEST_URI'],
+    'date1'    => $date1,
+    'date2'    => $date2,
+    'owner'    => $owner,
+    'entity'   => $_SESSION["glpiactive_entity"],
+    'usertype' => $usertype,
+]);
+
+if (isset($_POST["choice_tech"])) {
+    $CriDetail = new CriDetail();
+    $CriDetail->showHelpdeskReports($usertype, $owner, $date1, $date2);
+}
+
+Html::footer();

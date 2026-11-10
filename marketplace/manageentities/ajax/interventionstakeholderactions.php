@@ -1,0 +1,164 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * manageentities plugin for GLPI
+ * Copyright (C) 2017-2026 by the manageentities Development Team.
+ *
+ * https://github.com/InfotelGLPI/manageentities
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of manageentities.
+ *
+ * manageentities is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * manageentities is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with manageentities. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use Glpi\Exception\Http\AccessDeniedHttpException;
+use GlpiPlugin\Manageentities\ContractDay;
+use GlpiPlugin\Manageentities\InterventionStakeholder;
+
+header("Content-Type: text/html; charset=UTF-8");
+Html::header_nocache();
+
+Session::checkRight('plugin_manageentities', UPDATE);
+$interventionStakeholder = new InterventionStakeholder();
+
+/**
+ * Ensure the current user may write on the parent contract-day entity.
+ * Returns false (and shows an error) when access is denied.
+ */
+$checkContractDayAccess = static function (): bool {
+    $contractDay = new ContractDay();
+    if (!$contractDay->getFromDB((int) ($_POST['contractdays_id'] ?? 0))
+        || !Session::haveAccessToEntity($contractDay->fields['entities_id'])) {
+        throw new AccessDeniedHttpException();
+    }
+    return true;
+};
+
+if (isset($_POST['action']) && $_POST['action'] != "") {
+    switch ($_POST['action']) {
+        case "add_user_datas":
+            if (!$checkContractDayAccess()) {
+                break;
+            }
+            // nb_days is a half-day count, and add() does not read the row back from the database:
+            // whatever is posted here is the value the stakeholder list re-emits into JavaScript.
+            // The loose "> 0" test accepted any string starting with a digit, so it is cast first.
+            $nbDays = (float) ($_POST['nb_days'] ?? 0);
+            if ((isset($_POST["users_id_tech"]) && $_POST['users_id_tech'] > 0) &&
+                (isset($_POST["contractdays_id"]) && $_POST['contractdays_id'] > 0) &&
+                $nbDays > 0) {
+
+                $idUser         = (int) $_POST['users_id_tech'];
+                $idContractdays = (int) $_POST['contractdays_id'];
+
+                // The dropdown only offers the remaining days, but it may be stale (another
+                // user added a stakeholder meanwhile) or the request forged: check the balance.
+                $nbDaysAvailable = (float) $interventionStakeholder->getNbAvailiableDay($idContractdays);
+                if ($nbDays > $nbDaysAvailable) {
+                    $interventionStakeholder->showMessage(sprintf(
+                        __("The number of days exceeds the remaining days of the intervention (%s).", "manageentities"),
+                        $nbDaysAvailable,
+                    ), ERROR);
+                    $interventionStakeholder->toggleAddForm($idContractdays, $nbDaysAvailable);
+                    break;
+                }
+
+                // $checkContractDayAccess() validated the parent contract day, not the value
+                // posted with it: users_id_tech comes from the client and is written as is, so a
+                // forged id attaches a technician of another entity to the intervention and puts
+                // their name in the stakeholder list. Scope it like the dropdown that feeds the
+                // field (see ajax/getUserTechName.php).
+                if (countElementsInTable(
+                    'glpi_profiles_users',
+                    ['users_id' => $idUser] + getEntitiesRestrictCriteria('glpi_profiles_users'),
+                ) === 0) {
+                    throw new AccessDeniedHttpException();
+                }
+
+                $interventionStakeholder->getFromDBByCrit(['users_id'                              => $idUser,
+                    'plugin_manageentities_contractdays_id' => $idContractdays]);
+
+                if (isset($interventionStakeholder->fields['id']) && $interventionStakeholder->fields['id'] > 0) {
+                    $interventionStakeholder->fields['number_affected_days'] += $nbDays;
+
+                    if ($interventionStakeholder->update($interventionStakeholder->fields)) {
+                        $nbDaysAfter                                   = $interventionStakeholder->getNbAvailiableDay($_POST['contractdays_id']);
+                        $_SESSION['glpi_plugin_manageentities_nbdays'] += $nbDaysAfter;
+
+                        $interventionStakeholder->showMessage(__("Stakeholder successfully updated.", "manageentities"), INFO);
+                        $interventionStakeholder->reinitListStakeholders($interventionStakeholder);
+                        $interventionStakeholder->toggleAddForm((int) $idContractdays, (float) $nbDaysAfter);
+
+                    } else {
+                        $interventionStakeholder->showMessage(__("An error happened while saving the data.", "manageentities"), ERROR);
+                    }
+
+                } else {
+                    $interventionStakeholder->fields['users_id']                              = $idUser;
+                    $interventionStakeholder->fields['number_affected_days']                  = $nbDays;
+                    $interventionStakeholder->fields['plugin_manageentities_contractdays_id'] = $idContractdays;
+
+                    if ($interventionStakeholder->add($interventionStakeholder->fields)) {
+                        $interventionStakeholder->showMessage(__("Informations successfully added.", "manageentities"), INFO);
+                        $interventionStakeholder->reinitListStakeholders($interventionStakeholder);
+                        $nbDaysAfter = $interventionStakeholder->getNbAvailiableDay($idContractdays);
+                        $interventionStakeholder->toggleAddForm((int) $idContractdays, (float) $nbDaysAfter);
+                    } else {
+                        $interventionStakeholder->showMessage(__("An error happened while saving the data.", "manageentities"), ERROR);
+                    }
+                }
+            } else {
+                $interventionStakeholder->showMessage(__("All fields are not correctly filled.", "manageentities"), ERROR);
+            }
+            break;
+
+        case "delete_user_datas":
+            if (!$checkContractDayAccess()) {
+                break;
+            }
+            if (isset($_POST['stakeholder_id']) && $_POST['stakeholder_id'] > 0) {
+                $interventionStakeholder = new InterventionStakeholder();
+                $interventionStakeholder->getFromDB($_POST['stakeholder_id']);
+                // $checkContractDayAccess() only validated the entity of $_POST['contractdays_id'].
+                // Bind the deletion to that contract-day: the stakeholder row must belong to it,
+                // otherwise a forged stakeholder_id could delete a row from another (unchecked) entity.
+                if ((int) ($interventionStakeholder->fields['plugin_manageentities_contractdays_id'] ?? -1)
+                    !== (int) $_POST['contractdays_id']) {
+                    throw new AccessDeniedHttpException();
+                }
+                $intervention = new ContractDay();
+                $intervention->getFromDB($_POST['contractdays_id']);
+
+                if ($interventionStakeholder->delete($interventionStakeholder->fields)) {
+                    $nbDaysAfter                                   = $interventionStakeholder->getNbAvailiableDay($_POST['contractdays_id']);
+                    $_SESSION['glpi_plugin_manageentities_nbdays'] -= $nbDaysAfter;
+                    $interventionStakeholder->showMessage(__("Informations successfully deleted.", "manageentities"), INFO);
+                    $interventionStakeholder->reinitListStakeholders($interventionStakeholder, true);
+                    $interventionStakeholder->toggleAddForm((int) $_POST['contractdays_id'], (float) $nbDaysAfter);
+
+                } else {
+                    $interventionStakeholder->showMessage(__("An error happened while deleting the data.", "manageentities"), ERROR);
+                }
+            }
+            break;
+
+        default:
+            break;
+    }
+}

@@ -1,0 +1,2679 @@
+<?php
+
+include('../../../inc/includes.php');
+
+Session::checkLoginUser();
+
+if (!Session::haveRight('ticket', READ)) {
+    Html::displayErrorAndDie(
+        __('You do not have permission to view ticket data.')
+    );
+}
+
+require_once __DIR__ . '/../inc/menu.class.php';
+
+global $DB, $CFG_GLPI;
+
+/*
+ * ---------------------------------------------------------
+ * Helpers
+ * ---------------------------------------------------------
+ */
+
+function up_h($value): string
+{
+    return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+}
+
+function up_duration(?int $seconds): string
+{
+    if ($seconds === null || $seconds < 0) {
+        return '-';
+    }
+
+    $days = intdiv($seconds, 86400);
+    $seconds %= 86400;
+
+    $hours = intdiv($seconds, 3600);
+    $seconds %= 3600;
+
+    $minutes = intdiv($seconds, 60);
+
+    $parts = [];
+
+    if ($days > 0) {
+        $parts[] = $days . 'd';
+    }
+
+    if ($hours > 0) {
+        $parts[] = $hours . 'h';
+    }
+
+    if ($minutes > 0 || empty($parts)) {
+        $parts[] = $minutes . 'm';
+    }
+
+    return implode(' ', $parts);
+}
+
+function up_date_value(?string $date): ?int
+{
+    if (empty($date)) {
+        return null;
+    }
+
+    $timestamp = strtotime($date);
+
+    return $timestamp === false ? null : $timestamp;
+}
+
+function up_status_name(int $status): string
+{
+    $statuses = [
+        1 => __('New'),
+        2 => __('Processing (assigned)'),
+        3 => __('Processing (planned)'),
+        4 => __('Pending'),
+        5 => __('Solved'),
+        6 => __('Closed'),
+    ];
+
+    return $statuses[$status] ?? __('Unknown');
+}
+
+function up_priority_name(int $priority): string
+{
+    $priorities = [
+        1 => __('Very low'),
+        2 => __('Low'),
+        3 => __('Medium'),
+        4 => __('High'),
+        5 => __('Very high'),
+        6 => __('Major'),
+    ];
+
+    return $priorities[$priority] ?? __('Unknown');
+}
+
+function up_resolution_rate(array $stat): float
+{
+    return $stat['assigned'] > 0
+        ? (
+            (
+                $stat['solved'] +
+                $stat['closed']
+            ) / $stat['assigned']
+        ) * 100
+        : 0;
+}
+
+function up_sla_rate(array $stat): ?float
+{
+    if ($stat['sla_applicable'] <= 0) {
+        return null;
+    }
+
+    return (
+        $stat['sla_met'] /
+        $stat['sla_applicable']
+    ) * 100;
+}
+
+function up_average(array $values): ?int
+{
+    if (empty($values)) {
+        return null;
+    }
+
+    return (int)round(
+        array_sum($values) / count($values)
+    );
+}
+
+/*
+ * ---------------------------------------------------------
+ * Filters
+ * ---------------------------------------------------------
+ */
+
+$date_from = $_GET['date_from'] ?? date('Y-m-01');
+$date_to   = $_GET['date_to'] ?? date('Y-m-d');
+
+$technician_id = isset($_GET['technician_id'])
+    ? (int)$_GET['technician_id']
+    : 0;
+
+$group_id = isset($_GET['group_id'])
+    ? (int)$_GET['group_id']
+    : 0;
+
+$category_id = isset($_GET['category_id'])
+    ? (int)$_GET['category_id']
+    : 0;
+
+$status_id = isset($_GET['status_id'])
+    ? (int)$_GET['status_id']
+    : 0;
+
+$priority_id = isset($_GET['priority_id'])
+    ? (int)$_GET['priority_id']
+    : 0;
+
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date_from)) {
+    $date_from = date('Y-m-01');
+}
+
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date_to)) {
+    $date_to = date('Y-m-d');
+}
+
+/*
+ * ---------------------------------------------------------
+ * End date is inclusive
+ * ---------------------------------------------------------
+ */
+
+$date_to_exclusive = date(
+    'Y-m-d',
+    strtotime($date_to . ' +1 day')
+);
+
+/*
+ * ---------------------------------------------------------
+ * Main assigned-ticket query
+ * ---------------------------------------------------------
+ *
+ * glpi_tickets_users.type = 2
+ * means technician assignment.
+ */
+
+$criteria = [
+    'SELECT' => [
+        'glpi_tickets_users.users_id',
+        'glpi_tickets_users.tickets_id',
+
+        'glpi_tickets.id',
+        'glpi_tickets.name',
+        'glpi_tickets.type',
+        'glpi_tickets.status',
+        'glpi_tickets.priority',
+        'glpi_tickets.itilcategories_id',
+        'glpi_tickets.date',
+        'glpi_tickets.solvedate',
+        'glpi_tickets.closedate',
+        'glpi_tickets.time_to_resolve',
+    ],
+
+    'FROM' => 'glpi_tickets_users',
+
+    'INNER JOIN' => [
+        'glpi_tickets' => [
+            'ON' => [
+                'glpi_tickets_users' => 'tickets_id',
+                'glpi_tickets' => 'id',
+            ],
+        ],
+    ],
+
+    'WHERE' => [
+        'glpi_tickets_users.type' => 2,
+        'glpi_tickets.is_deleted' => 0,
+
+        [
+            'glpi_tickets.date' => [
+                '>=',
+                $date_from . ' 00:00:00',
+            ],
+        ],
+
+        [
+            'glpi_tickets.date' => [
+                '<',
+                $date_to_exclusive . ' 00:00:00',
+            ],
+        ],
+    ],
+
+    'ORDER' => [
+        'glpi_tickets.date ASC',
+    ],
+];
+
+/*
+ * ---------------------------------------------------------
+ * Technician filter
+ * ---------------------------------------------------------
+ */
+
+if ($technician_id > 0) {
+    $criteria['WHERE'][] = [
+        'glpi_tickets_users.users_id' => $technician_id,
+    ];
+}
+
+/*
+ * ---------------------------------------------------------
+ * Category filter
+ * ---------------------------------------------------------
+ */
+
+if ($category_id > 0) {
+    $criteria['WHERE'][] = [
+        'glpi_tickets.itilcategories_id' => $category_id,
+    ];
+}
+
+/*
+ * ---------------------------------------------------------
+ * Status filter
+ * ---------------------------------------------------------
+ */
+
+if ($status_id > 0) {
+    $criteria['WHERE'][] = [
+        'glpi_tickets.status' => $status_id,
+    ];
+}
+
+/*
+ * ---------------------------------------------------------
+ * Priority filter
+ * ---------------------------------------------------------
+ */
+
+if ($priority_id > 0) {
+    $criteria['WHERE'][] = [
+        'glpi_tickets.priority' => $priority_id,
+    ];
+}
+
+/*
+ * ---------------------------------------------------------
+ * Execute ticket query
+ * ---------------------------------------------------------
+ */
+
+$ticket_iterator = $DB->request($criteria);
+
+$ticket_data = [];
+$ticket_technicians = [];
+
+foreach ($ticket_iterator as $ticket) {
+
+    $ticket_id = (int)$ticket['id'];
+    $user_id   = (int)$ticket['users_id'];
+
+    if (!isset($ticket_data[$ticket_id])) {
+        $ticket_data[$ticket_id] = $ticket;
+    }
+
+    if (!isset($ticket_technicians[$ticket_id])) {
+        $ticket_technicians[$ticket_id] = [];
+    }
+
+    $ticket_technicians[$ticket_id][$user_id] = true;
+}
+
+/*
+ * ---------------------------------------------------------
+ * Group filtering
+ * ---------------------------------------------------------
+ */
+
+if ($group_id > 0 && !empty($ticket_technicians)) {
+
+    $group_users = [];
+
+    $group_iterator = $DB->request([
+        'SELECT' => [
+            'users_id',
+        ],
+
+        'FROM' => 'glpi_groups_users',
+
+        'WHERE' => [
+            'groups_id' => $group_id,
+        ],
+    ]);
+
+    foreach ($group_iterator as $group_user) {
+        $group_users[(int)$group_user['users_id']] = true;
+    }
+
+    foreach ($ticket_technicians as $ticket_id => $users) {
+
+        $belongs_to_group = false;
+
+        foreach ($users as $uid => $unused) {
+
+            if (isset($group_users[$uid])) {
+                $belongs_to_group = true;
+                break;
+            }
+        }
+
+        if (!$belongs_to_group) {
+            unset($ticket_data[$ticket_id]);
+            unset($ticket_technicians[$ticket_id]);
+        }
+    }
+}
+
+/*
+ * ---------------------------------------------------------
+ * Technician information
+ * ---------------------------------------------------------
+ */
+
+$technician_ids = [];
+
+foreach ($ticket_technicians as $users) {
+
+    foreach ($users as $uid => $unused) {
+        $technician_ids[(int)$uid] = true;
+    }
+}
+
+$technicians = [];
+
+if (!empty($technician_ids)) {
+
+    $user_iterator = $DB->request([
+        'SELECT' => [
+            'id',
+            'name',
+            'realname',
+            'firstname',
+        ],
+
+        'FROM' => 'glpi_users',
+
+        'WHERE' => [
+            'id' => array_keys($technician_ids),
+            'is_deleted' => 0,
+        ],
+
+        'ORDER' => [
+            'realname ASC',
+            'firstname ASC',
+            'name ASC',
+        ],
+    ]);
+
+    foreach ($user_iterator as $user) {
+
+        /*
+         * Display real name + first name.
+         * Username is only used as fallback.
+         */
+
+        $display_name = trim(
+            (string)$user['realname'] . ' ' .
+            (string)$user['firstname']
+        );
+
+        if ($display_name === '') {
+            $display_name = trim((string)$user['name']);
+        }
+
+        if ($display_name === '') {
+            $display_name = 'Unknown technician';
+        }
+
+        $technicians[(int)$user['id']] = $display_name;
+    }
+}
+
+/*
+ * ---------------------------------------------------------
+ * Initialize technician statistics
+ * ---------------------------------------------------------
+ */
+
+$stats = [];
+
+foreach ($technicians as $uid => $name) {
+
+    $stats[$uid] = [
+        'name' => $name,
+
+        'assigned' => 0,
+        'written' => 0,
+        'followups' => 0,
+
+        'new' => 0,
+        'processing' => 0,
+        'pending' => 0,
+        'solved' => 0,
+        'closed' => 0,
+
+        'sla_applicable' => 0,
+        'sla_met' => 0,
+        'sla_breaches' => 0,
+
+        'tto_seconds' => [],
+        'ttr_seconds' => [],
+    ];
+}
+
+/*
+ * ---------------------------------------------------------
+ * Populate assignment statistics
+ * ---------------------------------------------------------
+ */
+
+foreach ($ticket_technicians as $ticket_id => $users) {
+
+    if (!isset($ticket_data[$ticket_id])) {
+        continue;
+    }
+
+    $ticket = $ticket_data[$ticket_id];
+
+    foreach ($users as $uid => $unused) {
+
+        if (!isset($stats[$uid])) {
+
+            $stats[$uid] = [
+                'name' => 'Unknown technician',
+
+                'assigned' => 0,
+                'written' => 0,
+                'followups' => 0,
+
+                'new' => 0,
+                'processing' => 0,
+                'pending' => 0,
+                'solved' => 0,
+                'closed' => 0,
+
+                'sla_applicable' => 0,
+                'sla_met' => 0,
+                'sla_breaches' => 0,
+
+                'tto_seconds' => [],
+                'ttr_seconds' => [],
+            ];
+        }
+
+        $stats[$uid]['assigned']++;
+
+        switch ((int)$ticket['status']) {
+
+            case 1:
+                $stats[$uid]['new']++;
+                break;
+
+            case 2:
+            case 3:
+                $stats[$uid]['processing']++;
+                break;
+
+            case 4:
+                $stats[$uid]['pending']++;
+                break;
+
+            case 5:
+                $stats[$uid]['solved']++;
+                break;
+
+            case 6:
+                $stats[$uid]['closed']++;
+                break;
+        }
+
+        /*
+         * -------------------------------------------------
+         * TTR
+         * -------------------------------------------------
+         */
+
+        $opened = up_date_value($ticket['date']);
+
+        $resolved = up_date_value(
+            $ticket['solvedate']
+            ?: $ticket['closedate']
+        );
+
+        if (
+            $opened !== null &&
+            $resolved !== null &&
+            $resolved >= $opened
+        ) {
+            $stats[$uid]['ttr_seconds'][] =
+                $resolved - $opened;
+        }
+
+        /*
+         * -------------------------------------------------
+         * SLA
+         * -------------------------------------------------
+         */
+
+        $sla_deadline = up_date_value(
+            $ticket['time_to_resolve']
+        );
+
+        if (
+            $sla_deadline !== null &&
+            $sla_deadline > 0
+        ) {
+
+            $stats[$uid]['sla_applicable']++;
+
+            if ($resolved !== null) {
+
+                if ($resolved <= $sla_deadline) {
+
+                    $stats[$uid]['sla_met']++;
+
+                } else {
+
+                    $stats[$uid]['sla_breaches']++;
+                }
+
+            } elseif ($sla_deadline < time()) {
+
+                $stats[$uid]['sla_breaches']++;
+            }
+        }
+    }
+}
+
+/*
+ * ---------------------------------------------------------
+ * Follow-ups
+ * ---------------------------------------------------------
+ *
+ * glpi_itilfollowups.users_id = author
+ */
+
+$followup_by_ticket_user = [];
+$first_response = [];
+
+if (!empty($ticket_data)) {
+
+    $ticket_ids = array_keys($ticket_data);
+
+    $followup_iterator = $DB->request([
+
+        'SELECT' => [
+            'id',
+            'itemtype',
+            'items_id',
+            'users_id',
+            'date',
+        ],
+
+        'FROM' => 'glpi_itilfollowups',
+
+        'WHERE' => [
+            'itemtype' => 'Ticket',
+            'items_id' => $ticket_ids,
+            'is_private' => 0,
+        ],
+
+        'ORDER' => [
+            'date ASC',
+        ],
+    ]);
+
+    foreach ($followup_iterator as $followup) {
+
+        $ticket_id = (int)$followup['items_id'];
+        $user_id   = (int)$followup['users_id'];
+
+        if (!isset($ticket_technicians[$ticket_id])) {
+            continue;
+        }
+
+        /*
+         * Count only follow-ups written by an assigned
+         * technician.
+         */
+
+        if (!isset($ticket_technicians[$ticket_id][$user_id])) {
+            continue;
+        }
+
+        if (!isset($followup_by_ticket_user[$ticket_id])) {
+            $followup_by_ticket_user[$ticket_id] = [];
+        }
+
+        if (!isset(
+            $followup_by_ticket_user[$ticket_id][$user_id]
+        )) {
+            $followup_by_ticket_user[$ticket_id][$user_id] = 0;
+        }
+
+        $followup_by_ticket_user[$ticket_id][$user_id]++;
+
+        /*
+         * First technician response.
+         */
+
+        if (!isset($first_response[$ticket_id])) {
+
+            $first_response[$ticket_id] = [
+                'users_id' => $user_id,
+                'date' => $followup['date'],
+            ];
+        }
+    }
+}
+
+/*
+ * ---------------------------------------------------------
+ * Add follow-up statistics
+ * ---------------------------------------------------------
+ */
+
+foreach ($followup_by_ticket_user as $ticket_id => $users) {
+
+    if (!isset($ticket_data[$ticket_id])) {
+        continue;
+    }
+
+    foreach ($users as $uid => $count) {
+
+        if (!isset($stats[$uid])) {
+            continue;
+        }
+
+        $stats[$uid]['followups'] += $count;
+
+        /*
+         * Written = assigned tickets where technician
+         * wrote at least one follow-up.
+         */
+        $stats[$uid]['written']++;
+    }
+}
+
+/*
+ * ---------------------------------------------------------
+ * TTO
+ * ---------------------------------------------------------
+ */
+
+foreach ($first_response as $ticket_id => $response) {
+
+    $uid = (int)$response['users_id'];
+
+    if (!isset($stats[$uid])) {
+        continue;
+    }
+
+    if (!isset($ticket_data[$ticket_id])) {
+        continue;
+    }
+
+    $opened = up_date_value(
+        $ticket_data[$ticket_id]['date']
+    );
+
+    $response_time = up_date_value(
+        $response['date']
+    );
+
+    if (
+        $opened !== null &&
+        $response_time !== null &&
+        $response_time >= $opened
+    ) {
+
+        $stats[$uid]['tto_seconds'][] =
+            $response_time - $opened;
+    }
+}
+
+/*
+ * ---------------------------------------------------------
+ * Overall KPI
+ * ---------------------------------------------------------
+ */
+
+$overall = [
+    'assigned' => 0,
+    'written' => 0,
+    'followups' => 0,
+
+    'new' => 0,
+    'processing' => 0,
+    'pending' => 0,
+    'solved' => 0,
+    'closed' => 0,
+
+    'sla_applicable' => 0,
+    'sla_met' => 0,
+    'sla_breaches' => 0,
+
+    'tto_seconds' => [],
+    'ttr_seconds' => [],
+];
+
+foreach ($stats as $stat) {
+
+    $overall['assigned'] += $stat['assigned'];
+    $overall['written'] += $stat['written'];
+    $overall['followups'] += $stat['followups'];
+
+    $overall['new'] += $stat['new'];
+    $overall['processing'] += $stat['processing'];
+    $overall['pending'] += $stat['pending'];
+    $overall['solved'] += $stat['solved'];
+    $overall['closed'] += $stat['closed'];
+
+    $overall['sla_applicable'] +=
+        $stat['sla_applicable'];
+
+    $overall['sla_met'] +=
+        $stat['sla_met'];
+
+    $overall['sla_breaches'] +=
+        $stat['sla_breaches'];
+
+    $overall['tto_seconds'] = array_merge(
+        $overall['tto_seconds'],
+        $stat['tto_seconds']
+    );
+
+    $overall['ttr_seconds'] = array_merge(
+        $overall['ttr_seconds'],
+        $stat['ttr_seconds']
+    );
+}
+
+$resolution_total =
+    $overall['solved'] +
+    $overall['closed'];
+
+$resolution_rate = $overall['assigned'] > 0
+    ? (
+        $resolution_total /
+        $overall['assigned']
+    ) * 100
+    : 0;
+
+$sla_compliance =
+    $overall['sla_applicable'] > 0
+        ? (
+            $overall['sla_met'] /
+            $overall['sla_applicable']
+        ) * 100
+        : null;
+
+$avg_tto = !empty($overall['tto_seconds'])
+    ? (int)round(
+        array_sum($overall['tto_seconds']) /
+        count($overall['tto_seconds'])
+    )
+    : null;
+
+$avg_ttr = !empty($overall['ttr_seconds'])
+    ? (int)round(
+        array_sum($overall['ttr_seconds']) /
+        count($overall['ttr_seconds'])
+    )
+    : null;
+
+/*
+ * ---------------------------------------------------------
+ * Filter lists
+ * ---------------------------------------------------------
+ */
+
+$groups = [];
+
+$group_iterator = $DB->request([
+    'SELECT' => [
+        'id',
+        'name',
+    ],
+
+    'FROM' => 'glpi_groups',
+
+    'ORDER' => [
+        'name ASC',
+    ],
+]);
+
+foreach ($group_iterator as $group) {
+
+    $groups[(int)$group['id']] =
+        $group['name'];
+}
+
+$all_users = [];
+
+$user_iterator = $DB->request([
+    'SELECT' => [
+        'id',
+        'name',
+        'realname',
+        'firstname',
+    ],
+
+    'FROM' => 'glpi_users',
+
+    'WHERE' => [
+        'is_deleted' => 0,
+    ],
+
+    'ORDER' => [
+        'realname ASC',
+        'firstname ASC',
+        'name ASC',
+    ],
+]);
+
+foreach ($user_iterator as $user) {
+
+    $name = trim(
+        (string)$user['realname'] . ' ' .
+        (string)$user['firstname']
+    );
+
+    if ($name === '') {
+        $name = trim((string)$user['name']);
+    }
+
+    if ($name === '') {
+        $name = 'Unknown';
+    }
+
+    $all_users[(int)$user['id']] = $name;
+}
+
+$categories = [];
+
+$category_iterator = $DB->request([
+    'SELECT' => [
+        'id',
+        'completename',
+    ],
+
+    'FROM' => 'glpi_itilcategories',
+
+    'ORDER' => [
+        'completename ASC',
+    ],
+]);
+
+foreach ($category_iterator as $category) {
+
+    $categories[(int)$category['id']] =
+        $category['completename'];
+}
+
+/*
+ * ---------------------------------------------------------
+ * EXPORT
+ * ---------------------------------------------------------
+ *
+ * IMPORTANT:
+ * This block must execute BEFORE Html::header()
+ * because XLSX/CSV must contain no HTML output.
+ */
+
+$export = isset($_GET['export'])
+    ? strtolower(trim((string)$_GET['export']))
+    : '';
+
+if ($export === 'csv' || $export === 'xlsx') {
+
+    /*
+     * -----------------------------------------------------
+     * Export rows
+     * -----------------------------------------------------
+     */
+
+    $export_rows = [];
+
+    foreach ($stats as $uid => $stat) {
+
+        $tech_resolution =
+            up_resolution_rate($stat);
+
+        $tech_sla =
+            up_sla_rate($stat);
+
+        $tech_tto =
+            up_average($stat['tto_seconds']);
+
+        $tech_ttr =
+            up_average($stat['ttr_seconds']);
+
+        $export_rows[] = [
+            $stat['name'],
+            $stat['assigned'],
+            $stat['written'],
+            $stat['followups'],
+            $stat['new'],
+            $stat['processing'],
+            $stat['pending'],
+            $stat['solved'],
+            $stat['closed'],
+            number_format($tech_resolution, 1) . '%',
+            $tech_sla === null
+                ? '-'
+                : number_format($tech_sla, 1) . '%',
+            $stat['sla_breaches'],
+            up_duration($tech_tto),
+            up_duration($tech_ttr),
+        ];
+    }
+
+    /*
+     * -----------------------------------------------------
+     * CSV EXPORT
+     * -----------------------------------------------------
+     */
+
+    if ($export === 'csv') {
+
+        $filename =
+            'user_performance_kpi_' .
+            date('Ymd_His') .
+            '.csv';
+
+        /*
+         * Clear any accidental output buffers.
+         */
+
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
+        header(
+            'Content-Type: text/csv; charset=UTF-8'
+        );
+
+        header(
+            'Content-Disposition: attachment; filename="' .
+            $filename .
+            '"'
+        );
+
+        header(
+            'Pragma: no-cache'
+        );
+
+        header(
+            'Expires: 0'
+        );
+
+        /*
+         * UTF-8 BOM for Excel compatibility.
+         */
+
+        echo "\xEF\xBB\xBF";
+
+        $output = fopen('php://output', 'w');
+
+        /*
+         * Report information.
+         */
+
+        fputcsv($output, [
+            'User Performance KPI Report',
+        ]);
+
+        fputcsv($output, [
+            'Date From',
+            $date_from,
+        ]);
+
+        fputcsv($output, [
+            'Date To',
+            $date_to,
+        ]);
+
+        fputcsv($output, [
+            'Technician Filter',
+            $technician_id > 0
+                ? ($all_users[$technician_id] ?? 'Unknown')
+                : 'All technicians',
+        ]);
+
+        fputcsv($output, [
+            'Group Filter',
+            $group_id > 0
+                ? ($groups[$group_id] ?? 'Unknown')
+                : 'All groups',
+        ]);
+
+        fputcsv($output, [
+            'Category Filter',
+            $category_id > 0
+                ? ($categories[$category_id] ?? 'Unknown')
+                : 'All categories',
+        ]);
+
+        fputcsv($output, [
+            'Status Filter',
+            $status_id > 0
+                ? up_status_name($status_id)
+                : 'All statuses',
+        ]);
+
+        fputcsv($output, [
+            'Priority Filter',
+            $priority_id > 0
+                ? up_priority_name($priority_id)
+                : 'All priorities',
+        ]);
+
+        fputcsv($output, []);
+
+        /*
+         * Overall KPI.
+         */
+
+        fputcsv($output, [
+            'Overall KPI',
+            'Value',
+        ]);
+
+        fputcsv($output, [
+            'Assigned Tickets',
+            $overall['assigned'],
+        ]);
+
+        fputcsv($output, [
+            'Written Tickets',
+            $overall['written'],
+        ]);
+
+        fputcsv($output, [
+            'Follow-ups',
+            $overall['followups'],
+        ]);
+
+        fputcsv($output, [
+            'Resolved / Closed',
+            $resolution_total,
+        ]);
+
+        fputcsv($output, [
+            'Resolution Rate',
+            number_format(
+                $resolution_rate,
+                1
+            ) . '%',
+        ]);
+
+        fputcsv($output, [
+            'SLA Applicable',
+            $overall['sla_applicable'],
+        ]);
+
+        fputcsv($output, [
+            'SLA Met',
+            $overall['sla_met'],
+        ]);
+
+        fputcsv($output, [
+            'SLA Compliance',
+            $sla_compliance === null
+                ? '-'
+                : number_format(
+                    $sla_compliance,
+                    1
+                ) . '%',
+        ]);
+
+        fputcsv($output, [
+            'SLA Breaches',
+            $overall['sla_breaches'],
+        ]);
+
+        fputcsv($output, [
+            'Average TTO',
+            up_duration($avg_tto),
+        ]);
+
+        fputcsv($output, [
+            'Average TTR',
+            up_duration($avg_ttr),
+        ]);
+
+        fputcsv($output, []);
+
+        /*
+         * Technician KPI table.
+         */
+
+        fputcsv($output, [
+            'Technician',
+            'Assigned',
+            'Written',
+            'Follow-ups',
+            'New',
+            'Processing',
+            'Pending',
+            'Solved',
+            'Closed',
+            'Resolution Rate',
+            'SLA Compliance',
+            'SLA Breaches',
+            'Avg TTO',
+            'Avg TTR',
+        ]);
+
+        foreach ($export_rows as $row) {
+            fputcsv($output, $row);
+        }
+
+        fclose($output);
+
+        exit;
+    }
+
+    /*
+     * -----------------------------------------------------
+     * XLSX EXPORT
+     * -----------------------------------------------------
+     */
+
+    if ($export === 'xlsx') {
+
+        /*
+         * Load GLPI Composer autoloader.
+         *
+         * PhpSpreadsheet is installed under:
+         * /var/www/glpi/vendor/phpoffice/phpspreadsheet
+         */
+
+        $autoload =
+            GLPI_ROOT . '/vendor/autoload.php';
+
+        if (!file_exists($autoload)) {
+
+            http_response_code(500);
+
+            echo 'Composer autoloader not found: ' .
+                up_h($autoload);
+
+            exit;
+        }
+
+        require_once $autoload;
+
+        /*
+         * Verify PhpSpreadsheet is available.
+         */
+
+        if (
+            !class_exists(
+                '\PhpOffice\PhpSpreadsheet\Spreadsheet'
+            )
+        ) {
+
+            http_response_code(500);
+
+            echo 'PhpSpreadsheet is not available.';
+
+            exit;
+        }
+
+        $spreadsheet =
+            new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+
+        $sheet =
+            $spreadsheet->getActiveSheet();
+
+        $sheet->setTitle('Technician KPI');
+
+        /*
+         * -------------------------------------------------
+         * Title
+         * -------------------------------------------------
+         */
+
+        $sheet->setCellValue(
+            'A1',
+            'User Performance KPI Report'
+        );
+
+        $sheet->mergeCells('A1:N1');
+
+        $sheet->getStyle('A1:N1')
+            ->getFont()
+            ->setBold(true)
+            ->setSize(16);
+
+        /*
+         * -------------------------------------------------
+         * Filter information
+         * -------------------------------------------------
+         */
+
+        $sheet->setCellValue(
+            'A3',
+            'Date From'
+        );
+
+        $sheet->setCellValue(
+            'B3',
+            $date_from
+        );
+
+        $sheet->setCellValue(
+            'A4',
+            'Date To'
+        );
+
+        $sheet->setCellValue(
+            'B4',
+            $date_to
+        );
+
+        $sheet->setCellValue(
+            'A5',
+            'Technician Filter'
+        );
+
+        $sheet->setCellValue(
+            'B5',
+            $technician_id > 0
+                ? ($all_users[$technician_id] ?? 'Unknown')
+                : 'All technicians'
+        );
+
+        $sheet->setCellValue(
+            'A6',
+            'Group Filter'
+        );
+
+        $sheet->setCellValue(
+            'B6',
+            $group_id > 0
+                ? ($groups[$group_id] ?? 'Unknown')
+                : 'All groups'
+        );
+
+        $sheet->setCellValue(
+            'A7',
+            'Category Filter'
+        );
+
+        $sheet->setCellValue(
+            'B7',
+            $category_id > 0
+                ? ($categories[$category_id] ?? 'Unknown')
+                : 'All categories'
+        );
+
+        $sheet->setCellValue(
+            'A8',
+            'Status Filter'
+        );
+
+        $sheet->setCellValue(
+            'B8',
+            $status_id > 0
+                ? up_status_name($status_id)
+                : 'All statuses'
+        );
+
+        $sheet->setCellValue(
+            'A9',
+            'Priority Filter'
+        );
+
+        $sheet->setCellValue(
+            'B9',
+            $priority_id > 0
+                ? up_priority_name($priority_id)
+                : 'All priorities'
+        );
+
+        /*
+         * -------------------------------------------------
+         * Overall KPI
+         * -------------------------------------------------
+         */
+
+        $sheet->setCellValue(
+            'D3',
+            'Overall KPI'
+        );
+
+        $sheet->setCellValue(
+            'E3',
+            'Value'
+        );
+
+        $overall_rows = [
+            [
+                'Assigned Tickets',
+                $overall['assigned'],
+            ],
+            [
+                'Written Tickets',
+                $overall['written'],
+            ],
+            [
+                'Follow-ups',
+                $overall['followups'],
+            ],
+            [
+                'Resolved / Closed',
+                $resolution_total,
+            ],
+            [
+                'Resolution Rate',
+                number_format(
+                    $resolution_rate,
+                    1
+                ) . '%',
+            ],
+            [
+                'SLA Applicable',
+                $overall['sla_applicable'],
+            ],
+            [
+                'SLA Met',
+                $overall['sla_met'],
+            ],
+            [
+                'SLA Compliance',
+                $sla_compliance === null
+                    ? '-'
+                    : number_format(
+                        $sla_compliance,
+                        1
+                    ) . '%',
+            ],
+            [
+                'SLA Breaches',
+                $overall['sla_breaches'],
+            ],
+            [
+                'Average TTO',
+                up_duration($avg_tto),
+            ],
+            [
+                'Average TTR',
+                up_duration($avg_ttr),
+            ],
+        ];
+
+        $row_number = 4;
+
+        foreach ($overall_rows as $overall_row) {
+
+            $sheet->setCellValue(
+                'D' . $row_number,
+                $overall_row[0]
+            );
+
+            $sheet->setCellValue(
+                'E' . $row_number,
+                $overall_row[1]
+            );
+
+            $row_number++;
+        }
+
+        /*
+         * -------------------------------------------------
+         * Technician table
+         * -------------------------------------------------
+         */
+
+        $header_row = 12;
+
+        $headers = [
+            'Technician',
+            'Assigned',
+            'Written',
+            'Follow-ups',
+            'New',
+            'Processing',
+            'Pending',
+            'Solved',
+            'Closed',
+            'Resolution Rate',
+            'SLA Compliance',
+            'SLA Breaches',
+            'Avg TTO',
+            'Avg TTR',
+        ];
+
+        $column = 'A';
+
+        foreach ($headers as $header) {
+
+            $sheet->setCellValue(
+                $column . $header_row,
+                $header
+            );
+
+            $column++;
+        }
+
+        /*
+         * Header formatting.
+         */
+
+        $sheet->getStyle(
+            'A' . $header_row . ':N' . $header_row
+        )
+        ->getFont()
+        ->setBold(true);
+
+        /*
+         * Freeze header row.
+         */
+
+        $sheet->freezePane('A13');
+
+        /*
+         * Data rows.
+         */
+
+        $data_row = 13;
+
+        foreach ($export_rows as $row) {
+
+            $column = 'A';
+
+            foreach ($row as $value) {
+
+                $sheet->setCellValue(
+                    $column . $data_row,
+                    $value
+                );
+
+                $column++;
+            }
+
+            $data_row++;
+        }
+
+        /*
+         * Add autofilter.
+         */
+
+        if ($data_row > 13) {
+
+            $sheet->setAutoFilter(
+                'A' . $header_row . ':N' .
+                ($data_row - 1)
+            );
+        }
+
+        /*
+         * Auto-size columns.
+         */
+
+        foreach (range('A', 'N') as $column) {
+
+            $sheet->getColumnDimension($column)
+                ->setAutoSize(true);
+        }
+
+        /*
+         * Borders for technician table.
+         */
+
+        if ($data_row > 13) {
+
+            $sheet->getStyle(
+                'A' . $header_row .
+                ':N' . ($data_row - 1)
+            )
+            ->getBorders()
+            ->getAllBorders()
+            ->setBorderStyle(
+                \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN
+            );
+        }
+
+        /*
+         * -------------------------------------------------
+         * Download
+         * -------------------------------------------------
+         */
+
+        $filename =
+            'user_performance_kpi_' .
+            date('Ymd_His') .
+            '.xlsx';
+
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
+        header(
+            'Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        );
+
+        header(
+            'Content-Disposition: attachment; filename="' .
+            $filename .
+            '"'
+        );
+
+        header(
+            'Cache-Control: max-age=0'
+        );
+
+        header(
+            'Pragma: public'
+        );
+
+        $writer =
+            new \PhpOffice\PhpSpreadsheet\Writer\Xlsx(
+                $spreadsheet
+            );
+
+        $writer->save('php://output');
+
+        $spreadsheet->disconnectWorksheets();
+
+        unset($spreadsheet);
+
+        exit;
+    }
+}
+
+/*
+ * ---------------------------------------------------------
+ * HTML
+ * ---------------------------------------------------------
+ */
+
+Html::header(
+    __('User Performance KPI', 'userperformance'),
+    $_SERVER['PHP_SELF'],
+    'tools'
+);
+
+?>
+
+<style>
+
+.up-container {
+    max-width: 1600px;
+    margin: 20px auto;
+    padding: 0 20px;
+}
+
+.up-title {
+    margin-bottom: 5px;
+}
+
+.up-subtitle {
+    color: #6c757d;
+    margin-bottom: 25px;
+}
+
+.up-filter {
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 25px;
+}
+
+.up-filter-grid {
+    display: grid;
+    grid-template-columns:
+        repeat(auto-fit, minmax(180px, 1fr));
+    gap: 15px;
+}
+
+.up-filter label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.up-filter input,
+.up-filter select {
+    width: 100%;
+    padding: 7px;
+}
+
+.up-actions {
+    margin-top: 18px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.up-card-grid {
+    display: grid;
+    grid-template-columns:
+        repeat(auto-fit, minmax(180px, 1fr));
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.up-card {
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 18px;
+}
+
+.up-card-title {
+    color: #6c757d;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.up-card-value {
+    font-size: 28px;
+    font-weight: 700;
+    margin-top: 5px;
+}
+
+.up-card-description {
+    color: #6c757d;
+    font-size: 12px;
+    margin-top: 5px;
+}
+
+.up-section {
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 25px;
+}
+
+.up-status-grid {
+    display: grid;
+    grid-template-columns:
+        repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+}
+
+.up-status {
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 15px;
+}
+
+.up-status-name {
+    color: #6c757d;
+    font-size: 13px;
+}
+
+.up-status-value {
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.up-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.up-table th,
+.up-table td {
+    border: 1px solid #dee2e6;
+    padding: 8px;
+    text-align: center;
+}
+
+.up-table th {
+    font-weight: 700;
+}
+
+.up-table th:first-child,
+.up-table td:first-child {
+    text-align: left;
+}
+
+.up-definitions td:first-child {
+    font-weight: 700;
+    width: 220px;
+}
+
+.up-print {
+    margin-left: 0;
+}
+
+@media print {
+
+    .up-filter,
+    .up-print,
+    .up-actions,
+    .page-header,
+    .navbar {
+        display: none !important;
+    }
+
+    .up-container {
+        max-width: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    .up-section,
+    .up-card {
+        break-inside: avoid;
+    }
+}
+
+</style>
+
+<div class="up-container">
+
+    <h1 class="up-title">
+        <?= up_h(
+            __('User Performance KPI', 'userperformance')
+        ) ?>
+    </h1>
+
+    <div class="up-subtitle">
+        <?= up_h(
+            __(
+                'Technician workload, productivity, response time, resolution and SLA performance.',
+                'userperformance'
+            )
+        ) ?>
+    </div>
+
+    <!-- FILTERS -->
+
+    <div class="up-filter">
+
+        <form
+            method="get"
+            action="/glpi/plugins/userperformance/front/dashboard.php"
+        >
+
+            <div class="up-filter-grid">
+
+                <div>
+
+                    <label>
+                        <?= __('Date from') ?>
+                    </label>
+
+                    <input
+                        type="date"
+                        name="date_from"
+                        value="<?= up_h($date_from) ?>"
+                    >
+
+                </div>
+
+                <div>
+
+                    <label>
+                        <?= __('Date to') ?>
+                    </label>
+
+                    <input
+                        type="date"
+                        name="date_to"
+                        value="<?= up_h($date_to) ?>"
+                    >
+
+                </div>
+
+                <div>
+
+                    <label>
+                        <?= __('Technician') ?>
+                    </label>
+
+                    <select name="technician_id">
+
+                        <option value="0">
+                            <?= __('All technicians') ?>
+                        </option>
+
+                        <?php foreach (
+                            $all_users as $uid => $username
+                        ): ?>
+
+                            <option
+                                value="<?= (int)$uid ?>"
+                                <?= $technician_id === (int)$uid
+                                    ? 'selected'
+                                    : '' ?>
+                            >
+                                <?= up_h($username) ?>
+                            </option>
+
+                        <?php endforeach; ?>
+
+                    </select>
+
+                </div>
+
+                <div>
+
+                    <label>
+                        <?= __('Group') ?>
+                    </label>
+
+                    <select name="group_id">
+
+                        <option value="0">
+                            <?= __('All groups') ?>
+                        </option>
+
+                        <?php foreach (
+                            $groups as $gid => $group_name
+                        ): ?>
+
+                            <option
+                                value="<?= (int)$gid ?>"
+                                <?= $group_id === (int)$gid
+                                    ? 'selected'
+                                    : '' ?>
+                            >
+                                <?= up_h($group_name) ?>
+                            </option>
+
+                        <?php endforeach; ?>
+
+                    </select>
+
+                </div>
+
+                <div>
+
+                    <label>
+                        <?= __('Category') ?>
+                    </label>
+
+                    <select name="category_id">
+
+                        <option value="0">
+                            <?= __('All categories') ?>
+                        </option>
+
+                        <?php foreach (
+                            $categories as $cid => $category_name
+                        ): ?>
+
+                            <option
+                                value="<?= (int)$cid ?>"
+                                <?= $category_id === (int)$cid
+                                    ? 'selected'
+                                    : '' ?>
+                            >
+                                <?= up_h($category_name) ?>
+                            </option>
+
+                        <?php endforeach; ?>
+
+                    </select>
+
+                </div>
+
+                <div>
+
+                    <label>
+                        <?= __('Status') ?>
+                    </label>
+
+                    <select name="status_id">
+
+                        <option value="0">
+                            <?= __('All statuses') ?>
+                        </option>
+
+                        <?php foreach (
+                            [
+                                1 => __('New'),
+                                2 => __('Processing (assigned)'),
+                                3 => __('Processing (planned)'),
+                                4 => __('Pending'),
+                                5 => __('Solved'),
+                                6 => __('Closed'),
+                            ] as $sid => $status_name
+                        ): ?>
+
+                            <option
+                                value="<?= (int)$sid ?>"
+                                <?= $status_id === (int)$sid
+                                    ? 'selected'
+                                    : '' ?>
+                            >
+                                <?= up_h($status_name) ?>
+                            </option>
+
+                        <?php endforeach; ?>
+
+                    </select>
+
+                </div>
+
+                <div>
+
+                    <label>
+                        <?= __('Priority') ?>
+                    </label>
+
+                    <select name="priority_id">
+
+                        <option value="0">
+                            <?= __('All priorities') ?>
+                        </option>
+
+                        <?php foreach (
+                            [
+                                1 => __('Very low'),
+                                2 => __('Low'),
+                                3 => __('Medium'),
+                                4 => __('High'),
+                                5 => __('Very high'),
+                                6 => __('Major'),
+                            ] as $pid => $priority_name
+                        ): ?>
+
+                            <option
+                                value="<?= (int)$pid ?>"
+                                <?= $priority_id === (int)$pid
+                                    ? 'selected'
+                                    : '' ?>
+                            >
+                                <?= up_h($priority_name) ?>
+                            </option>
+
+                        <?php endforeach; ?>
+
+                    </select>
+
+                </div>
+
+            </div>
+
+            <div class="up-actions">
+
+                <button
+                    type="submit"
+                    class="btn btn-primary"
+                >
+                    <?= __('Apply filters') ?>
+                </button>
+
+                <a
+                    href="/glpi/plugins/userperformance/front/dashboard.php"
+                    class="btn btn-secondary"
+                >
+                    <?= __('Reset') ?>
+                </a>
+
+                <a
+                    href="<?= up_h(
+                        '/glpi/plugins/userperformance/front/dashboard.php?' .
+                        http_build_query(
+                            array_merge(
+                                $_GET,
+                                ['export' => 'xlsx']
+                            )
+                        )
+                    ) ?>"
+                    class="btn btn-success"
+                >
+                    <?= __('Export XLSX') ?>
+                </a>
+
+                <a
+                    href="<?= up_h(
+                        '/glpi/plugins/userperformance/front/dashboard.php?' .
+                        http_build_query(
+                            array_merge(
+                                $_GET,
+                                ['export' => 'csv']
+                            )
+                        )
+                    ) ?>"
+                    class="btn btn-info"
+                >
+                    <?= __('Export CSV') ?>
+                </a>
+
+                <button
+                    type="button"
+                    class="btn btn-outline-secondary up-print"
+                    onclick="window.print()"
+                >
+                    <?= __('Print / PDF') ?>
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+    <!-- KPI CARDS -->
+
+    <div class="up-card-grid">
+
+        <div class="up-card">
+
+            <div class="up-card-title">
+                <?= __('Assigned Tickets') ?>
+            </div>
+
+            <div class="up-card-value">
+                <?= number_format(
+                    $overall['assigned']
+                ) ?>
+            </div>
+
+            <div class="up-card-description">
+                <?= __(
+                    'Tickets assigned to technicians'
+                ) ?>
+            </div>
+
+        </div>
+
+        <div class="up-card">
+
+            <div class="up-card-title">
+                <?= __('Written Tickets') ?>
+            </div>
+
+            <div class="up-card-value">
+                <?= number_format(
+                    $overall['written']
+                ) ?>
+            </div>
+
+            <div class="up-card-description">
+                <?= __(
+                    'Assigned tickets with technician follow-up'
+                ) ?>
+            </div>
+
+        </div>
+
+        <div class="up-card">
+
+            <div class="up-card-title">
+                <?= __('Follow-ups') ?>
+            </div>
+
+            <div class="up-card-value">
+                <?= number_format(
+                    $overall['followups']
+                ) ?>
+            </div>
+
+            <div class="up-card-description">
+                <?= __(
+                    'Technician follow-up entries'
+                ) ?>
+            </div>
+
+        </div>
+
+        <div class="up-card">
+
+            <div class="up-card-title">
+                <?= __('Resolved / Closed') ?>
+            </div>
+
+            <div class="up-card-value">
+                <?= number_format(
+                    $resolution_total
+                ) ?>
+            </div>
+
+            <div class="up-card-description">
+
+                <?= number_format(
+                    $resolution_rate,
+                    1
+                ) ?>%
+
+                <?= __('resolution rate') ?>
+
+            </div>
+
+        </div>
+
+        <div class="up-card">
+
+            <div class="up-card-title">
+                <?= __('SLA Compliance') ?>
+            </div>
+
+            <div class="up-card-value">
+
+                <?= $sla_compliance === null
+                    ? '-'
+                    : number_format(
+                        $sla_compliance,
+                        1
+                    ) . '%'
+                ?>
+
+            </div>
+
+            <div class="up-card-description">
+
+                <?= number_format(
+                    $overall['sla_breaches']
+                ) ?>
+
+                <?= __('SLA breaches') ?>
+
+            </div>
+
+        </div>
+
+        <div class="up-card">
+
+            <div class="up-card-title">
+                <?= __('Average TTO') ?>
+            </div>
+
+            <div class="up-card-value">
+                <?= up_h(
+                    up_duration($avg_tto)
+                ) ?>
+            </div>
+
+            <div class="up-card-description">
+                <?= __(
+                    'Time to first technician response'
+                ) ?>
+            </div>
+
+        </div>
+
+        <div class="up-card">
+
+            <div class="up-card-title">
+                <?= __('Average TTR') ?>
+            </div>
+
+            <div class="up-card-value">
+                <?= up_h(
+                    up_duration($avg_ttr)
+                ) ?>
+            </div>
+
+            <div class="up-card-description">
+                <?= __(
+                    'Ticket opening to resolution'
+                ) ?>
+            </div>
+
+        </div>
+
+        <div class="up-card">
+
+            <div class="up-card-title">
+                <?= __('Pending') ?>
+            </div>
+
+            <div class="up-card-value">
+                <?= number_format(
+                    $overall['pending']
+                ) ?>
+            </div>
+
+            <div class="up-card-description">
+                <?= __(
+                    'Currently pending tickets'
+                ) ?>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- STATUS -->
+
+    <div class="up-section">
+
+        <h2>
+            <?= __('Ticket Status Summary') ?>
+        </h2>
+
+        <p>
+            <?= __(
+                'Current status distribution for assigned tickets in the selected period.'
+            ) ?>
+        </p>
+
+        <div class="up-status-grid">
+
+            <div class="up-status">
+
+                <div class="up-status-name">
+                    <?= __('New') ?>
+                </div>
+
+                <div class="up-status-value">
+                    <?= number_format(
+                        $overall['new']
+                    ) ?>
+                </div>
+
+            </div>
+
+            <div class="up-status">
+
+                <div class="up-status-name">
+                    <?= __('Processing (assigned)') ?>
+                </div>
+
+                <div class="up-status-value">
+                    <?= number_format(
+                        $overall['processing']
+                    ) ?>
+                </div>
+
+            </div>
+
+            <div class="up-status">
+
+                <div class="up-status-name">
+                    <?= __('Pending') ?>
+                </div>
+
+                <div class="up-status-value">
+                    <?= number_format(
+                        $overall['pending']
+                    ) ?>
+                </div>
+
+            </div>
+
+            <div class="up-status">
+
+                <div class="up-status-name">
+                    <?= __('Solved') ?>
+                </div>
+
+                <div class="up-status-value">
+                    <?= number_format(
+                        $overall['solved']
+                    ) ?>
+                </div>
+
+            </div>
+
+            <div class="up-status">
+
+                <div class="up-status-name">
+                    <?= __('Closed') ?>
+                </div>
+
+                <div class="up-status-value">
+                    <?= number_format(
+                        $overall['closed']
+                    ) ?>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- TECHNICIAN PERFORMANCE -->
+
+    <div class="up-section">
+
+        <h2>
+            <?= __('Technician Performance') ?>
+        </h2>
+
+        <p>
+            <?= __(
+                'Operational KPIs for the selected period and filters.'
+            ) ?>
+        </p>
+
+        <div style="overflow-x:auto;">
+
+            <table class="up-table">
+
+                <thead>
+
+                    <tr>
+
+                        <th><?= __('Technician') ?></th>
+                        <th><?= __('Assigned') ?></th>
+                        <th><?= __('Written') ?></th>
+                        <th><?= __('Follow-ups') ?></th>
+
+                        <th><?= __('New') ?></th>
+                        <th><?= __('Processing') ?></th>
+                        <th><?= __('Pending') ?></th>
+                        <th><?= __('Solved') ?></th>
+                        <th><?= __('Closed') ?></th>
+
+                        <th><?= __('Resolution Rate') ?></th>
+
+                        <th><?= __('SLA Compliance') ?></th>
+                        <th><?= __('SLA Breaches') ?></th>
+
+                        <th><?= __('Avg TTO') ?></th>
+                        <th><?= __('Avg TTR') ?></th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                <?php if (empty($stats)): ?>
+
+                    <tr>
+
+                        <td colspan="14">
+
+                            <?= __(
+                                'No technician data found for the selected filters.'
+                            ) ?>
+
+                        </td>
+
+                    </tr>
+
+                <?php else: ?>
+
+                    <?php foreach (
+                        $stats as $uid => $stat
+                    ): ?>
+
+                        <?php
+
+                        $tech_resolution =
+                            up_resolution_rate($stat);
+
+                        $tech_sla =
+                            up_sla_rate($stat);
+
+                        $tech_tto =
+                            up_average(
+                                $stat['tto_seconds']
+                            );
+
+                        $tech_ttr =
+                            up_average(
+                                $stat['ttr_seconds']
+                            );
+
+                        ?>
+
+                        <tr>
+
+                            <td>
+
+                                <strong>
+                                    <?= up_h(
+                                        $stat['name']
+                                    ) ?>
+                                </strong>
+
+                            </td>
+
+                            <td>
+                                <?= number_format(
+                                    $stat['assigned']
+                                ) ?>
+                            </td>
+
+                            <td>
+                                <?= number_format(
+                                    $stat['written']
+                                ) ?>
+                            </td>
+
+                            <td>
+                                <?= number_format(
+                                    $stat['followups']
+                                ) ?>
+                            </td>
+
+                            <td>
+                                <?= number_format(
+                                    $stat['new']
+                                ) ?>
+                            </td>
+
+                            <td>
+                                <?= number_format(
+                                    $stat['processing']
+                                ) ?>
+                            </td>
+
+                            <td>
+                                <?= number_format(
+                                    $stat['pending']
+                                ) ?>
+                            </td>
+
+                            <td>
+                                <?= number_format(
+                                    $stat['solved']
+                                ) ?>
+                            </td>
+
+                            <td>
+                                <?= number_format(
+                                    $stat['closed']
+                                ) ?>
+                            </td>
+
+                            <td>
+
+                                <?= number_format(
+                                    $tech_resolution,
+                                    1
+                                ) ?>%
+
+                            </td>
+
+                            <td>
+
+                                <?= $tech_sla === null
+                                    ? '-'
+                                    : number_format(
+                                        $tech_sla,
+                                        1
+                                    ) . '%'
+                                ?>
+
+                            </td>
+
+                            <td>
+
+                                <?= number_format(
+                                    $stat['sla_breaches']
+                                ) ?>
+
+                            </td>
+
+                            <td>
+
+                                <?= up_h(
+                                    up_duration($tech_tto)
+                                ) ?>
+
+                            </td>
+
+                            <td>
+
+                                <?= up_h(
+                                    up_duration($tech_ttr)
+                                ) ?>
+
+                            </td>
+
+                        </tr>
+
+                    <?php endforeach; ?>
+
+                <?php endif; ?>
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+    <!-- KPI DEFINITIONS -->
+
+    <div class="up-section">
+
+        <h2>
+            <?= __('KPI Definitions') ?>
+        </h2>
+
+        <table class="up-table up-definitions">
+
+            <tbody>
+
+                <tr>
+
+                    <td>
+                        <?= __('Assigned Tickets') ?>
+                    </td>
+
+                    <td>
+                        <?= __(
+                            'Number of tickets assigned to the technician.'
+                        ) ?>
+                    </td>
+
+                </tr>
+
+                <tr>
+
+                    <td>
+                        <?= __('Written Tickets') ?>
+                    </td>
+
+                    <td>
+                        <?= __(
+                            'Number of assigned tickets where the technician created at least one follow-up.'
+                        ) ?>
+                    </td>
+
+                </tr>
+
+                <tr>
+
+                    <td>
+                        <?= __('Follow-ups') ?>
+                    </td>
+
+                    <td>
+                        <?= __(
+                            'Total number of follow-up entries written by the technician.'
+                        ) ?>
+                    </td>
+
+                </tr>
+
+                <tr>
+
+                    <td>
+                        <?= __('Resolution Rate') ?>
+                    </td>
+
+                    <td>
+                        <?= __(
+                            'Solved plus Closed tickets divided by Assigned tickets.'
+                        ) ?>
+                    </td>
+
+                </tr>
+
+                <tr>
+
+                    <td>
+                        <?= __('SLA Applicable') ?>
+                    </td>
+
+                    <td>
+                        <?= __(
+                            'Number of tickets that have a valid SLA resolution deadline.'
+                        ) ?>
+                    </td>
+
+                </tr>
+
+                <tr>
+
+                    <td>
+                        <?= __('SLA Compliance') ?>
+                    </td>
+
+                    <td>
+                        <?= __(
+                            'Tickets completed within their SLA deadline divided by tickets with an applicable SLA.'
+                        ) ?>
+                    </td>
+
+                </tr>
+
+                <tr>
+
+                    <td>
+                        <?= __('SLA Breach') ?>
+                    </td>
+
+                    <td>
+                        <?= __(
+                            'A completed ticket resolved after its SLA deadline, or an unresolved ticket whose deadline has passed.'
+                        ) ?>
+                    </td>
+
+                </tr>
+
+                <tr>
+
+                    <td>
+                        <?= __('TTO') ?>
+                    </td>
+
+                    <td>
+                        <?= __(
+                            'Time from ticket opening to the first technician follow-up.'
+                        ) ?>
+                    </td>
+
+                </tr>
+
+                <tr>
+
+                    <td>
+                        <?= __('TTR') ?>
+                    </td>
+
+                    <td>
+                        <?= __(
+                            'Time from ticket opening to ticket resolution.'
+                        ) ?>
+                    </td>
+
+                </tr>
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+<?php
+
+Html::footer();

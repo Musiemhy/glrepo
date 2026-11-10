@@ -1,0 +1,720 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * metademands plugin for GLPI
+ * Copyright (C) 2018-2026 by the metademands Development Team.
+ *
+ * https://github.com/InfotelGLPI/metademands
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of metademands.
+ *
+ * metademands is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * metademands is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Metademands\Fields;
+
+use CommonDBTM;
+use Glpi\Application\View\TemplateRenderer;
+use Glpi\RichText\RichText;
+use Html;
+use Plugin;
+use GlpiPlugin\Metademands\Metademand;
+use GlpiPlugin\Orderfollowup\Config;
+use Toolbox;
+use GlpiPlugin\Metademands\Field;
+use GlpiPlugin\Metademands\Freetablefield as MetaFreetablefield;
+
+/**
+ * Freetable Class
+ *
+ **/
+class Freetable extends CommonDBTM
+{
+    public static $rightname = 'plugin_metademands';
+
+    /**
+     * Return the localized name of the current Type
+     * Should be overloaded in each new class
+     *
+     * @param integer $nb Number of items
+     *
+     * @return string
+     **/
+    public static function getTypeName($nb = 0)
+    {
+        return __('Free table', 'metademands');
+    }
+
+    public static function showWizardField($data, $namefield, $value, $on_order)
+    {
+        $field = "";
+
+        $plugin_metademands_metademands_id = $data['plugin_metademands_metademands_id'];
+        $meta = new Metademand();
+        $meta->getFromDB($plugin_metademands_metademands_id);
+        $background_color = "";
+        if (isset($meta->fields['background_color'])
+            && $meta->fields['background_color'] != "") {
+            // Escaped by the template rather than here, so the style fragment is not
+            // pre-escaped and then emitted raw.
+            $background_color = "background-color:" . Metademand::toThemedBackground($meta->fields['background_color']) . ";";
+        }
+        $plugin_metademands_fields_id = $data['id'];
+
+        if (!isset($_SESSION['plugin_metademands'][$plugin_metademands_metademands_id]['fields'][$data['id']])) {
+            unset($_SESSION['plugin_metademands'][$plugin_metademands_metademands_id]['freetables']);
+        }
+        $nb = 0;
+        if (isset($_SESSION['plugin_metademands'][$plugin_metademands_metademands_id]['freetables'][$data['id']])) {
+            $nb = count($_SESSION['plugin_metademands'][$plugin_metademands_metademands_id]['freetables'][$data['id']]);
+        }
+        $values = [];
+
+        $idline = 0;
+
+        if (isset($data['value'])
+            && is_array($data['value'])) {
+            $values = $data['value'];
+        }
+        $nb_values = count($values);
+
+        $field .= Html::hidden('is_freetable_mandatory[' . $data['id'] . ']', ['value' => $data['is_mandatory']]);
+        $colspanfields = 0;
+        $addfields = [];
+        $commentfields = [];
+        $size = 30;
+        $field_custom = new MetaFreetablefield();
+        $is_mandatory = [];
+        $types = [];
+        $dropdown_values = [];
+        if ($customs = $field_custom->find(["plugin_metademands_fields_id" => $data['id']], "rank")) {
+            if (count($customs) > 0) {
+                foreach ($customs as $custom) {
+                    $translated_col = Field::displayField($data['id'], 'freetablecol' . $custom['rank']);
+                    $addfields[$custom['internal_name']] = $translated_col !== '' ? $translated_col : $custom['name'];
+                    $commentfields[$custom['internal_name']] = $custom['comment'];
+                    if ($custom['is_mandatory'] == 1) {
+                        $is_mandatory[] = $custom['internal_name'];
+                    }
+                    $types[$custom['internal_name']] = $custom['type'];
+
+                    $dropdown_values_array = [];
+                    $dropdown_values_array[0] = \Dropdown::EMPTY_VALUE;
+                    if (!empty($custom['dropdown_values'])) {
+                        $explode = explode(",", $custom['dropdown_values']);
+                        foreach ($explode as $val) {
+                            $dropdown_values_array[] = Toolbox::cleanNewLines($val);
+                        }
+                    }
+
+                    if ($custom['type'] == MetaFreetablefield::TYPE_SELECT) {
+                        $dropdown_values[$custom['internal_name']] = $dropdown_values_array;
+                    }
+                }
+                $colspanfields = count($customs);
+                if (count($customs) > 3) {
+                    $size = 20;
+                }
+                if (count($customs) > 4) {
+                    $size = 10;
+                }
+            }
+        }
+
+        if (Plugin::isPluginActive('orderfollowup')) {
+            $addfields['total'] = __('Total (TTC)', 'orderfollowup');
+            $commentfields['total'] = '';
+            $types['total'] = MetaFreetablefield::TYPE_READONLY;
+            $size = 17;
+        }
+
+        $rand = $data['id'];
+
+        // Build header columns (labels/tooltips) for the Twig template.
+        $columns = [];
+        foreach ($addfields as $k => $addfield) {
+            $tooltip_html = '';
+            if (isset($commentfields[$addfield]) && !empty($commentfields[$addfield])) {
+                $tooltip_html = Html::showToolTip(
+                    $commentfields[$addfield],
+                    ['display' => false, 'awesome-class' => 'ti ti-info-circle'],
+                );
+            }
+            $columns[] = [
+                'label'        => $addfield,
+                'mandatory'    => in_array($k, $is_mandatory),
+                'tooltip_html' => $tooltip_html,
+            ];
+        }
+
+        $encoded_fields = json_encode($addfields);
+        $mandatory_encoded_fields = json_encode($is_mandatory);
+        $empty_value = \Dropdown::EMPTY_VALUE;
+        $types_encoded_fields = json_encode($types);
+        $dropdown_values_encoded_fields = json_encode($dropdown_values);
+        $root = PLUGIN_METADEMANDS_WEBDIR;
+
+        $orderfollowup_is_active = 0;
+        if (Plugin::isPluginActive('orderfollowup')) {
+            $orderfollowup_is_active = 1;
+        }
+
+        $existLine = json_encode(__('You can\'t create a new line when there is an existing one', 'metademands'));
+
+        $lastid = 0;
+        if (is_array($values) && count($values) > 0) {
+            ksort($values);
+            $lastvalues = end($values);
+            $lastid = $lastvalues['id'];
+        }
+        $texttype = MetaFreetablefield::TYPE_TEXT;
+        $selecttype = MetaFreetablefield::TYPE_SELECT;
+        $numbertype = MetaFreetablefield::TYPE_NUMBER;
+        $readonlytype = MetaFreetablefield::TYPE_READONLY;
+        $datetype = MetaFreetablefield::TYPE_DATE;
+        $timetype = MetaFreetablefield::TYPE_TIME;
+
+        $script1 = "<script>
+                    $(document).ready(function (){
+                        window.metademandfreelinesparams$rand = {};
+                        metademandfreelinesparams$rand.existLine = $existLine;
+                        metademandfreelinesparams$rand.rand = '$rand';
+                        metademandfreelinesparams$rand.root = '$root';
+                        metademandfreelinesparams$rand.encoded_fields = $encoded_fields;
+                        metademandfreelinesparams$rand.mandatory_encoded_fields = $mandatory_encoded_fields;
+                        metademandfreelinesparams$rand.types_encoded_fields = $types_encoded_fields;
+                        metademandfreelinesparams$rand.dropdown_values_encoded_fields = $dropdown_values_encoded_fields;
+                        metademandfreelinesparams$rand.orderfollowupisactive = $orderfollowup_is_active;
+                        metademandfreelinesparams$rand.size = $size;
+                        metademandfreelinesparams$rand.empty_value = '$empty_value';
+                        metademandfreelinesparams$rand.plugin_metademands_metademands_id = $plugin_metademands_metademands_id;
+                        metademandfreelinesparams$rand.lastid = $lastid;
+                        metademandfreelinesparams$rand.text = $texttype;
+                        metademandfreelinesparams$rand.select = $selecttype;
+                        metademandfreelinesparams$rand.number = $numbertype;
+                        metademandfreelinesparams$rand.readonly = $readonlytype;
+                        metademandfreelinesparams$rand.date = $datetype;
+                        metademandfreelinesparams$rand.time = $timetype;
+                        if ($nb_values === 0) {
+                            addLine(window.metademandfreelinesparams$rand);
+                        }
+                    });
+
+               </script>";
+
+        // Build data rows for the Twig template.
+        $rows = [];
+        if (is_array($values) && count($values) > 0) {
+            $kindmap = [
+                MetaFreetablefield::TYPE_TEXT   => 'text',
+                MetaFreetablefield::TYPE_SELECT => 'select',
+                MetaFreetablefield::TYPE_NUMBER => 'number',
+                MetaFreetablefield::TYPE_DATE   => 'date',
+                MetaFreetablefield::TYPE_TIME   => 'time',
+            ];
+            foreach ($values as $value) {
+                $idline = $value['id'];
+                $l = [
+                    'id' => $idline,
+                ];
+
+                foreach ($addfields as $k => $addfield) {
+                    if (isset($value[$k])) {
+                        $l[$k] = $value[$k];
+                    }
+                }
+
+                $quantity   = 0;
+                $unit_price = 0;
+                if (Plugin::isPluginActive('orderfollowup')) {
+                    $quantity   = floatval($l['quantity'] ?? 0);
+                    $unit_price = floatval($l['unit_price'] ?? 0);
+                }
+
+                $cells = [];
+                foreach ($addfields as $k => $addfield) {
+                    if (isset($l[$k]) && isset($kindmap[$types[$k]])) {
+                        $cell = [
+                            'kind'  => $kindmap[$types[$k]],
+                            'id'    => $k . '_' . $idline,
+                            'name'  => $k,
+                            'value' => (string) $l[$k],
+                            'size'  => $size,
+                        ];
+                        if ($types[$k] == MetaFreetablefield::TYPE_SELECT) {
+                            $options = [];
+                            foreach ($dropdown_values[$k] as $key => $dropdown_value) {
+                                $options[] = [
+                                    'dv'            => (string) $dropdown_value,
+                                    'selected_attr' => ($key == $l[$k]) ? 'selected' : '',
+                                ];
+                            }
+                            $cell['options'] = $options;
+                        }
+                        $cells[] = $cell;
+                    }
+                }
+
+                $has_total = false;
+                $linetotal = '';
+                if (Plugin::isPluginActive('orderfollowup')) {
+                    $has_total = true;
+                    $linetotal = number_format($quantity * $unit_price, 2, '.', ' ');
+                }
+
+                $rows[] = [
+                    'idline'    => $idline,
+                    'cells'     => $cells,
+                    'has_total' => $has_total,
+                    'linetotal' => $linetotal,
+                ];
+            }
+        }
+
+        $has_orderfollowup = Plugin::isPluginActive('orderfollowup');
+        $script2 = '';
+        if ($has_orderfollowup) {
+            $stylereadonly = "style= \'white-space: nowrap;text-align: right;background-color: var(--tblr-bg-surface, #ffffff);\'";
+            $conf = new Config();
+            $conf->getFromDB(1);
+            $tva = $conf->fields['use_tva'] ?? "20";
+            $tva_calc = $tva / 100;
+            $grandtotal = __('Grand total (TTC)', 'orderfollowup');
+            $grandtotalHT = __('Grand total (HT)', 'orderfollowup') . " " . __('(if VAT 20%)', 'orderfollowup');
+            $script2 = "<script>
+                    function saveInput_{$rand}() {
+                        var grandtotal = 0;
+                        var grandtotalht = 0;
+                        var tva = $tva_calc;
+                        $('#freetable_table{$rand} tr[id^=line_{$rand}_]').each(function () {
+                             grandtotal += $(this).find('[id^=unit_price_]').val() * $(this).find('[id^=quantity_]').val();
+                        });
+                        grandtotalht = grandtotal / (1 + tva);
+
+                        $('#freetable_table{$rand} tr[id^=line_{$rand}_]').css('background-color', 'var(--tblr-bg-surface, #f7f7f7)');
+                        let tr_grandtotal = document.getElementById('grandtotal_{$rand}');
+                        if (tr_grandtotal === null) {
+                             $('#freetable_table{$rand} tr[id^=line_{$rand}_]:last').after('<tr id=\"grandtotal_{$rand}\">' +
+                         '<th colspan=\"6\" style= \'background-color: var(--tblr-bg-surface, #ffffff);\' > $grandtotal </th><th $stylereadonly id=\"amount_grandtotal_{$rand}\" >' + grandtotal.toFixed(2) + ' €</th></tr>' +
+                          '<tr id=\"grandtotalht_{$rand}\">' +
+                         '<th colspan=\"6\" style= \'background-color: var(--tblr-bg-surface, #ffffff);\' > $grandtotalHT </th><th $stylereadonly id=\"amount_grandtotalht_{$rand}\" >' + grandtotalht.toFixed(2) + ' €</th></tr>');
+                        } else {
+                           $('#amount_grandtotal_{$rand}').text(grandtotal.toFixed(2) + ' €');
+                           $('#amount_grandtotalht_{$rand}').text(grandtotalht.toFixed(2) + ' €');
+                        }
+                        $('#nextBtn').show();
+                    }
+               </script>";
+        }
+
+        echo $field;
+        echo TemplateRenderer::getInstance()->render('@metademands/fields/field_freetable.html.twig', [
+            'rand'              => $rand,
+            'background_color'  => $background_color,
+            'columns'           => $columns,
+            'script1_html'      => $script1,
+            'rows'              => $rows,
+            'has_orderfollowup' => $has_orderfollowup,
+            'script2_html'      => $script2,
+            'validate_label'    => __('Validate the basket', 'metademands'),
+        ]);
+    }
+
+    public static function showFreetableFields($params)
+    {
+        $custom_values = $params['custom_values'];
+
+        $nbfields     = 0;
+        $field_custom = new MetaFreetablefield();
+        if ($customs = $field_custom->find(
+            ["plugin_metademands_fields_id" => $params['plugin_metademands_fields_id']],
+            "rank",
+        )) {
+            if (count($customs) > 0) {
+                $nbfields = count($customs);
+            }
+        }
+
+        $fields_id = $params['plugin_metademands_fields_id'] ?? 0;
+        $maxrank   = 0;
+        $entries   = [];
+
+        // Only the input widgets are still built here: they come from framework helpers
+        // (Html::input(), Dropdown::*, Html::getSimpleForm()) which escape their own output.
+        // Every other value is handed to the template atomically and Twig escapes it.
+        if (is_array($custom_values) && !empty($custom_values)) {
+            foreach ($custom_values as $key => $value) {
+                $dropdown_values_tooltip  = '';
+                $dropdown_values_textarea = '';
+                if ($value['type'] == MetaFreetablefield::TYPE_SELECT) {
+                    $dropdown_values_tooltip = Html::showToolTip(
+                        RichText::getSafeHtml(__('One value by line, separated by comma', 'metademands')),
+                        ['awesome-class' => 'ti ti-info-circle', 'display' => false],
+                    );
+                    $dropdown_values_textarea = Html::textarea([
+                        'name'    => 'dropdown_values[' . $key . ']',
+                        'value'   => $value['dropdown_values'],
+                        'rows'    => 3,
+                        'cols'    => 5,
+                        'display' => false,
+                    ]);
+                }
+
+                $entries[] = [
+                    'key'                      => $key,
+                    'rank'                     => $value['rank'],
+                    'type'                     => $value['type'],
+                    'internal_name_input'      => Html::input(
+                        'internal_name[' . $key . ']',
+                        ['value' => $value['internal_name'], 'size' => 20],
+                    ),
+                    'type_dropdown'            => \Dropdown::showFromArray(
+                        'type[' . $key . ']',
+                        MetaFreetablefield::getTypeFields(),
+                        ['value' => $value['type'], 'size' => 20, 'display' => false],
+                    ),
+                    'name_input'               => Html::input(
+                        'name[' . $key . ']',
+                        ['value' => $value['name'], 'size' => 20],
+                    ),
+                    'comment_input'            => Html::input(
+                        'comment[' . $key . ']',
+                        ['value' => $value['comment'], 'size' => 20],
+                    ),
+                    'dropdown_values_tooltip'  => $dropdown_values_tooltip,
+                    'dropdown_values_textarea' => $dropdown_values_textarea,
+                    'hidden_comment'           => Html::hidden('comment[' . $key . ']', ['value' => ""]),
+                    'hidden_dropdown_values'   => Html::hidden('dropdown_values[' . $key . ']', ['value' => []]),
+                    'is_mandatory_dropdown'    => \Dropdown::showYesNo(
+                        'is_mandatory[' . $key . ']',
+                        $value['is_mandatory'],
+                        -1,
+                        ['display' => false],
+                    ),
+                    'hidden_id'                => Html::hidden('id[' . $key . ']', ['value' => $key]),
+                    'submit'                   => Html::submit("", [
+                        'name'  => 'update',
+                        'class' => 'btn btn-primary',
+                        'icon'  => 'ti ti-device-floppy',
+                    ]),
+                    'delete_form'              => Html::getSimpleForm(
+                        MetaFreetablefield::getFormURL(),
+                        'delete',
+                        _x('button', 'Delete permanently'),
+                        [
+                            'freetablefield_id'            => $key,
+                            'rank'                         => $value['rank'],
+                            'plugin_metademands_fields_id' => $fields_id,
+                        ],
+                        'ti-circle-x',
+                        "class='btn btn-primary'",
+                    ),
+                ];
+
+                $maxrank = $value['rank'];
+            }
+        }
+
+        $init_custom_value = '';
+        if ($nbfields < 6) {
+            ob_start();
+            MetaFreetablefield::initCustomValue(
+                count($entries) > 0 ? $maxrank : -1,
+                $fields_id,
+            );
+            $init_custom_value = ob_get_clean();
+        }
+
+        echo TemplateRenderer::getInstance()->render('@metademands/fields/freetable_fields.html.twig', [
+            'entries'           => $entries,
+            'fields_id'         => $fields_id,
+            'has_fields_id'     => isset($params['plugin_metademands_fields_id']),
+            'type_object'       => $params['type'] ?? 'freetable',
+            'target'            => MetaFreetablefield::getFormURL(),
+            'reorder_url'       => PLUGIN_METADEMANDS_WEBDIR . '/ajax/reorder.php',
+            'reorder_params'    => json_encode([
+                'field_id' => $params['plugin_metademands_fields_id'] ?? '',
+                'type'     => $params['type'] ?? 'freetable',
+            ]),
+            'init_custom_value' => $init_custom_value,
+            'show_init'         => $nbfields < 6,
+            'type_text'         => MetaFreetablefield::TYPE_TEXT,
+            'type_select'       => MetaFreetablefield::TYPE_SELECT,
+            'type_number'       => MetaFreetablefield::TYPE_NUMBER,
+            'type_date'         => MetaFreetablefield::TYPE_DATE,
+            'type_time'         => MetaFreetablefield::TYPE_TIME,
+        ]);
+    }
+
+    /**
+     * @param array $value
+     * @param array $fields
+     * @return bool
+     */
+    public static function checkMandatoryFields($value = [], $fields = [])
+    {
+        $msg     = "";
+        $checkKo = 0;
+
+        if ($value['is_mandatory'] && empty($fields['value'])) {
+            $msg     = $value['name'];
+            $checkKo = 1;
+        }
+
+        return ['checkKo' => $checkKo, 'msg' => $msg];
+    }
+
+    public static function fieldsMandatoryScript($data) {}
+
+    public static function fieldsHiddenScript($data) {}
+
+    public static function blocksHiddenScript($data) {}
+
+    public static function getFieldValue($field)
+    {
+        return $field['value'];
+    }
+
+    /**
+     * Build the free table for the PDF export.
+     *
+     * Returns the column titles and the data rows separately so the PDF stays aligned:
+     *  - 'header' holds every defined column label, ordered by rank (same authoritative
+     *    source as the on-screen HTML rendering in displayFieldItems);
+     *  - 'rows'   holds one entry per submitted line, each cell aligned to that column
+     *    order (missing/empty cells become '').
+     *
+     * The previous implementation derived the header by scraping the submitted row data,
+     * so an empty cell in a row produced non-contiguous keys (array_unique keeps original
+     * keys) and the column titles fell out of the PDF table. Sourcing the header from the
+     * column definitions makes it independent of the submitted values.
+     *
+     * @return array{header: string[], rows: array<int, string[]>}
+     */
+    public static function displayFieldPDF($elt, $fields, $label)
+    {
+        // Authoritative column list (internal_name => label), ordered by rank.
+        $columns = [];
+        $field_custom = new MetaFreetablefield();
+        if ($customs = $field_custom->find(["plugin_metademands_fields_id" => $elt['id']], "rank")) {
+            foreach ($customs as $custom) {
+                $translated_col = Field::displayField($elt['id'], 'freetablecol' . $custom['rank']);
+                // Keep the label UTF-8: MetademandPdf extends \TCPDF (UTF-8 native).
+                // decodeFromUtf8() would turn it into ISO-8859-1 and drop the accents,
+                // which is exactly what made the accented column titles disappear.
+                $columns[$custom['internal_name']] = $translated_col !== '' ? $translated_col : $custom['name'];
+            }
+        }
+
+        if (count($columns) === 0) {
+            return ['header' => [], 'rows' => []];
+        }
+
+        $rows = [];
+        $values_elt = $fields[$elt['id']] ?? [];
+        if (is_array($values_elt)) {
+            foreach ($values_elt as $value_elt) {
+                if (!is_array($value_elt)) {
+                    continue;
+                }
+                // Align every cell to the column order; keep empty cells as '' so the row
+                // width always matches the header width.
+                $row = [];
+                foreach ($columns as $internal_name => $col_label) {
+                    $row[] = $value_elt[$internal_name] ?? '';
+                }
+                $rows[] = $row;
+            }
+        }
+
+        return ['header' => array_values($columns), 'rows' => $rows];
+    }
+
+    /**
+     * Neutralize a free table cell before it lands in the ticket content. The value comes
+     * straight from the requester through the session and is stored raw, so it goes through
+     * the same chain as the other free input fields (see Email::getFieldValue()).
+     *
+     * getTextFromHtml() decodes the entities getSafeHtml() had just posed, so its output is
+     * plain text: the three callers concatenate it into markup, hence the escaping here.
+     *
+     * @param mixed $value
+     *
+     * @return string
+     */
+    private static function getCellValue($value)
+    {
+        return htmlspecialchars(
+            RichText::getTextFromHtml(RichText::getSafeHtml((string) $value)),
+            ENT_QUOTES,
+            'UTF-8',
+        );
+    }
+
+    public static function displayFieldItems(
+        &$result,
+        $formatAsTable,
+        $style_title,
+        $label,
+        $field,
+        $return_value,
+        $lang,
+        $is_order = false
+    ) {
+        //        if (isset($_SESSION['plugin_metademands'][$field['plugin_metademands_metademands_id']]['quantities'])) {
+        //            $quantities = $_SESSION['plugin_metademands'][$field['plugin_metademands_metademands_id']]['quantities'];
+        //        }
+        $style_td = "style = \'border: 1px solid #CCC; \'";
+
+        $materials = $field["value"];
+
+        //        if (is_object($materials)) {
+        //            $materials = json_decode(json_encode($materials), true);
+        //        }
+        $content = "";
+        $result[$field['rank']]['display'] = true;
+        //        $total = 0;
+        $addfields = [];
+        $dropdown_values = [];
+        $types = [];
+        $colspan_title = $is_order ? 12 : 2;
+        $field_custom = new MetaFreetablefield();
+        if ($customs = $field_custom->find(["plugin_metademands_fields_id" => $field['id']], "rank")) {
+            if (count($customs) > 0) {
+                foreach ($customs as $custom) {
+                    $translated_col = Field::displayField($field['id'], 'freetablecol' . $custom['rank'], $lang);
+                    $addfields[$custom['internal_name']] = $translated_col !== '' ? $translated_col : $custom['name'];
+                    $types[$custom['internal_name']] = $custom['type'];
+                    if ($custom['type'] == MetaFreetablefield::TYPE_SELECT) {
+                        $dropdown_values[$custom['internal_name']] = explode(",", $custom['dropdown_values']);
+                    }
+                }
+            }
+        }
+        $nb = is_array($customs) ? count($customs) : 0;
+
+        $colspan = 1;
+        if ($nb == 1) {
+            $colspan = 12;
+        }
+        if ($nb == 2) {
+            $colspan = 6;
+        }
+        if ($nb == 3) {
+            $colspan = 4;
+        }
+        if ($nb == 4) {
+            $colspan = 3;
+        }
+        if ($nb == 5) {
+            $colspan = 2;
+        }
+        if ($nb == 6) {
+            $colspan = 2;
+        }
+        if (Plugin::isPluginActive('orderfollowup')) {
+            $total = 0;
+        }
+
+        if (isset($_SESSION['plugin_metademands'][$field['plugin_metademands_metademands_id']]['freetables'][$field['id']])) {
+            $freetables = $_SESSION['plugin_metademands'][$field['plugin_metademands_metademands_id']]['freetables'][$field['id']];
+
+            if (is_array($freetables) && count($freetables) > 0) {
+                if ($formatAsTable) {
+                    $content .= "<tr>";
+                    $content .= "<td $style_title colspan='$colspan_title'>";
+                }
+                $content .= htmlspecialchars((string) $label, ENT_QUOTES, 'UTF-8');
+                if ($formatAsTable) {
+                    $content .= "</td>";
+                    $content .= "</tr>";
+                }
+                if ($formatAsTable) {
+                    $content .= "<tr>";
+                    foreach ($addfields as $k => $addfield) {
+                        $content .= "<th $style_td colspan='$colspan'>" . htmlspecialchars((string) $addfield, ENT_QUOTES, 'UTF-8') . "</th>";
+                    }
+                    if (Plugin::isPluginActive('orderfollowup')) {
+                        $content .= "<th $style_td>" . __('Total (TTC)', 'orderfollowup') . "</th>";
+                    }
+                    $content .= "</tr>";
+                }
+
+                foreach ($freetables as $fi) {
+                    if ($formatAsTable) {
+                        $content .= "<tr>";
+                    }
+
+                    foreach ($addfields as $k => $addfield) {
+                        if ($formatAsTable) {
+                            $content .= "<td $style_td colspan='$colspan'>";
+                        }
+
+                        if (($types[$k] ?? null) == MetaFreetablefield::TYPE_SELECT) {
+                            $content .= self::getCellValue($fi[$k] ?? '');
+                        } elseif (($types[$k] ?? null) == MetaFreetablefield::TYPE_DATE) {
+                            $content .= Html::convDate($fi[$k]);
+                        } elseif (($types[$k] ?? null) == MetaFreetablefield::TYPE_TIME) {
+                            $content .= self::getCellValue($fi[$k] ?? '');
+                        } else {
+                            $content .= self::getCellValue($fi[$k] ?? '');
+                        }
+
+                        if ($formatAsTable) {
+                            $content .= "</td>";
+                        }
+                    }
+                    if (Plugin::isPluginActive('orderfollowup')) {
+                        if ($formatAsTable) {
+                            $content .= "<td $style_td>";
+                        }
+                        $totalrow = floatval($fi['quantity']) * floatval($fi['unit_price']);
+                        $content .= Html::formatNumber($totalrow, false, 2) . " €";
+                        if ($formatAsTable) {
+                            $content .= "</td>";
+                        }
+                        $total += $totalrow;
+                    }
+                    if ($formatAsTable) {
+                        $content .= "</tr>";
+                    }
+                }
+            }
+        }
+
+        if (Plugin::isPluginActive('orderfollowup')) {
+            $grandtotal = __('Grand total (TTC)', 'orderfollowup');
+            $grandtotalHT = __('Grand total (HT)', 'orderfollowup') . " " . __('(if VAT 20%)', 'orderfollowup');
+            $content .= "<tr>";
+            $content .= "<th $style_td colspan='10'>" . $grandtotal . "</th>";
+            $content .= "<td $style_td>" . Html::formatNumber($total, false, 2) . " €</td></tr>";
+            $content .= "<tr>";
+            $content .= "<th $style_td colspan='10'>" . $grandtotalHT . "</th>";
+            $conf = new Config();
+            $conf->getFromDB(1);
+            $tva = $conf->fields['use_tva'] ?? "20";
+            $totalHT = $total / (1 + ($tva / 100));
+            $content .= "<td $style_td>" . Html::formatNumber($totalHT, false, 2) . " €</td></tr>";
+        }
+
+        $result[$field['rank']]['content'] .= $content;
+
+        return $result;
+    }
+}

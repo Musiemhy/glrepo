@@ -1,0 +1,562 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * TimelineTicket
+ * Copyright (C) 2013-2026 by the TimelineTicket Development Team.
+ *
+ * https://github.com/pluginsGLPI/timelineticket
+ * ------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of TimelineTicket project.
+ *
+ * TimelineTicket plugin is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * TimelineTicket plugin is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with TimelineTicket plugin. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * ------------------------------------------------------------------------
+ *
+ * @copyright Copyright (C) 2013-2025 TimelineTicket team
+ * @license   AGPL License 3.0 or (at your option) any later version
+ * @link      https://github.com/pluginsGLPI/timelineticket
+ * @package   TimelineTicket plugin
+ * @since     2013
+ *            http://www.gnu.org/licenses/agpl-3.0-standalone.html
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Timelineticket;
+
+use CommonGLPI;
+use DateInterval;
+use DatePeriod;
+use DateTime;
+use Glpi\DBAL\QueryExpression;
+use Glpi\Exception\Http\AccessDeniedHttpException;
+use GlpiPlugin\Mydashboard\Charts\BarChart;
+use GlpiPlugin\Mydashboard\Helper;
+use GlpiPlugin\Mydashboard\Html;
+use GlpiPlugin\Mydashboard\Menu;
+use GlpiPlugin\Mydashboard\Preference;
+use GlpiPlugin\Mydashboard\Widget;
+use Group;
+use Plugin;
+use Session;
+
+/**
+ * Class Dashboard
+ */
+class Dashboard extends CommonGLPI
+{
+    public $widgets = [];
+    private $options;
+    private $datas;
+    private $form;
+
+    /**
+     * Dashboard constructor.
+     * @param array $options
+     */
+    public function __construct($options = [])
+    {
+        $this->options = $options;
+    }
+
+
+    /**
+     * @return \array[][]
+     */
+    public function getWidgetsForItem()
+    {
+        $widgets = [
+            Menu::$HELPDESK => [
+                $this->getType() . "1" => ["title"   => __(
+                    "Number of assignments per technician to a ticket",
+                    "timelineticket",
+                ),
+                    "type"    => Widget::$BAR,
+                    "comment" => __(
+                        "Number of time where a technician has been affected to a ticket",
+                        'timelineticket',
+                    )],
+            ],
+        ];
+
+        return $widgets;
+    }
+
+    /**
+     * @param $widgetId
+     */
+    public function getWidgetContentForItem($widgetId, $opt = [])
+    {
+        switch ($widgetId) {
+            case $this->getType() . "1":
+                if (Plugin::isPluginActive("timelineticket")) {
+                    // Access control: this widget exposes ticket assignment
+                    // statistics, so it must require the plugin READ right. Without
+                    // this gate any authenticated user could render the widget.
+                    if (!Session::haveRight('plugin_timelineticket_ticket', READ)) {
+                        return;
+                    }
+                    $name    = 'AffectionTechBarChart';
+                    $widget = new Html();
+                    $title  = __("Number of assignments per technician to a ticket", "timelineticket");
+                    $comment = "";
+                    $widget->setWidgetComment($comment);
+
+                    $preference = new Preference();
+                    $preference->getFromDB(Session::getLoginUserID());
+                    $preferences = $preference->fields;
+                    $criterias = ['entities_id',
+                        'is_recursive_entities',
+                        'type',
+                        'multiple_time',
+                        'begin',
+                        'end',
+                        'technicians_groups_id'];
+
+                    // Normalize both bounds here, where the filter values are read, and not
+                    // only inside getNumberAffectationPerTech(): the label loops below hand
+                    // them straight to DateTime() and strtotime(), where an unparsable value
+                    // threw an uncaught exception -- a 500 on the widget rather than a chart.
+                    $opt['begin'] = self::normalizeSqlDate($opt['begin'] ?? null, '-1 year');
+                    $opt['end']   = self::normalizeSqlDate($opt['end'] ?? null, 'now');
+                    if ($opt['begin'] > $opt['end']) {
+                        [$opt['begin'], $opt['end']] = [$opt['end'], $opt['begin']];
+                    }
+
+                    // Cap the span according to the step: the range was unbounded, so a posted
+                    // begin=1000-01-01 / end=9999-12-31 with a DAY step built some 3.3 million
+                    // labels in memory before the chart was even assembled, exhausting the
+                    // worker. Each cap keeps the loops in the low thousands of iterations.
+                    $earliest_allowed = [
+                        'DAY'   => '-5 years',
+                        'WEEK'  => '-20 years',
+                        'MONTH' => '-50 years',
+                    ][$opt['multiple_time'] ?? ''] ?? null;
+                    if ($earliest_allowed !== null) {
+                        $floor = (new DateTime($opt['end']))
+                            ->modify($earliest_allowed)
+                            ->format('Y-m-d H:i:s');
+                        if ($opt['begin'] < $floor) {
+                            $opt['begin'] = $floor;
+                        }
+                    }
+                    $params  = ["preferences" => $preferences,
+                        "criterias"   => $criterias,
+                        "opt"         => $opt];
+
+                    $default = Helper::manageCriterias($params);
+
+                    // The technician group filter is posted by the dashboard form:
+                    // drop every id the session is not allowed to see before using it,
+                    // then fall back to the groups of the current user.
+                    $opt['technicians_groups_id'] = self::filterAccessibleGroups($opt['technicians_groups_id'] ?? []);
+                    if (count($opt['technicians_groups_id']) == 0
+                        && count($_SESSION['glpigroups']) > 0) {
+                        $opt['technicians_groups_id'] = $_SESSION['glpigroups'];
+                    }
+                    $params['opt'] = $opt;
+
+                    $time_per_tech = self::getNumberAffectationPerTech($params);
+                    $labels = [];
+                    // A widget saved before the period selector existed carries no
+                    // multiple_time key: reading it raised a warning and fell through to an
+                    // empty label list instead of simply drawing nothing.
+                    switch ($opt['multiple_time'] ?? '') {
+                        case "MONTH":
+                            $begin = new DateTime($opt['begin']);
+                            $end = new DateTime($opt['end']);
+                            $interval = new DateInterval('P1M');
+                            $dateint = new DatePeriod($begin, $interval, $end);
+                            foreach ($dateint as $m) {
+                                $labels[] = $m->format('m') . "/" . $m->format('Y');
+                            }
+                            break;
+                        case "WEEK":
+                            $begin = new DateTime($opt['begin']);
+                            $end = new DateTime($opt['end']);
+                            $interval = new DateInterval('P1W');
+                            $dateint = new DatePeriod($begin, $interval, $end);
+                            foreach ($dateint as $w) {
+                                $labels[] = "S" . $w->format('W') . " - " . $w->format('Y');
+                            }
+                            break;
+                        case "DAY":
+                            for ($i = strtotime($opt['begin']); $i <= strtotime($opt['end']); $i += 86400) {
+                                $labels[] = date("d/m/Y", $i);
+                            }
+                            break;
+                    }
+
+
+                    $nb_bar = 0;
+                    foreach ($time_per_tech as $tech_id => $tickets) {
+                        $nb_bar++;
+                    }
+
+                    $i       = 0;
+                    $dataset = [];
+                    foreach ($time_per_tech as $tech_id => $times) {
+                        unset($time_per_tech[$tech_id]);
+                        $username  = getUserName($tech_id);
+                        $dataset['data'][] = array_values($times);
+                        $dataset['type']   = 'bar';
+                        $dataset['name']   = $username;
+                        $i++;
+                    }
+                    $dataLineset = json_encode($dataset);
+                    $labelsLine  = json_encode($labels);
+
+                    $graph_datas = ['title'   => $title,
+                        'comment' => $comment,
+                        'name'   => $name,
+                        'ids'    => json_encode([]),
+                        'data'   => $dataLineset,
+                        'labels' => $labelsLine];
+                    //               $graph_criterias = ['entities_id' => $entities_id_criteria,
+                    //                                   'sons'        => $sons_criteria,
+                    //                                   'type'        => $opt['type'],
+                    //                                   //                                'year'        => $year_criteria,
+                    //                                   'begin'       => $opt['begin'],
+                    //                                   'end'         => $opt['end'],
+                    //                                   'technicians_groups_id'         => $opt['technicians_groups_id'],
+                    //                                   'multiple_time'         => $opt['multiple_time'],
+                    //                                   'widget'      => $widgetId];
+                    $graph = BarChart::launchGraph($graph_datas, []);
+
+                    $params = ["widgetId"  => $widgetId,
+                        "name"      => $name,
+                        "onsubmit"  => true,
+                        "opt"       => $opt,
+                        "default" => $default,
+                        "criterias" => $criterias,
+                        "export"    => true,
+                        "canvas"    => true,
+                        "nb"        => 20];
+                    $widget->setWidgetHeader(Helper::getGraphHeader($params));
+
+
+                    $widget->setWidgetTitle($title);
+                    $widget->toggleWidgetRefresh();
+
+
+                    $widget->setWidgetHtmlContent(
+                        $graph,
+                    );
+
+                    return $widget;
+                }
+                break;
+        }
+    }
+
+    /**
+     * Keep only the group ids the current session is actually allowed to see.
+     *
+     * The technician group filter is posted by the dashboard form, so its values can
+     * be forged. Without this filter a user could read the assignment statistics of
+     * any group of any entity, including entities outside their perimeter.
+     *
+     * @param mixed $groups_id Raw value posted for the technician group filter
+     *
+     * @return array List of accessible group ids
+     */
+    private static function filterAccessibleGroups($groups_id): array
+    {
+        if (!is_array($groups_id)) {
+            $groups_id = $groups_id === null || $groups_id === '' ? [] : [$groups_id];
+        }
+
+        $group    = new Group();
+        $filtered = [];
+        foreach ($groups_id as $id) {
+            $id = (int) $id;
+            if ($id <= 0 || isset($filtered[$id])) {
+                continue;
+            }
+            if (!$group->getFromDB($id)) {
+                continue;
+            }
+            if (!Session::haveAccessToEntity(
+                $group->fields['entities_id'],
+                $group->fields['is_recursive'],
+            )) {
+                continue;
+            }
+            $filtered[$id] = $id;
+        }
+
+        return array_values($filtered);
+    }
+
+
+    /**
+     * @param $params
+     *
+     * @return array
+     */
+    private static function getNumberAffectationPerTech($params)
+    {
+        global $DB;
+
+        $time_per_tech = [];
+
+        $default = Helper::manageCriterias($params);
+
+        $opt = $params['opt'] ?? [];
+
+        // Security: every value below comes from the dashboard filter form and is
+        // interpolated into raw $DB->doQuery() strings. Normalize the date range
+        // through DateTime and force every id to an integer so no SQL can be
+        // injected. (GLPI convention is $DB->request() with parameterized criteria;
+        // these legacy raw queries are hardened in place to keep the widget behavior
+        // unchanged.)
+        $opt['begin'] = self::normalizeSqlDate($opt['begin'] ?? null, '-1 year');
+        $opt['end']   = self::normalizeSqlDate($opt['end'] ?? null, 'now');
+
+        $entities_criteria = (int) ($opt['entities_id'] ?? $default['entities_id']);
+        $sons_criteria = $opt['is_recursive_entities'] ?? $default['is_recursive_entities'];
+        $type_criteria = (int) ($opt['type'] ?? $default['type']);
+
+        $techlist = [];
+        // Same filtering as in getWidgetContentForItem(): the posted group ids can be
+        // forged, so only keep the ones the session is actually allowed to see. This
+        // method is also reachable on its own, hence the duplicated guard.
+        $selected_group = self::filterAccessibleGroups($opt['technicians_groups_id'] ?? []);
+        if (count($selected_group) === 0 && count($_SESSION['glpigroups']) > 0) {
+            $selected_group = $_SESSION['glpigroups'];
+        }
+        if (count($selected_group) > 0) {
+            // Parameterized query builder: group ids are forced to integers and
+            // passed as an IN (...) criteria, no raw string interpolation.
+            $iterator = $DB->request([
+                'SELECT'    => 'glpi_groups_users.users_id',
+                'DISTINCT'  => true,
+                'FROM'      => 'glpi_groups_users',
+                'LEFT JOIN' => [
+                    'glpi_groups' => [
+                        'ON' => [
+                            'glpi_groups_users' => 'groups_id',
+                            'glpi_groups'       => 'id',
+                        ],
+                    ],
+                ],
+                'WHERE'     => [
+                    'glpi_groups_users.groups_id' => array_map('intval', $selected_group),
+                    'glpi_groups.is_assign'       => 1,
+                ],
+            ]);
+            foreach ($iterator as $data) {
+                $techlist[] = $data['users_id'];
+            }
+        }
+
+        if (!empty($techlist)) {
+            $table = 'glpi_plugin_timelineticket_assignusers';
+
+            // Shared JOIN and WHERE built once with the query builder so every
+            // filter value is parameterized (no raw string interpolation).
+            $join = [
+                'glpi_tickets' => [
+                    'ON' => [
+                        'glpi_tickets' => 'id',
+                        $table         => 'tickets_id',
+                        ['AND' => ['glpi_tickets.is_deleted' => 0]],
+                    ],
+                ],
+            ];
+
+            $where = [
+                [$table . '.date' => ['>=', $opt['begin']]],
+                [$table . '.date' => ['<=', $opt['end']]],
+                $table . '.users_id' => array_map('intval', $techlist),
+            ];
+            if ($type_criteria > 0) {
+                $where['glpi_tickets.type'] = $type_criteria;
+            }
+            // Entity scoping: honor the requested entity ONLY when the session is
+            // actually allowed in it, otherwise fall back to the active entities of
+            // the session. getEntitiesRestrictCriteria() with an explicit entity does
+            // not verify session access, so an unchecked value would leak cross-entity
+            // statistics.
+            if ($entities_criteria > 0
+                && in_array($entities_criteria, $_SESSION['glpiactiveentities'] ?? [])) {
+                $where = array_merge(
+                    $where,
+                    getEntitiesRestrictCriteria('glpi_tickets', '', $entities_criteria, (bool) $sons_criteria),
+                );
+            } else {
+                $where = array_merge($where, getEntitiesRestrictCriteria('glpi_tickets'));
+            }
+
+            // Entity scoping is not the ticket visibility perimeter: a profile holding
+            // plugin_timelineticket_ticket READ but only READMY / READGROUP / READASSIGN on
+            // tickets was counted assignments over every ticket of its entities, including the
+            // ones the core forbids it to open -- the group filter accepts any assignable group
+            // of the entity, not only the groups of the operator, so the workload of a team it
+            // does not belong to was readable month by month. Replay the perimeter the three
+            // reports already confront. It answers an empty array for READALL, leaving a full
+            // profile untouched, and raises when the profile may see no ticket at all: a widget
+            // answers that with an empty chart rather than with an error page, the dashboard
+            // holding other widgets the operator is entitled to.
+            try {
+                Tool::addWhereCriteria($where, Tool::getTicketVisibilityCriteria());
+            } catch (AccessDeniedHttpException $e) {
+                return $time_per_tech;
+            }
+
+            // Same missing key as above, on the widget that queries the assignments.
+            switch ($opt["multiple_time"] ?? '') {
+                case "MONTH":
+                    $begin    = new DateTime($opt['begin']);
+                    $end      = new DateTime($opt['end']);
+                    $interval = new DateInterval('P1M');
+                    $dateint  = new DatePeriod($begin, $interval, $end);
+
+                    $date_expr = "DATE_FORMAT(" . $DB::quoteName($table . '.date') . ", '%m/%Y')";
+                    $iterator  = $DB->request([
+                        'SELECT'    => [
+                            new QueryExpression('COUNT(*)', 'numberAssignation'),
+                            new QueryExpression($date_expr, 'dkey'),
+                            $table . '.users_id',
+                        ],
+                        'FROM'      => $table,
+                        'LEFT JOIN' => $join,
+                        'WHERE'     => $where,
+                        'GROUPBY'   => [
+                            new QueryExpression($date_expr),
+                            $table . '.users_id',
+                        ],
+                    ]);
+                    foreach ($iterator as $data) {
+                        if ($data['numberAssignation'] > 0) {
+                            $time_per_tech[$data['users_id']][$data['dkey']] = $data['numberAssignation'];
+                        } else {
+                            $time_per_tech[$data['users_id']][$data['dkey']] = 0;
+                        }
+                    }
+                    foreach ($dateint as $w) {
+                        $key = $w->format('m') . "/" . $w->format('Y');
+                        foreach ($techlist as $techid) {
+                            if (!isset($time_per_tech[$techid][$key])) {
+                                $time_per_tech[$techid][$key] = 0;
+                            }
+                        }
+                    }
+
+
+                    break;
+                case "WEEK":
+                    $begin    = new DateTime($opt['begin']);
+                    $end      = new DateTime($opt['end']);
+                    $interval = new DateInterval('P1W');
+                    $dateint  = new DatePeriod($begin, $interval, $end);
+
+                    $year_expr = "YEAR(" . $DB::quoteName($table . '.date') . ")";
+                    $week_expr = "WEEK(" . $DB::quoteName($table . '.date') . ")";
+                    $iterator  = $DB->request([
+                        'SELECT'    => [
+                            new QueryExpression('COUNT(' . $DB::quoteName($table . '.id') . ')', 'numberAssignation'),
+                            new QueryExpression($year_expr, 'dyear'),
+                            new QueryExpression($week_expr, 'dweek'),
+                            $table . '.users_id',
+                        ],
+                        'FROM'      => $table,
+                        'LEFT JOIN' => $join,
+                        'WHERE'     => $where,
+                        'GROUPBY'   => [
+                            new QueryExpression($year_expr),
+                            new QueryExpression($week_expr),
+                            $table . '.users_id',
+                        ],
+                    ]);
+                    foreach ($iterator as $data) {
+                        if ($data['numberAssignation'] > 0) {
+                            $key                                    = $data["dweek"] . "/" . $data['dyear'];
+                            $time_per_tech[$data['users_id']][$key] = $data['numberAssignation'];
+                        }
+                    }
+                    foreach ($dateint as $w) {
+                        $key = $w->format('W') . "/" . $w->format('Y');
+                        foreach ($techlist as $techid) {
+                            if (!isset($time_per_tech[$techid][$key])) {
+                                $time_per_tech[$techid][$key] = 0;
+                            }
+                        }
+                    }
+
+
+                    break;
+                case "DAY":
+                    $date_expr = "DATE_FORMAT(" . $DB::quoteName($table . '.date') . ", '%d/%m/%Y')";
+                    $iterator  = $DB->request([
+                        'SELECT'    => [
+                            new QueryExpression('COUNT(' . $DB::quoteName($table . '.id') . ')', 'numberAssignation'),
+                            new QueryExpression($date_expr, 'dkey'),
+                            $table . '.users_id',
+                        ],
+                        'FROM'      => $table,
+                        'LEFT JOIN' => $join,
+                        'WHERE'     => $where,
+                        'GROUPBY'   => [
+                            new QueryExpression($date_expr),
+                            $table . '.users_id',
+                        ],
+                    ]);
+                    foreach ($iterator as $data) {
+                        if ($data['numberAssignation'] > 0) {
+                            $time_per_tech[$data['users_id']][$data['dkey']] = $data['numberAssignation'];
+                        }
+                    }
+
+                    for ($i = strtotime($opt['begin']); $i <= strtotime($opt['end']); $i += 86400) {
+                        $key = date("d/m/Y", $i);
+                        foreach ($techlist as $techid) {
+                            if (!isset($time_per_tech[$techid][$key])) {
+                                $time_per_tech[$techid][$key] = 0;
+                            }
+                        }
+                    }
+
+
+                    break;
+            }
+        }
+        return $time_per_tech;
+    }
+
+    /**
+     * Normalize a user-supplied date/time filter to a canonical
+     * 'Y-m-d H:i:s' string, so it can be safely interpolated into SQL and
+     * fed to DateTime/strtotime. Invalid input falls back to $fallback.
+     *
+     * @param mixed  $value    Raw value from the dashboard filter form
+     * @param string $fallback Relative expression used when $value is invalid
+     *
+     * @return string
+     */
+    private static function normalizeSqlDate($value, string $fallback): string
+    {
+        if (is_string($value) && $value !== '') {
+            try {
+                return (new DateTime($value))->format('Y-m-d H:i:s');
+            } catch (\Exception $e) {
+                // fall through to the safe default below
+            }
+        }
+        return (new DateTime($fallback))->format('Y-m-d H:i:s');
+    }
+}

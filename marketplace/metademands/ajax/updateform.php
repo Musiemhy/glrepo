@@ -1,0 +1,252 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * metademands plugin for GLPI
+ * Copyright (C) 2018-2026 by the metademands Development Team.
+ *
+ * https://github.com/InfotelGLPI/metademands
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of metademands.
+ *
+ * metademands is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * metademands is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use Glpi\Exception\Http\AccessDeniedHttpException;
+use GlpiPlugin\Metademands\Field;
+use GlpiPlugin\Metademands\FieldParameter;
+use GlpiPlugin\Metademands\Form;
+use GlpiPlugin\Metademands\Form_Value;
+use GlpiPlugin\Metademands\Metademand;
+
+header("Content-Type: application/json; charset=UTF-8");
+
+Html::header_nocache();
+
+// Page guard. This is the only mutating endpoint of the plugin that relied on the
+// ownership test alone: gate it on the same rights as its siblings ajax/visibility.php
+// and ajax/deleteform.php. The ownership test below answers a different question, which
+// row is written, not which profile may write at all.
+Session::checkSeveralRightsOr([
+    'plugin_metademands' => READ,
+    'plugin_metademands_createmeta' => READ,
+    'plugin_metademands_fillform' => READ,
+]);
+
+$KO = true;
+
+$form = new Form();
+
+if (isset($_POST['save_model'])) {
+    $users_id = Session::getLoginUserID();
+    $form_id  = (int) ($_POST['plugin_metademands_forms_id'] ?? 0);
+    if (!$form->getFromDB($form_id) || (int) $form->fields['users_id'] !== $users_id) {
+        throw new AccessDeniedHttpException();
+    }
+    if ($form->fields['is_model'] == 0) {
+        $input = ['name' => $_POST['form_name'],
+            'plugin_metademands_metademands_id' => $form->fields['plugin_metademands_metademands_id'],
+            'users_id' => $form->fields['users_id'],
+            'items_id' => 0,
+            'itemtype' => '',
+            'date' => date('Y-m-d H:i:s'),
+            // Both flags come from the client. Normalize them and default a new model to
+            // private: plugin_metademands_publicforms is a ceiling, not a forcing -- the
+            // right authorizes publishing, it does not impose it. The wizard posts
+            // is_private=1 (src/Wizard.php) to mean "keep this model for me only", and
+            // ignoring that value used to expose the saved answers to every user of the
+            // entity through Form::showPublicFormsForMetademand() and ajax/loadform.php.
+            // Same contract as ajax/addform.php and ajax/visibility.php; publishing stays
+            // an explicit action of the owner through ajax/visibility.php.
+            'is_model' => (int) ((bool) ($_POST['is_model'] ?? 0)),
+            'is_private' => Form::canPublish() ? (int) ((bool) ($_POST['is_private'] ?? 1)) : 1];
+
+        if ($newid = $form->add($input)) {
+            $KO = false;
+            $_SESSION['plugin_metademands'][$form->fields['plugin_metademands_metademands_id']]['plugin_metademands_forms_name'] = $_POST['form_name'];
+            $_SESSION['plugin_metademands'][$form->fields['plugin_metademands_metademands_id']]['plugin_metademands_forms_id'] = $newid;
+            $form_values = new Form_Value();
+            $values = $form_values->find(['plugin_metademands_forms_id' => $_POST['plugin_metademands_forms_id']]);
+
+            $input = [];
+            //            if (isset($_SESSION['plugin_metademands'][$form->fields['plugin_metademands_metademands_id']]['fields']['files']['_filename'])) {
+            //                $input['_filename'] = $_SESSION['plugin_metademands'][$form->fields['plugin_metademands_metademands_id']]['fields']['files']['_filename'];
+            //            }
+            //            if (isset($_SESSION['plugin_metademands'][$form->fields['plugin_metademands_metademands_id']]['fields']['files']['_prefix_filename'])) {
+            //                $input['_prefix_filename'] = $_SESSION['plugin_metademands'][$form->fields['plugin_metademands_metademands_id']]['fields']['files']['_prefix_filename'];
+            //            }
+
+            foreach ($values as $value) {
+                $field = new Field();
+                $field->getFromDB($value['plugin_metademands_fields_id']);
+
+                $fieldparameter            = new FieldParameter();
+                if ($fieldparameter->getFromDBByCrit(['plugin_metademands_fields_id' => $value['plugin_metademands_fields_id']])) {
+                    if (isset($field->fields['type']) && $field->fields['type'] == 'textarea' && $fieldparameter->fields['use_richtext'] == 1) {
+                        $form_value = new Form_Value();
+                        $form_value->getFromDB($value['plugin_metademands_forms_id']);
+                        $inputv = Toolbox::convertTagToImage($value['value'], $form_value, $input, false);
+
+                        $form_values->add(['plugin_metademands_forms_id' => $newid,
+                            'plugin_metademands_fields_id' => $value['plugin_metademands_fields_id'],
+                            'value' => $inputv,
+                            'value2' => $value['value2']]);
+                    } else {
+                        $form_values->add(['plugin_metademands_forms_id' => $newid,
+                            'plugin_metademands_fields_id' => $value['plugin_metademands_fields_id'],
+                            'value' => $value['value'],
+                            'value2' => $value['value2']]);
+                    }
+                }
+            }
+        }
+    } else {
+        // Authoritative source for the meta-demand: the model row whose ownership was
+        // verified above. The posted metademands_id drove constructMetademands(), the
+        // session keys and setFormValues(), so a forged value could graft the fields of
+        // another meta-demand onto this model.
+        $metademands_id = (int) $form->fields['plugin_metademands_metademands_id'];
+
+        $input = ['name' => $_POST['form_name'],
+            'plugin_metademands_metademands_id' => $form->fields['plugin_metademands_metademands_id'],
+            'users_id' => $form->fields['users_id'],
+            'items_id' => 0,
+            'itemtype' => '',
+            'date' => date('Y-m-d H:i:s'),
+            'is_model' => 1,
+            //            'is_private' => 1,
+            'id' => $_POST['plugin_metademands_forms_id']];
+
+        $form->update($input);
+        $metademands = new Metademand();
+        $forms_values = new Form_Value();
+        $forms_values->deleteByCriteria(['plugin_metademands_forms_id' => $_POST['plugin_metademands_forms_id']]);
+        $metademands_data = Metademand::constructMetademands($metademands_id);
+
+        $nblines = 0;
+        $KO = false;
+
+        if ($nblines == 0) {
+            if (isset($_POST['field'])) {
+                $post    =  $_POST['field'];
+            }
+
+            $nblines = 1;
+        }
+
+        $checks = [];
+        $content = [];
+
+        for ($i = 0; $i < $nblines; $i++) {
+            //            if (Plugin::isPluginActive('orderfollowup')) {
+            //                if (isset($_SESSION['plugin_orderfollowup']['freeinputs'])) {
+            //                    $freeinputs = $_SESSION['plugin_orderfollowup']['freeinputs'];
+            //                    foreach ($freeinputs as $freeinput) {
+            //                        $_POST['freeinputs'][] = $freeinput;
+            //                    }
+            //                }
+            //            }
+
+            if (isset($_SESSION['plugin_metademands'][$metademands_id]['freetables'])) {
+                $freetables = $_SESSION['plugin_metademands'][$metademands_id]['freetables'];
+
+                foreach ($freetables as $field_id => $freetable) {
+                    $_POST['freetables'][$metademands_id][$field_id] = $freetable;
+                }
+            }
+
+            $metademands_data = Metademand::constructMetademands($metademands_id);
+
+            if (!isset($post) || !is_array($post)) {
+                $_POST['field'] = [];
+            }
+
+            if (count($metademands_data)) {
+                foreach ($metademands_data as $form_step => $data) {
+                    $docitem = null;
+                    foreach ($data as $form_metademands_id => $line) {
+                        foreach ($line['form'] as $id => $value) {
+                            if (!isset($post[$id])) {
+                                if (isset($_SESSION['plugin_metademands'][$metademands_id]['fields'][$id])
+                                    && $value['plugin_metademands_metademands_id'] != $_POST['form_metademands_id']) {
+                                    $_POST['field'][$id] = $_SESSION['plugin_metademands'][$metademands_id]['fields'][$id];
+                                }
+                            } else {
+                                $_SESSION['plugin_metademands'][$metademands_id]['fields'][$id] = $post[$id];
+                            }
+
+                            if ($value['type'] == 'radio') {
+                                if (!isset($_POST['field'][$id])) {
+                                    $_POST['field'][$id] = null;
+                                }
+                            }
+                            if ($value['type'] == 'checkbox') {
+                                if (!isset($_POST['field'][$id])) {
+                                    $_POST['field'][$id] = 0;
+                                }
+                            }
+                            if ($value['type'] == 'informations'
+                                || $value['type'] == 'title') {
+                                if (!isset($_POST['field'][$id])) {
+                                    $_POST['field'][$id] = 0;
+                                }
+                            }
+                            if ($value['item'] == 'ITILCategory_Metademands') {
+                                $_POST['field'][$id] = $_POST['field_plugin_servicecatalog_itilcategories_id'] ?? 0;
+                            }
+
+                            if ($value['type'] == 'basket' && isset($_POST['quantity'])) {
+                                $_POST['field'][$id] = $_POST['quantity'][$id];
+                            }
+
+                            if ($value['type'] == 'freetable'
+                                && isset($_POST['freetables'])
+                                && !empty($_POST['freetables'])) {
+                                if (!isset($_POST['field']) || !is_array($_POST['field'])) {
+                                    $_POST['field'] = [];
+                                }
+                                if (isset($_POST['freetables'][$metademands_id][$id])) {
+                                    $_POST['field'][$id] = $_POST['freetables'][$metademands_id][$id];
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (count($metademands_data)) {
+                foreach ($metademands_data as $form_step => $data) {
+                    $docitem = null;
+                    foreach ($data as $form_metademands_id => $line) {
+                        Form_Value::setFormValues($metademands_id, $line['form'], $_POST['field'], $_POST['plugin_metademands_forms_id']);
+                    }
+                }
+            }
+            Form_Value::loadFormValues($metademands_id, $_POST['plugin_metademands_forms_id']);
+
+            $_SESSION['plugin_metademands'][$metademands_id]['plugin_metademands_forms_name'] = $_POST['form_name'];
+            $_SESSION['plugin_metademands'][$metademands_id]['plugin_metademands_forms_id'] = $_POST['plugin_metademands_forms_id'];
+        }
+    }
+}
+
+if ($KO === false) {
+    echo 0;
+} else {
+    echo $KO;
+}

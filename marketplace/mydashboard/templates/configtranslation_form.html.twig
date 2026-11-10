@@ -1,0 +1,70 @@
+{#
+ # -------------------------------------------------------------------------
+ # mydashboard plugin for GLPI
+ # Copyright (C) 2016-2026 by the mydashboard Development Team.
+ #
+ # https://github.com/InfotelGLPI/mydashboard
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of mydashboard.
+ #
+ # mydashboard is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # mydashboard is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with mydashboard. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{% extends 'generic_show_form.html.twig' %}
+{% import 'components/form/fields_macros.html.twig' as fields %}
+
+{% block form_fields %}
+    {{ fields.hiddenField('itemtype', get_class(parent_item)) }}
+    {{ fields.hiddenField('items_id', parent_item.getID()) }}
+
+    {% if language_label is not null %}
+        {# Updating a translation only allows modifying its value #}
+        {{ fields.hiddenField('language', item.fields['language']) }}
+        {{ fields.readOnlyField('', language_label, __('Language'), field_options) }}
+    {% else %}
+        {{ fields.dropdownArrayField('language', session('glpilanguage'), languages, __('Language'), field_options) }}
+        {# Reloads the field list with the fields not yet translated in the chosen language #}
+        {% do call('Ajax::updateItemOnSelectEvent', [
+            'dropdown_language' ~ rand,
+            'span_fields' ~ rand,
+            fields_url,
+            {
+                'language': '__VALUE__',
+                'itemtype': get_class(parent_item),
+                'items_id': parent_item.getID(),
+            },
+        ]) %}
+    {% endif %}
+
+    {% if field_label is not null %}
+        {{ fields.hiddenField('field', item.fields['field']) }}
+        {{ fields.readOnlyField('', field_label, __('Field'), field_options) }}
+    {% else %}
+        {% set field_dropdown %}
+            {{ fields.dropdownArrayField('field', '', field_choices, '', field_options|merge({
+                'used': used_fields,
+                'include_field': false,
+            })) }}
+        {% endset %}
+        {{ fields.ajaxField('span_fields' ~ rand, field_dropdown, __('Field'), field_options) }}
+    {% endif %}
+
+    {{ fields.textareaField('value', item.fields['value'], __('Value'), field_options|merge({
+        'rows': 3,
+    })) }}
+{% endblock %}

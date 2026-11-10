@@ -1,0 +1,167 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * mydashboard plugin for GLPI
+ * Copyright (C) 2016-2026 by the mydashboard Development Team.
+ *
+ * https://github.com/InfotelGLPI/mydashboard
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of mydashboard.
+ *
+ * mydashboard is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * mydashboard is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with mydashboard. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Mydashboard\Criterias;
+
+use CommonITILActor;
+use Dropdown;
+use GlpiPlugin\Mydashboard\Criteria;
+use GlpiPlugin\Mydashboard\Preference;
+use Group;
+use Session;
+
+/**
+ * Class RequesterGroup
+ */
+class RequesterGroup
+{
+    public static $criteria_name = 'requesters_groups_id';
+    public static $criteria_number = 71;
+
+    public static function getDefaultValue()
+    {
+
+        $requesters_groups_id = [];
+
+        $preference = new Preference();
+        if (!$preference->getFromDB(Session::getLoginUserID())) {
+            $preference->initPreferences(Session::getLoginUserID());
+            $preference->getFromDB(Session::getLoginUserID());
+        }
+        $preferences = $preference->fields;
+        if (isset($preferences['requester_prefered_group'])) {
+            $preferences['requester_prefered_group'] = \Safe\json_decode($preferences['requester_prefered_group'], true);
+            if (is_array($preferences['requester_prefered_group'])
+                && count($preferences['requester_prefered_group']) > 0) {
+                $requesters_groups_id = $preferences['requester_prefered_group'];
+            }
+        }
+        return $requesters_groups_id;
+
+    }
+
+    /**
+     * @param array $opt
+     *
+     * @return array<int, array{label: string, values: array<int, string>}>
+     */
+    public static function getDisplayValue($opt): array
+    {
+        $requesters_groups_id = is_array(
+            $opt[self::$criteria_name],
+        ) ? $opt[self::$criteria_name] : [];
+
+        $requesters_groups_id = array_filter($requesters_groups_id);
+
+        if (count($requesters_groups_id) === 0) {
+            return [];
+        }
+
+        $values = [];
+        foreach ($requesters_groups_id as $group_id) {
+            $values[] = (string) Dropdown::getDropdownName('glpi_groups', $group_id);
+        }
+
+        return [[
+            'label'  => __('Requester group'),
+            'values' => $values,
+        ]];
+    }
+
+    public static function getDisplayForm($default, $opt, $count)
+    {
+
+        $result = getAllDataFromTable(
+            Group::getTable(),
+            ['is_requester' => 1, 'ORDER' => "completename"],
+            false,
+        );
+
+        if (isset($opt[self::$criteria_name])) {
+            $requesters_groups_id = (is_array(
+                $opt[self::$criteria_name],
+            ) ? $opt[self::$criteria_name] : []);
+        } else {
+            $requesters_groups_id = [];
+        }
+
+        $temp = [];
+        foreach ($result as $item) {
+            $temp[$item['id']] = $item['completename'];
+        }
+
+        $params = [
+            "name" => self::$criteria_name,
+            "multiple" => true,
+            "width" => '200px',
+            'values' => $requesters_groups_id ?? $default[self::$criteria_name],
+            'display_emptychoice' => true,
+        ];
+
+
+        return Criteria::getFieldHtml(
+            __('Requester group'),
+            $count,
+            [Dropdown::class, 'showFromArray'],
+            ["requesters_groups_id", $temp, $params],
+        );
+    }
+
+    public static function getQueryLeftJoin($params, $table)
+    {
+
+        return $params['query']['LEFT JOIN'] + [
+            'glpi_groups_tickets' => [
+                'ON' => [
+                    $table => 'id',
+                    'glpi_groups_tickets' => 'tickets_id',
+                    [
+                        'AND' => [
+                            'glpi_groups_tickets.type' => CommonITILActor::REQUESTER,
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+    }
+
+    public static function getQueryCriteria($params)
+    {
+
+        return $params['query']['WHERE'] + ['glpi_groups_tickets.groups_id' => $params[self::$criteria_name]];
+    }
+
+    public static function getSearchCriteria($params, $value = 0)
+    {
+
+        return Criteria::addUrlGroupCriteria(self::$criteria_number, 'equals', $params["params"][self::$criteria_name]);
+
+    }
+}

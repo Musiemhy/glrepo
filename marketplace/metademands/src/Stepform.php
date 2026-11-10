@@ -1,0 +1,1087 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * metademands plugin for GLPI
+ * Copyright (C) 2018-2026 by the metademands Development Team.
+ *
+ * https://github.com/InfotelGLPI/metademands
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of metademands.
+ *
+ * metademands is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * metademands is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Metademands;
+
+use CommonDBTM;
+use DBConnection;
+use Group_User;
+use Html;
+use Migration;
+use Notification;
+use Notification_NotificationTemplate;
+use NotificationEvent;
+use NotificationTemplate;
+use NotificationTemplateTranslation;
+use Session;
+use CommonGLPI;
+use User;
+use Glpi\Application\View\TemplateRenderer;
+
+/**
+ * Class Stepform
+ */
+class Stepform extends CommonDBTM
+{
+    public static $rightname = 'plugin_metademands';
+
+    /**
+     * functions mandatory
+     * getTypeName(), canCreate(), canView()
+     *
+     * @param int $nb
+     *
+     * @return string
+     */
+    public static function getTypeName($nb = 0)
+    {
+        return _n('Step a metademands form', 'Steps a metademands form', $nb, 'metademands');
+    }
+
+    public static function getIcon()
+    {
+        return "ti ti-eye";
+    }
+
+    public static function addNotifications()
+    {
+        global $DB;
+
+        // Notification
+        $options_notif = [
+            'itemtype' => self::class,
+            'name' => 'New form completed',
+        ];
+
+        if (!countElementsInTable(
+            "glpi_notificationtemplates",
+            $options_notif,
+        )) {
+
+            $DB->insert(
+                "glpi_notificationtemplates",
+                $options_notif,
+            );
+
+            foreach (
+                $DB->request([
+                    'FROM' => 'glpi_notificationtemplates',
+                    'WHERE' => $options_notif,
+                ]) as $data
+            ) {
+                $templates_id = $data['id'];
+
+                if ($templates_id) {
+                    $DB->insert(
+                        "glpi_notificationtemplatetranslations",
+                        [
+                            'notificationtemplates_id' => $templates_id,
+                            'subject' => '##pluginmetademandsstepform.action##',
+                            'content_text' => '##lang.pluginmetademandsmetademand.title## : ##pluginmetademandsmetademand.title##
+##lang.pluginmetademandsstepform.date## : ##pluginmetademandsstepform.date##
+##lang.pluginmetademandsstepform.user_editor## : ##pluginmetademandsstepform.user_editor##
+##lang.pluginmetademandsstepform.nextgroup## : ##pluginmetademandsstepform.nextgroup##
+##lang.pluginmetademandsstepform.users_id_dest## : ##pluginmetademandsstepform.users_id_dest##',
+                            'content_html' => '##lang.pluginmetademandsmetademand.title## : ##pluginmetademandsmetademand.title##
+##lang.pluginmetademandsstepform.date## : ##pluginmetademandsstepform.date##
+##lang.pluginmetademandsstepform.user_editor## : ##pluginmetademandsstepform.user_editor##
+##lang.pluginmetademandsstepform.nextgroup## : ##pluginmetademandsstepform.nextgroup##
+##lang.pluginmetademandsstepform.users_id_dest## : ##pluginmetademandsstepform.users_id_dest##',
+                        ],
+                    );
+
+                    $DB->insert(
+                        "glpi_notifications",
+                        [
+                            'name' => 'New form completed',
+                            'entities_id' => 0,
+                            'itemtype' => self::class,
+                            'event' => 'new_step_form',
+                            'is_recursive' => 1,
+                        ],
+                    );
+
+                    $options_notif = [
+                        'itemtype' => self::class,
+                        'name' => 'New form completed',
+                        'event' => 'new_step_form',
+                    ];
+
+                    foreach (
+                        $DB->request([
+                            'FROM' => 'glpi_notifications',
+                            'WHERE' => $options_notif,
+                        ]) as $data_notif
+                    ) {
+                        $notification = $data_notif['id'];
+                        if ($notification) {
+                            $DB->insert(
+                                "glpi_notifications_notificationtemplates",
+                                [
+                                    'notifications_id' => $notification,
+                                    'mode' => 'mailing',
+                                    'notificationtemplates_id' => $templates_id,
+                                ],
+                            );
+                        }
+                    }
+                }
+            }
+
+            // Update
+            $options_notif = [
+                'itemtype' => self::class,
+                'name' => 'Form completed',
+            ];
+            // Request
+            $DB->insert(
+                "glpi_notificationtemplates",
+                $options_notif,
+            );
+
+            foreach (
+                $DB->request([
+                    'FROM' => 'glpi_notificationtemplates',
+                    'WHERE' => $options_notif,
+                ]) as $data
+            ) {
+                $templates_id = $data['id'];
+
+                if ($templates_id) {
+                    $DB->insert(
+                        "glpi_notificationtemplatetranslations",
+                        [
+                            'notificationtemplates_id' => $templates_id,
+                            'subject' => '##pluginmetademandsstepform.action##',
+                            'content_text' => '##lang.pluginmetademandsmetademand.title## : ##pluginmetademandsmetademand.title##
+##lang.pluginmetademandsstepform.date## : ##pluginmetademandsstepform.date##
+##lang.pluginmetademandsstepform.user_editor## : ##pluginmetademandsstepform.user_editor##
+##lang.pluginmetademandsstepform.nextgroup## : ##pluginmetademandsstepform.nextgroup##
+##lang.pluginmetademandsstepform.users_id_dest## : ##pluginmetademandsstepform.users_id_dest##',
+                            'content_html' => '##lang.pluginmetademandsmetademand.title## : ##pluginmetademandsmetademand.title##
+##lang.pluginmetademandsstepform.date## : ##pluginmetademandsstepform.date##
+##lang.pluginmetademandsstepform.user_editor## : ##pluginmetademandsstepform.user_editor##
+##lang.pluginmetademandsstepform.nextgroup## : ##pluginmetademandsstepform.nextgroup##
+##lang.pluginmetademandsstepform.users_id_dest## : ##pluginmetademandsstepform.users_id_dest##',
+                        ],
+                    );
+
+                    $DB->insert(
+                        "glpi_notifications",
+                        [
+                            'name' => 'Form completed',
+                            'entities_id' => 0,
+                            'itemtype' => self::class,
+                            'event' => 'update_step_form',
+                            'is_recursive' => 1,
+                        ],
+                    );
+
+                    $options_notif = [
+                        'itemtype' => self::class,
+                        'name' => 'New form completed',
+                        'event' => 'update_step_form',
+                    ];
+
+                    foreach (
+                        $DB->request([
+                            'FROM' => 'glpi_notifications',
+                            'WHERE' => $options_notif,
+                        ]) as $data_notif
+                    ) {
+                        $notification = $data_notif['id'];
+                        if ($notification) {
+                            $DB->insert(
+                                "glpi_notifications_notificationtemplates",
+                                [
+                                    'notifications_id' => $notification,
+                                    'mode' => 'mailing',
+                                    'notificationtemplates_id' => $templates_id,
+                                ],
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public static function install(Migration $migration)
+    {
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+        $table  = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $query = "CREATE TABLE `$table` (
+                        `id` int {$default_key_sign} NOT NULL auto_increment,
+                        `name`                              VARCHAR(255) NOT NULL DEFAULT '0',
+                        `plugin_metademands_metademands_id` int {$default_key_sign} NOT NULL DEFAULT '0',
+                        `items_id`                          int {$default_key_sign} NOT NULL DEFAULT '0',
+                        `users_id`                          int {$default_key_sign} NOT NULL DEFAULT '0',
+                        `groups_id_dest`                    int {$default_key_sign} NOT NULL DEFAULT '0',
+                        `users_id_dest`                     int {$default_key_sign} NOT NULL DEFAULT '0',
+                        `date`                              timestamp    NULL     DEFAULT NULL,
+                        `reminder_date`                     timestamp    NULL     DEFAULT NULL,
+                        `block_id`                          int {$default_key_sign} NOT NULL DEFAULT '0',
+                        PRIMARY KEY (`id`),
+                        KEY `plugin_metademands_metademands_id` (`plugin_metademands_metademands_id`)
+               ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
+
+            $DB->doQuery($query);
+        }
+
+        //version 3.3.0
+        if (!$DB->fieldExists($table, "users_id_dest")) {
+            $migration->addField($table, "users_id_dest", "int {$default_key_sign} NOT NULL DEFAULT '0'");
+            if (!isIndex($table, "plugin_metademands_metademands_id")) {
+                $migration->addKey($table, "plugin_metademands_metademands_id");
+            }
+            $migration->migrationOneTable($table);
+        }
+
+        self::addNotifications();
+
+        $query = $DB->buildUpdate(
+            'glpi_notifications',
+            [
+                'itemtype' => self::class,
+            ],
+            [
+                'itemtype' => 'PluginMetademandsStepform',
+            ],
+        );
+        $DB->doQuery($query);
+
+        $query = $DB->buildUpdate(
+            'glpi_notificationtemplates',
+            [
+                'itemtype' => self::class,
+            ],
+            [
+                'itemtype' => 'PluginMetademandsStepform',
+            ],
+        );
+        $DB->doQuery($query);
+    }
+
+    public static function uninstall()
+    {
+        global $DB;
+
+        $DB->dropTable(self::getTable(), true);
+
+        //for step forms
+
+        $options = ['itemtype' => Stepform::class,
+            'event'    => 'new_step_form'];
+
+        $notif = new Notification();
+        foreach ($DB->request([
+            'FROM' => 'glpi_notifications',
+            'WHERE' => $options]) as $data) {
+            $notif->delete($data);
+        }
+
+        $options = ['itemtype' => Stepform::class,
+            'event'    => 'update_step_form'];
+
+        $notif = new Notification();
+        foreach ($DB->request([
+            'FROM' => 'glpi_notifications',
+            'WHERE' => $options]) as $data) {
+            $notif->delete($data);
+        }
+
+        $options = ['itemtype' => Stepform::class,
+            'event'    => 'delete_step_form'];
+
+        $notif = new Notification();
+        foreach ($DB->request([
+            'FROM' => 'glpi_notifications',
+            'WHERE' => $options]) as $data) {
+            $notif->delete($data);
+        }
+
+        //templates
+        $template       = new NotificationTemplate();
+        $translation    = new NotificationTemplateTranslation();
+        $notif_template = new Notification_NotificationTemplate();
+        $options        = ['itemtype' => Stepform::class];
+
+        foreach ($DB->request([
+            'FROM' => 'glpi_notificationtemplates',
+            'WHERE' => $options]) as $data) {
+            $options_template = [
+                'notificationtemplates_id' => $data['id'],
+            ];
+
+            foreach ($DB->request([
+                'FROM' => 'glpi_notificationtemplatetranslations',
+                'WHERE' => $options_template]) as $data_template) {
+                $translation->delete($data_template);
+            }
+            $template->delete($data);
+
+            foreach ($DB->request([
+                'FROM' => 'glpi_notifications_notificationtemplates',
+                'WHERE' => $options_template]) as $data_template) {
+                $notif_template->delete($data_template);
+            }
+        }
+    }
+
+    /**
+     * @param $users_id
+     * @param $plugin_metademands_metademands_id
+     *
+     * @return string
+     */
+    //    public static function showFormsForUserMetademand($users_id, $plugin_metademands_metademands_id, $is_model = false)
+    //    {
+    //        $self      = new self();
+    //        $condition = ['users_id'                          => $users_id,
+    //                      'plugin_metademands_metademands_id' => $plugin_metademands_metademands_id];
+    //        if ($is_model == true) {
+    //            $condition['is_model'] = 1;
+    //        } else {
+    //            $condition['is_model'] = 0;
+    //        }
+    //        $forms = $self->find($condition, ['date DESC']);
+    //
+    //        if (isset($_SESSION['plugin_metademands'][$plugin_metademands_metademands_id]['plugin_metademands_forms_name'])) {
+    //            $formname = htmlescape(Toolbox::stripslashes_deep($_SESSION['plugin_metademands'][$plugin_metademands_metademands_id]['plugin_metademands_forms_name'])) ?? '';
+    //        } else {
+    //            $formname = '';
+    //        }
+    //        if (isset($_SESSION['plugin_metademands'][$plugin_metademands_metademands_id]['plugin_metademands_forms_id'])) {
+    //            $form_id = $_SESSION['plugin_metademands'][$plugin_metademands_metademands_id]['plugin_metademands_forms_id'];
+    //        } else {
+    //            $form_id = 0;
+    //        }
+    //        $return = "<span class=''>";
+    //        $rand   = mt_rand();
+    //        if ($is_model == true) {
+    //            if (isset($_SESSION['plugin_metademands'][$plugin_metademands_metademands_id]['plugin_metademands_forms_name'])) {
+    //                $return .= "<div class='card-header'>";
+    //                $return .= __("Current form", 'metademands');
+    //                $return .= "</div>";
+    //                $return .= "<table class='tab_cadre_fixe'>";
+    //                $return .= "<tr class=''>";
+    //                $return .= "<td colspan='4' class='center'>";
+    //                $return .= Html::hidden('plugin_metademands_forms_id', ['value' => $form_id, 'id' => 'plugin_metademands_forms_id']);
+    //                $title  = "<i class='fas fa-1x fa-save pointer'></i>&nbsp;";
+    //                $return .= Html::input('form_name', ['value'       => $formname,
+    //                                                     'maxlength'   => 250,
+    //                                                     'size'        => 20,
+    //                                                     'class'       => ' ',
+    //                                                     'placeholder' => __('Form name', 'metademands')]);
+    //                $self->getFromDB($form_id);
+    //                if ($self->fields['is_model'] == true) {
+    //                    $title .= _sx('button', 'Save model', 'metademands');
+    //                } else {
+    //                    $title .= _sx('button', 'Save as model', 'metademands');
+    //                }
+    //
+    //                $return .= "&nbsp;";
+    //                $return .= Html::submit($title, ['name'  => 'save_model',
+    //                                                 'form'  => '',
+    //                                                 'id'    => 'FormSave' . $rand,
+    //                                                 'class' => 'btn btn-success btn-sm']);
+    //                $return .= "&nbsp;";
+    //                $title  = "<i class='fas fa-1x fa-broom pointer'></i>&nbsp;";
+    //                $title  .= _sx('button', 'Clean form', 'metademands');
+    //                $return .= Html::submit($title, ['name'  => 'clean_form',
+    //                                                 'class' => 'btn btn-warning btn-sm']);
+    //                $return .= "<br>";
+    //                $return .= "</td></tr>";
+    //                $return .= "</table>";
+    //            } else {
+    //                $return .= "<div class='card-header'>";
+    //                $return .= __("New model", 'metademands');
+    //                $return .= "</div>";
+    //                $return .= "<table class='tab_cadre_fixe'>";
+    //                $return .= "<tr class=''>";
+    //                $return .= "<td colspan='4' class='center'>";
+    //                $return .= "<br>";
+    //                $return .= Html::input('form_name', ['maxlength'   => 250,
+    //                                                     'size'        => 40,
+    //                                                     'placeholder' => __('Form name', 'metademands')]);
+    //                $return .= "<br>";
+    //                $title  = "<i class='fas fa-1x fa-cloud-upload-alt pointer'></i>&nbsp;";
+    //                $title  .= _sx('button', 'Save as model', 'metademands');
+    //
+    //                $return .= Html::submit($title, ['name'  => 'save_form',
+    //                                                 'form'  => '',
+    //                                                 'id'    => 'FormAdd' . $rand,
+    //                                                 'class' => 'btn btn-success btn-sm']);
+    //                $return .= "&nbsp;";
+    //                $title  = "<i class='fas fa-1x fa-broom pointer'></i>&nbsp;";
+    //                $title  .= _sx('button', 'Clean form', 'metademands');
+    //                $return .= Html::submit($title, ['name'  => 'clean_form',
+    //                                                 'class' => 'btn btn-warning btn-sm']);
+    //                $return .= "<br>";
+    //                $return .= "</td></tr>";
+    //            }
+    //        }
+    //
+    //        $return .= "<table class='tab_cadre_fixe'>";
+    //        //      $return .= "<tr class='tab_bg_1'><th colspan='4' class='center'>";
+    //        //      $return .= "<div class='card-header'>";
+    //        //      if ($is_model == true) {
+    //        //         $return .= __("Your models", 'metademands');
+    //        //      } else {
+    //        //         $return .= __("Your created forms", 'metademands');
+    //        //      }
+    //        //
+    //        //      $return .= "</div>";
+    //        $return .= "<p class='card-text'>";
+    //        //      $return .= "</th></tr>";
+    //        $return .= "<tbody id='bodyForm'>";
+    //        if (count($forms) > 0) {
+    //            foreach ($forms as $form) {
+    //                $return .= "<tr class=''>";
+    //                $return .= "<td>" . Toolbox::stripslashes_deep($form['name']) . "</td>";
+    //                $return .= "<td>" . Html::convDateTime($form['date']) . "</td>";
+    //
+    //                //            $return .= "<td><i class='".($form['is_model'] > 0 ? 'fas' : 'far')." fa-star fa-xs mark-default me-1'
+    //                //            title='".($form['is_model'] > 0 ? __('Used as model', 'metademands') : __('Mark as model', 'metademands'))."'
+    //                //            data-bs-toggle='tooltip' data-bs-placement='right' role='button'></i>";
+    //                //            $return .= "</td>";
+    //                $return .= "<td>";
+    //                $return .= "<button form='' class='submit btn btn-success btn-sm' onclick=\"loadForm(" . $form['id'] . ")\">";
+    //                $return .= "<i class='fas fa-1x fa-cloud-download-alt pointer' title='" . _sx('button', 'Load form', 'metademands') . "'
+    //                           data-hasqtip='0' aria-hidden='true'></i>";
+    //                $return .= "</button>";
+    //                $return .= "</td>";
+    //                if ($is_model == true) {
+    //                    $return .= "<td>";
+    //                    $return .= "<button form='' class='submit btn btn-danger btn-sm' onclick=\"deleteForm(" . $form['id'] . ")\">";
+    //                    $return .= "<i class='fas fa-1x fa-trash pointer' title='" . _sx('button', 'Delete form', 'metademands') . "'
+    //                           data-hasqtip='0' aria-hidden='true'></i>";
+    //                    $return .= "</button>";
+    //                    $return .= "</td>";
+    //                }
+    //                $return .= "</tr>";
+    //            }
+    //        } else {
+    //            $return .= "<tr class=''>";
+    //            $return .= "<td>";
+    //            $return .= __("No existing forms founded", 'metademands');
+    //            $return .= "</td>";
+    //            $return .= "</tr>";
+    //        }
+    //        $return .= "</tbody>";
+    //        $return .= "</table>";
+    //        $return .= "</p>";
+    //        if ($is_model == true) {
+    //            $return .= "<script>
+    //                       var meta_id = {$plugin_metademands_metademands_id};
+    //
+    //                      function deleteForm(form_id) {
+    //                          var self_delete = false;
+    //                          if($form_id == form_id ){
+    //                              self_delete = true;
+    //                          }
+    //                          $('#ajax_loader').show();
+    //                          $.ajax({
+    //                             url: '" . PLUGIN_METADEMANDS_WEBDIR . "/ajax/deleteform.php',
+    //                                type: 'POST',
+    //                                data:
+    //                                  {
+    //                                    users_id:$users_id,
+    //                                    plugin_metademands_metademands_id: meta_id,
+    //                                    forms_id: form_id,
+    //                                    self_delete: self_delete
+    //                                  },
+    //                                success: function(response){
+    //                                    $('#bodyForm').html(response);
+    //                                    $('#ajax_loader').hide();
+    //                                    if(self_delete){
+    //                                        document.location.reload();
+    //                                    }
+    //                                 },
+    //                                error: function(xhr, status, error) {
+    //                                   console.log(xhr);
+    //                                   console.log(status);
+    //                                   console.log(error);
+    //                                 }
+    //                             });
+    //                       };
+    //                     </script>";
+    //        }
+    //        $step   = Metademand::STEP_SHOW;
+    //        $return .= "<script>
+    //                      var meta_id = {$plugin_metademands_metademands_id};
+    //                      var step = {$step};
+    //
+    //                      function loadForm(form_id) {
+    //                         $('#ajax_loader').show();
+    //                         var data_send = $('#wizard_form').serializeArray();
+    //                         data_send.push({name: 'plugin_metademands_forms_id', value: form_id}, {name: 'metademands_id', value: meta_id});
+    //                          $.ajax({
+    //                             url: '" . PLUGIN_METADEMANDS_WEBDIR . "/ajax/loadform.php',
+    //                                type: 'POST',
+    //                                data: data_send,
+    //                                success: function(response){
+    //                                    $('#ajax_loader').hide();
+    //                                    if (response == 1) {
+    //                                       document.location.reload();
+    //                                    } else {
+    //                                       window.location.href = '" . PLUGIN_METADEMANDS_WEBDIR . "/front/wizard.form.php?metademands_id=' + meta_id + '&step=' + step;
+    //                                    }
+    //                                 }
+    //                             });
+    //                       };
+    //                     </script>";
+    //        if ($is_model == true) {
+    //            $return .= "<script>
+    //                          $('#FormAdd$rand').click(function() {
+    //
+    //                             if(typeof tinyMCE !== 'undefined'){
+    //                                tinyMCE.triggerSave();
+    //                             }
+    //                             jQuery('.resume_builder_input').trigger('change');
+    //                             $('select[id$=\"_to\"] option').each(function () { $(this).prop('selected', true); });
+    //                             $('#ajax_loader').show();
+    //                             arrayDatas = $('#wizard_form').serializeArray();
+    //                             arrayDatas.push({name: \"save_form\", value: true});
+    //                             arrayDatas.push({name: \"is_model\", value: 1});
+    //                             $.ajax({
+    //                                url: '" . PLUGIN_METADEMANDS_WEBDIR . "/ajax/addform.php',
+    //                                   type: 'POST',
+    //                                   data: arrayDatas,
+    //                                   success: function(response){
+    //                                       $('#ajax_loader').hide();
+    //                                       document.location.reload();
+    //                                    },
+    //                                   error: function(xhr, status, error) {
+    //                                      console.log(xhr);
+    //                                      console.log(status);
+    //                                      console.log(error);
+    //                                    }
+    //                                });
+    //                          });
+    //                        </script>";
+    //        }
+    //        $return .= "<script>
+    //                          $('#FormSave$rand').click(function() {
+    //
+    //                             if(typeof tinyMCE !== 'undefined'){
+    //                                tinyMCE.triggerSave();
+    //                             }
+    //                             jQuery('.resume_builder_input').trigger('change');
+    //                             $('select[id$=\"_to\"] option').each(function () { $(this).prop('selected', true); });
+    //                             $('#ajax_loader').show();
+    //                             arrayDatas = $('#wizard_form').serializeArray();
+    //                             arrayDatas.push({name: \"save_model\", value: true});
+    //                             arrayDatas.push({name: \"is_model\", value: 1});
+    //                             $.ajax({
+    //                                url: '" . PLUGIN_METADEMANDS_WEBDIR . "/ajax/updateform.php',
+    //                                   type: 'POST',
+    //                                   data: arrayDatas,
+    //                                   success: function(response){
+    //                                       $('#ajax_loader').hide();
+    //                                       document.location.reload();
+    //                                    },
+    //                                   error: function(xhr, status, error) {
+    //                                      console.log(xhr);
+    //                                      console.log(status);
+    //                                      console.log(error);
+    //                                    }
+    //                                });
+    //                          });
+    //                        </script>";
+    //        $return .= "</span>";
+    //
+    //        return $return;
+    //    }
+
+    /**
+     * Display tab for each itel object
+     *
+     * @param CommonGLPI $item
+     * @param int        $withtemplate
+     *
+     * @return array|string
+     */
+    public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0)
+    {
+        if ($item->getType() == Metademand::class) {
+            $form_metademand_data = $this->find(['plugin_metademands_metademands_id' => $item->fields['id']]);
+
+            if (
+                $this->canView()
+                && !$withtemplate) {
+
+                $total                = count($form_metademand_data);
+                $name                 = _n('Form in progress', 'Forms in progress', $total, 'metademands');
+
+                return self::createTabEntry(
+                    $name,
+                    $total,
+                );
+            }
+        }
+        return '';
+    }
+
+    /**
+     *
+     * @static
+     *
+     * @param CommonGLPI $item
+     * @param int        $tabnum
+     * @param int        $withtemplate
+     *
+     * @return bool|true
+     */
+    public static function displayTabContentForItem(CommonGLPI $item, $tabnum = 1, $withtemplate = 0)
+    {
+        global $DB;
+
+        switch ($item->getType()) {
+
+            case Metademand::class:
+                self::listFormFromMetademand($item);
+                break;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param $item
+     * @return void
+     */
+    public static function listFormFromMetademand($item)
+    {
+        $stepform = new self();
+
+        $stepforms = $stepform->find(['plugin_metademands_metademands_id' => $item->fields['id']]);
+
+        // Same predicate as front/stepform.form.php, so the button is never drawn for an
+        // action the controller refuses: either the administrative right, or the dedicated
+        // plugin_metademands_cancelform right on a row the session actually owns.
+        $can_delete_any = Session::haveRight(self::$rightname, DELETE);
+        $rows       = [];
+        foreach ($stepforms as $id => $form) {
+            $delete_html = '';
+            if ($can_delete_any || self::canCancelForm($id)) {
+                $target = PLUGIN_METADEMANDS_WEBDIR . "/front/stepform.form.php";
+                // showSimpleForm() prints its markup; the red wrapper around it now lives in
+                // the template, next to the cell it belongs to.
+                ob_start();
+                Html::showSimpleForm(
+                    $target,
+                    'delete_form_from_metademands',
+                    _sx('button', 'Delete form', 'metademands'),
+                    ['plugin_metademands_stepforms_id' => $id],
+                    'ti-trash',
+                );
+                $delete_html = ob_get_clean();
+            }
+            $rows[] = [
+                'id'             => $id,
+                'publisher'      => getUserName($form['users_id'], 0, true),
+                'group'          => \Dropdown::getDropdownName('glpi_groups', $form['groups_id_dest']),
+                'user_dest'      => getUserName($form['users_id_dest'], 0, true),
+                'date'           => Html::convDateTime($form['date']),
+                'delete_html'    => $delete_html,
+            ];
+        }
+
+        TemplateRenderer::getInstance()->display('@metademands/forms/stepform_list_from_metademand.html.twig', [
+            'rows' => $rows,
+        ]);
+    }
+    public function post_addItem()
+    {
+
+        $options = [
+            'entities_id' => $_SESSION['glpiactive_entity'],
+            'metademands_id' => $this->fields["plugin_metademands_metademands_id"],
+        ];
+        NotificationEvent::raiseEvent("new_step_form", $this, $options);
+    }
+
+    /**
+     * Actions done after the UPDATE of the item in the database
+     *
+     * @param boolean $history store changes history ? (default 1)
+     *
+     * @return void
+     **/
+    public function post_updateItem($history = 1)
+    {
+
+        $options = [
+            'entities_id' => $_SESSION['glpiactive_entity'],
+            'metademands_id' => $this->fields["plugin_metademands_metademands_id"],
+        ];
+        NotificationEvent::raiseEvent("update_step_form", $this, $options);
+        parent::post_updateItem($history); // TODO: Change the autogenerated stub
+    }
+
+    /**
+     * @return array
+     */
+    public static function getWaitingForms()
+    {
+        $group_user   = new Group_User();
+        $groups_users = $group_user->find(['users_id' => Session::getLoginUserID()]);
+        $groups       = [];
+        foreach ($groups_users as $gu) {
+            $groups[] = $gu['groups_id'];
+        }
+        $stepforms  = [];
+        $condition = [];
+        if (count($groups) > 0) {
+            $condition = ['groups_id' => $groups];
+        }
+        $step       = new Step();
+
+        $stepform   = new Stepform();
+        $waitingForms = [];
+        $stepforms  = $stepform->find([], ["date DESC"]);
+
+        foreach ($stepforms as $id => $form) {
+            if ((in_array($form['groups_id_dest'], $groups)
+                    && $form['users_id_dest'] == 0)
+                || Session::getLoginUserID() == $form['users_id_dest']) {
+                $waitingForms[$id] = $form;
+            }
+        }
+        return $waitingForms;
+    }
+
+    public static function showWaitingWarning()
+    {
+        $stepforms = self::getWaitingForms();
+        if (count($stepforms) > 0) {
+            TemplateRenderer::getInstance()->display('@metademands/forms/stepform_waiting_warning.html.twig', [
+                'count' => count($stepforms),
+                'url'   => PLUGIN_METADEMANDS_WEBDIR . "/front/stepform.php",
+            ]);
+        }
+    }
+    public function showPendingForm()
+    {
+        self::showWaitingForm();
+        self::showWaitingFormReadOnly();
+    }
+
+    private function showWaitingForm()
+    {
+        $rand = mt_rand();
+
+        $stepforms = self::getWaitingForms();
+
+        // $meta is intentionally undefined here (matches legacy behavior): the header icon stays "ti-share".
+        $icon = "ti-share";
+        if (isset($meta->fields['icon']) && !empty($meta->fields['icon'])) {
+            $icon = $meta->fields['icon'];
+        }
+        $cnt = count($stepforms);
+
+        $cards = [];
+        // $stepform is the row and stays the row: the displayed name lives in its own variable.
+        // Reusing the loop variable for it made every later $stepform['...'] read an offset of a
+        // string, which is a TypeError on PHP 8 and fataled this page for anyone holding a
+        // waiting form.
+        foreach ($stepforms as $id => $stepform) {
+            $meta = new Metademand();
+            if ($meta->getFromDB($stepform['plugin_metademands_metademands_id'])) {
+                $metaID   = $stepform['plugin_metademands_metademands_id'];
+                $block_id = $stepform['block_id'];
+                $card_icon = "ti-share";
+                if (!empty($meta->fields['icon'])) {
+                    $card_icon = $meta->fields['icon'];
+                }
+                if (empty($n = Metademand::displayField($meta->getID(), 'name'))) {
+                    $name = $meta->getName();
+                } else {
+                    $name = $n;
+                }
+                $delete_html = '';
+                // Same predicate as front/stepform.form.php: the button used to be drawn on
+                // plugin_metademands_cancelform alone while the controller opened on
+                // plugin_metademands => UPDATE, so a profile holding only the dedicated
+                // right saw it and was systematically refused the action.
+                if (Session::haveRight(self::$rightname, DELETE) || self::canCancelForm($id)) {
+                    $target = PLUGIN_METADEMANDS_WEBDIR . "/front/stepform.form.php";
+                    ob_start();
+                    Html::showSimpleForm(
+                        $target,
+                        'delete_form_from_list',
+                        _sx('button', 'Delete form', 'metademands'),
+                        ['plugin_metademands_stepforms_id' => $id],
+                        'ti-trash',
+                    );
+                    $delete_html = ob_get_clean();
+                }
+                $cards[] = [
+                    'id'          => $id,
+                    'metaID'      => $metaID,
+                    'block_id'    => $block_id,
+                    'icon'        => $card_icon,
+                    'is_fa'       => str_contains($card_icon, 'fa-'),
+                    'name'        => $name,
+                    'editor'      => User::getFriendlyNameById($stepform['users_id']),
+                    'date'        => Html::convDateTime($stepform['date']),
+                    'delete_html' => $delete_html,
+                ];
+            }
+        }
+
+        $users_id = Session::getLoginUserID();
+        $step     = 2;
+        $script_html = "<script>
+                      var step = {$step};
+                      function loadForm$rand(form_id, meta_id, block_id) {
+                         $('#ajax_loader').show();
+
+                         var data_send = {plugin_metademands_stepforms_id: form_id,
+                                         metademands_id: meta_id,
+                                         block_id: block_id,
+                                         _users_id_requester: $users_id,
+                                      };
+                          $.ajax({
+                             url: '" . PLUGIN_METADEMANDS_WEBDIR . "/ajax/loadstepform.php',
+                                type: 'POST',
+                                data: data_send,
+                                success: function(response){
+                                    if (response == 0) {
+                                       $('#ajax_loader').hide();
+                                       window.location.href = '" . PLUGIN_METADEMANDS_WEBDIR . "/front/wizard.form.php?metademands_id=' + meta_id + '&step=' + step  + '&block_id=' + block_id;
+                                    }
+                                },
+                                error: function(xhr, status, error) {
+                                      console.log(xhr);
+                                      console.log(status);
+                                      console.log(error);
+                                    }
+                             });
+                       };
+                     </script>";
+
+        TemplateRenderer::getInstance()->display('@metademands/forms/stepform_waiting_form.html.twig', [
+            'css_html'     => Html::css(PLUGIN_METADEMANDS_WEBDIR . "/css/wizard.css.php"),
+            'rand'         => $rand,
+            'cnt'          => $cnt,
+            'header_icon'  => $icon,
+            'header_is_fa' => str_contains($icon, 'fa-'),
+            'cards'        => $cards,
+            'script_html'  => $script_html,
+        ]);
+    }
+
+    public static function getWaitingFormsByMaker($forms = [])
+    {
+        $stepform   = new Stepform();
+        $stepformActors = new Stepform_Actor();
+
+        $waitingForms = [];
+        $stepforms  = [];
+
+        $stepforms  = $stepform->find();
+
+        foreach ($stepforms as $id => $form) {
+            if (Session::getLoginUserID() == $form['users_id']) {
+                $waitingForms[$id] = $form;
+            }
+
+            foreach ($stepformActors->find(['plugin_metademands_stepforms_id' => $id]) as $idformactor => $formActor) {
+                if (Session::getLoginUserID() == $formActor['users_id']) {
+                    $waitingForms[$id] = $form;
+                }
+            }
+        }
+
+        foreach ($forms as $id => $form) {
+            if (array_key_exists($id, $waitingForms)) {
+                unset($waitingForms[$id]);
+            }
+        }
+
+        return $waitingForms;
+    }
+
+    private function showWaitingFormReadOnly()
+    {
+
+        $stepforms = self::getWaitingFormsByMaker();
+
+        // $meta is intentionally undefined here (matches legacy behavior): the header icon stays "ti-share".
+        $icon = "ti-share";
+        if (isset($meta->fields['icon']) && !empty($meta->fields['icon'])) {
+            $icon = $meta->fields['icon'];
+        }
+        $cnt = count($stepforms);
+
+        $cards = [];
+        // Same as showWaitingForm(): the row keeps the loop variable, the displayed name gets
+        // its own.
+        foreach ($stepforms as $id => $stepform) {
+            $meta = new Metademand();
+            if ($meta->getFromDB($stepform['plugin_metademands_metademands_id'])) {
+                $block_id  = $stepform['block_id'];
+                $card_icon = "fa-share-alt";
+                if (!empty($meta->fields['icon'])) {
+                    $card_icon = $meta->fields['icon'];
+                }
+                if (empty($n = Metademand::displayField($meta->getID(), 'name'))) {
+                    $name = $meta->getName();
+                } else {
+                    $name = $n;
+                }
+                $delete_html = '';
+                // Same predicate as front/stepform.form.php, see showWaitingForm().
+                if (Session::haveRight(self::$rightname, DELETE) || self::canCancelForm($id)) {
+                    $target = PLUGIN_METADEMANDS_WEBDIR . "/front/stepform.form.php";
+                    ob_start();
+                    Html::showSimpleForm(
+                        $target,
+                        'delete_form_from_list',
+                        _sx('button', 'Delete form', 'metademands'),
+                        ['plugin_metademands_stepforms_id' => $id],
+                        'ti-trash',
+                    );
+                    $delete_html = ob_get_clean();
+                }
+                $cards[] = [
+                    'icon'            => $card_icon,
+                    'is_fa'           => str_contains($card_icon, 'fa-'),
+                    'name'            => $name,
+                    'created'         => sprintf(__('Created on %s'), Html::convDate($stepform['date'])),
+                    'block_id'        => $block_id,
+                    'has_group_dest'  => $stepform['groups_id_dest'] > 0,
+                    'group_dest'      => $stepform['groups_id_dest'] > 0 ? \Group::getFriendlyNameById($stepform['groups_id_dest']) : '',
+                    'has_user_dest'   => $stepform['users_id_dest'] > 0,
+                    'user_dest'       => $stepform['users_id_dest'] > 0 ? getUserName($stepform['users_id_dest']) : '',
+                    'delete_html'     => $delete_html,
+                ];
+            }
+        }
+
+        TemplateRenderer::getInstance()->display('@metademands/forms/stepform_waiting_form_readonly.html.twig', [
+            'cnt'          => $cnt,
+            'header_icon'  => $icon,
+            'header_is_fa' => str_contains($icon, 'fa-'),
+            'cards'        => $cards,
+        ]);
+    }
+
+    /**
+     * Tell whether the current session may cancel a given step form on its own, that is
+     * without holding the administrative plugin_metademands right.
+     *
+     * The criteria replay the ones of the two listings that draw the cancel button:
+     * getWaitingForms() -- the form is addressed to the session, directly or through one
+     * of its groups -- and getWaitingFormsByMaker() -- the session filled it in, or is one
+     * of its actors. The table carries no entities_id, so CommonDBTM::checkEntity()
+     * restricts nothing here and the ownership has to be replayed at the sink.
+     *
+     * @param int $stepforms_id
+     *
+     * @return bool
+     */
+    public static function canCancelForm($stepforms_id)
+    {
+        if (!Session::haveRight('plugin_metademands_cancelform', READ)) {
+            return false;
+        }
+
+        $users_id = (int) Session::getLoginUserID();
+        if ($users_id <= 0) {
+            return false;
+        }
+
+        $stepform = new self();
+        if (!$stepform->getFromDB($stepforms_id)) {
+            return false;
+        }
+
+        if ((int) $stepform->fields['users_id'] === $users_id
+            || (int) $stepform->fields['users_id_dest'] === $users_id) {
+            return true;
+        }
+
+        $stepform_actor = new Stepform_Actor();
+        if (count($stepform_actor->find([
+            'plugin_metademands_stepforms_id' => $stepform->getID(),
+            'users_id' => $users_id,
+        ])) > 0) {
+            return true;
+        }
+
+        // A form addressed to a group is cancellable by its members only while it has not
+        // been handed to a named user, which is the very condition getWaitingForms()
+        // applies when it lists it.
+        if ((int) $stepform->fields['groups_id_dest'] > 0
+            && (int) $stepform->fields['users_id_dest'] === 0) {
+            $group_user = new Group_User();
+            return count($group_user->find([
+                'users_id' => $users_id,
+                'groups_id' => (int) $stepform->fields['groups_id_dest'],
+            ])) > 0;
+        }
+
+        return false;
+    }
+
+    public function deleteAfterCreate($stepformID, $sendmail = false)
+    {
+
+        $self = new self();
+        $self->getFromDB($stepformID);
+        if ($sendmail == true) {
+            $options = [
+                'entities_id' => $_SESSION['glpiactive_entity'],
+                'metademands_id' => $self->fields["plugin_metademands_metademands_id"],
+            ];
+            NotificationEvent::raiseEvent("delete_step_form", $self, $options);
+        }
+
+        $step      = new Stepform();
+        $step->deleteByCriteria(['id' => $stepformID]);
+
+        $step_values      = new Stepform_Value();
+        $step_values->deleteByCriteria(['plugin_metademands_stepforms_id' => $stepformID]);
+
+        $step_actor = new Stepform_Actor();
+        $step_actor->deleteByCriteria(['plugin_metademands_stepforms_id' => $stepformID]);
+
+        return true;
+    }
+
+}

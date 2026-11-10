@@ -1,0 +1,279 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * manageentities plugin for GLPI
+ * Copyright (C) 2017-2026 by the manageentities Development Team.
+ *
+ * https://github.com/InfotelGLPI/manageentities
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of manageentities.
+ *
+ * manageentities is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * manageentities is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with manageentities. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Manageentities;
+
+use CommonDBTM;
+use DBConnection;
+use Document;
+use Document_Item;
+use Migration;
+use Session;
+use Toolbox;
+
+class EntityLogo extends CommonDBTM
+{
+    public static $rightname = 'plugin_manageentities';
+
+    /**
+     * Add a logo for entity
+     *
+     * @param $values
+     *
+     * @return boolean
+     */
+    public function addLogo($values)
+    {
+        // Entity scope (anti-IDOR): writing a logo targets $values['entities_id'] and
+        // deletes the previously stored logo Document. The global CREATE right is not
+        // enough - require access to the targeted entity so a user cannot tamper with
+        // another entity's logo.
+        if (!Session::haveAccessToEntity((int) ($values["entities_id"] ?? 0))) {
+            return false;
+        }
+
+        if (isset($values["_filename"]) && is_array($values["_filename"])) {
+            foreach ($values["_filename"] as $file) {
+                // Path traversal: _filename is client-supplied and is later joined onto
+                // GLPI_TMP_DIR in addEntityFiles(); reject any path separator so it cannot
+                // escape the temp directory.
+                if (!is_string($file) || $file === ''
+                    || basename($file) !== $file
+                    || strpbrk($file, "/\\") !== false) {
+                    Session::addMessageAfterRedirect(
+                        __('The format of the image must be in JPG or JPEG', 'manageentities'),
+                        false,
+                        ERROR,
+                    );
+                    return false;
+                }
+
+                // Validate the REAL MIME type of the uploaded temp file (fail-closed:
+                // reject when the file is absent) rather than trusting the client-
+                // declared extension.
+                $tmpfile = GLPI_TMP_DIR . "/" . $file;
+                $mime    = is_file($tmpfile) ? mime_content_type($tmpfile) : false;
+                if ($mime !== 'image/jpeg') {
+                    Session::addMessageAfterRedirect(
+                        __('The format of the image must be in JPG or JPEG', 'manageentities'),
+                        false,
+                        ERROR,
+                    );
+                    return false;
+                }
+            }
+        }
+
+        if ($values["entities_id"]) {
+            if ($this->getFromDBByCrit(['entities_id' => $values["entities_id"]])) {
+                $row_id = (int) $this->fields['id'];
+                $doc = new Document();
+                $img = ["id" => $this->fields["logos_id"]];
+                $doc->delete($img, 1);
+                $logo = $this->addEntityFiles($values, 0, -1);
+                foreach ($logo as $key => $name) {
+                    // A row already exists for this entity. add() ignores the id it is handed and
+                    // inserts a NEW row, so every replacement used to leave an orphan behind - and
+                    // getLogo() returns the first row it finds (reset()), which could bring a
+                    // previous logo back. Update the existing row instead.
+                    $this->update([
+                        'id' => $row_id,
+                        'logos_id' => $key,
+                    ]);
+                }
+            } else {
+                $logo = $this->addEntityFiles($values, 0, -1);
+
+                foreach ($logo as $key => $name) {
+                    $this->add([
+                        'entities_id' => $values["entities_id"],
+                        'logos_id' => $key,
+                    ]);
+                }
+            }
+        }
+    }
+
+    public static function cleanForItem(CommonDBTM $item)
+    {
+        $temp = new self();
+        $temp->deleteByCriteria(
+            ['logos_id' => $item->getField('id')],
+        );
+    }
+
+    public function addEntityFiles($values, $donotif = 0, $disablenotif = 1)
+    {
+
+        if (!isset($values['_filename']) || (count($values['_filename']) == 0)) {
+            return [];
+        }
+        $docadded = [];
+
+        foreach ($values['_filename'] as $key => $file) {
+            $doc = new Document();
+            $docitem = new Document_Item();
+
+            $docID = 0;
+            $filename = GLPI_TMP_DIR . "/" . $file;
+            $input2 = [];
+
+            // Crop/Resize image file if needed
+            if (isset($values['_coordinates']) && !empty($values['_coordinates'][$key])) {
+                $image_coordinates = json_decode(urldecode($values['_coordinates'][$key]), true);
+                Toolbox::resizePicture(
+                    $filename,
+                    $filename,
+                    $image_coordinates['img_w'],
+                    $image_coordinates['img_h'],
+                    $image_coordinates['img_y'],
+                    $image_coordinates['img_x'],
+                    $image_coordinates['img_w'],
+                    $image_coordinates['img_h'],
+                    0,
+                );
+            } else {
+                Toolbox::resizePicture($filename, $filename);
+            }
+
+            //If file tag is present
+            if (isset($values['_tag_filename']) && !empty($values['_tag_filename'][$key])) {
+                $values['_tag'][$key] = $values['_tag_filename'][$key];
+            }
+
+            // Check for duplicate
+            if ($doc->getFromDBbyContent($values['entities_id'], $filename)) {
+                if (!$doc->fields['is_blacklisted']) {
+                    $docID = $doc->fields["id"];
+                }
+                // File already exist, we replace the tag by the existing one
+                if (isset($values['_tag'][$key]) && ($docID > 0) && isset($values['content'])) {
+                    $values['content'] = preg_replace(
+                        '/' . Document::getImageTag($values['_tag'][$key]) . '/',
+                        Document::getImageTag($doc->fields["tag"]),
+                        $values['content'],
+                    );
+                    $docadded[$docID]['tag'] = $doc->fields["tag"];
+                }
+            } else {
+                $entity = new \Entity();
+                $entity->getFromDB($values['entities_id']);
+                $name = __('Logo', 'manageentities') . " " . $entity->fields['name'];
+                //TRANS: Default document to files attached to tickets : %d is the ticket id
+                // See Company::addFiles(): raw storage since GLPI 10, the query builder escapes.
+                $input2["name"] = $name;
+
+                $input2["entities_id"] = $values['entities_id'];
+                $input2["_only_if_upload_succeed"] = 1;
+                $input2["_filename"] = [$file];
+
+                $docID = $doc->add($input2);
+            }
+
+            if ($docID > 0) {
+                if ($docitem->add([
+                    'documents_id' => $docID,
+                    '_do_notif' => $donotif,
+                    '_disablenotif' => $disablenotif,
+                    'itemtype' => 'Entity',
+                    'items_id' => $values['entities_id'],
+                ])) {
+                    $docadded[$docID]['data'] = sprintf(
+                        __('%1$s - %2$s'),
+                        $doc->fields["name"],
+                        $doc->fields["filename"],
+                    );
+
+                    // Read the generated tag from the saved Document ($input2 is passed by value
+                    // to add(), so it never carries the tag back and this branch never ran);
+                    // mirrors what Company::addFiles() already does.
+                    if (!empty($doc->fields["tag"])) {
+                        $docadded[$docID]['tag'] = $doc->fields["tag"];
+                        unset($values['_filename'][$key]);
+                        unset($values['_tag'][$key]);
+                    }
+                    if (isset($values['_coordinates'][$key])) {
+                        unset($values['_coordinates'][$key]);
+                    }
+                }
+            }
+            // Only notification for the first New doc
+            $donotif = 0;
+        }
+        return $docadded;
+    }
+
+    /**
+     * Return logo
+     *
+     * @param $entities_id
+     *
+     * @return boolean
+     */
+    public function getLogo($entities_id)
+    {
+        $logo = $this->find(['entities_id' => $entities_id]);
+        $logo = reset($logo);
+        $doc = new Document();
+        if (is_array($logo) && count($logo) > 0) {
+            if ($doc->getFromDB($logo["logos_id"])) {
+                return $doc->fields['filepath'];
+            }
+        }
+        return false;
+    }
+
+    public static function install(Migration $migration)
+    {
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+        $table  = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $query = "CREATE TABLE `$table` (
+                            `id` int {$default_key_sign} NOT NULL auto_increment,
+                            `entities_id` int {$default_key_sign} NOT NULL DEFAULT '0',
+                            `logos_id` int {$default_key_sign} DEFAULT 0 COMMENT 'RELATION to glpi_documents',
+                            PRIMARY KEY  (`id`)
+               ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
+
+            $DB->doQuery($query);
+        }
+    }
+
+    public static function uninstall()
+    {
+        global $DB;
+
+        $DB->dropTable(self::getTable(), true);
+    }
+}

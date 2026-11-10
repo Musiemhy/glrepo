@@ -1,0 +1,127 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * metademands plugin for GLPI
+ * Copyright (C) 2018-2026 by the metademands Development Team.
+ *
+ * https://github.com/InfotelGLPI/metademands
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of metademands.
+ *
+ * metademands is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * metademands is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use Glpi\Exception\Http\AccessDeniedHttpException;
+use Glpi\Exception\Http\BadRequestHttpException;
+use GlpiPlugin\Metademands\Export;
+
+Session::checkRight("plugin_metademands", CREATE);
+
+if (!isset($_POST["action"])
+    || !isset($_POST["metademands"])
+    || !is_array($_POST["metademands"])) {
+    throw new BadRequestHttpException();
+}
+
+$export_ids = array_map('intval', $_POST["metademands"]);
+if (count($export_ids) > 50) {
+    throw new BadRequestHttpException(__('Too many items to export at once', 'metademands'));
+}
+
+$old_memory = ini_set("memory_limit", "512M");
+$old_execution = ini_set("max_execution_time", "120");
+
+$files = [];
+foreach ($export_ids as $id) {
+    if ($_POST["action"] === "exportXML") {
+        $export = Export::exportAsXMLForMetademands($id);
+    } else {
+        $export = Export::exportAsJSONForGLPIForm($id);
+    }
+
+    // Checked per iteration: the previous value used to survive a failed export and the
+    // archive picked the file of the item before it up again.
+    if ($export === [] || !file_exists($export['path'])) {
+        ini_set("memory_limit", $old_memory);
+        ini_set("max_execution_time", $old_execution);
+        throw new BadRequestHttpException(__('Unauthorized access to this file'));
+    }
+
+    $files[] = $export;
+}
+
+$zip = new ZipArchive();
+// GLPI_PLUGIN_DOC_DIR is shared by every entity and ZipArchive::CREATE appends to an
+// existing archive instead of replacing it: a date based name let two concurrent
+// exports pick the same file, so an administrator could download the templates of
+// another entity. A per request suffix keeps the archives apart.
+$filename = '/metademands/export_' . date('Y-m-d') . '_' . bin2hex(random_bytes(8)) . '.zip';
+$fullZip = GLPI_PLUGIN_DOC_DIR . $filename;
+if ($zip->open($fullZip, ZipArchive::CREATE | ZipArchive::OVERWRITE)) {
+    // The working copies now carry a random suffix so that two exports cannot overwrite each
+    // other on disk; the archive entries keep the readable name instead, disambiguated here
+    // since two meta-demands of two entities may legitimately share the same label.
+    $used_names = [];
+    foreach ($files as $export) {
+        $entry = $export['filename'];
+        if (isset($used_names[$entry])) {
+            $used_names[$entry]++;
+            $entry = pathinfo($entry, PATHINFO_FILENAME)
+                . '_' . $used_names[$entry]
+                . '.' . pathinfo($entry, PATHINFO_EXTENSION);
+        } else {
+            $used_names[$entry] = 1;
+        }
+        $zip->addFile($export['path'], $entry);
+    }
+    $zip->close();
+
+    foreach ($files as $export) {
+        unlink($export['path']);
+    }
+
+    try {
+        header('Content-Description: File Transfer');
+        header('Content-Type: application/zip');
+        header('Content-Disposition: attachment; filename=export_' . date('Y-m-d') . '.zip');
+        header('Content-Transfer-Encoding: binary');
+        header('Expires: 0');
+        header('Cache-Control: must-revalidate');
+        header('Pragma: public');
+        header('Content-Length: ' . filesize($fullZip));
+
+        readfile($fullZip);
+    } finally {
+        // The archive holds the exported templates: leaving it behind in the shared
+        // plugin document directory would keep them readable after the download.
+        if (file_exists($fullZip)) {
+            unlink($fullZip);
+        }
+    }
+} else {
+    Session::addMessageAfterRedirect(
+        __('Error when creating export archive', 'metademands'),
+        false,
+        ERROR,
+    );
+    Html::back();
+}
+
+ini_set("memory_limit", $old_memory);
+ini_set("max_execution_time", $old_execution);

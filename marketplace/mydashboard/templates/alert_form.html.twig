@@ -1,0 +1,65 @@
+{#
+ # -------------------------------------------------------------------------
+ # mydashboard plugin for GLPI
+ # Copyright (C) 2016-2026 by the mydashboard Development Team.
+ #
+ # https://github.com/InfotelGLPI/mydashboard
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of mydashboard.
+ #
+ # mydashboard is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # mydashboard is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with mydashboard. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{% import 'components/form/fields_macros.html.twig' as fields %}
+
+<form action="{{ form_action }}" method="post">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">{{ _n('Alert', 'Alerts', 2, 'mydashboard') }}</h3>
+        </div>
+        <div class="card-body row">
+            {{ fields.dropdownArrayField('type', type, types, __('Type')) }}
+            {{ fields.dropdownArrayField('impact', impact, impacts, __('Alert level', 'mydashboard')) }}
+            {{ fields.dropdownField(
+                'ITILCategory',
+                'itilcategories_id',
+                itilcategories_id,
+                __('Linked with a ticket category', 'mydashboard'),
+                category_options
+            ) }}
+            {{ fields.dropdownYesNo('is_public', is_public, __('Public')) }}
+        </div>
+        {% if can_edit %}
+            <div class="card-footer text-center">
+                <button type="submit" name="update" value="1" class="btn btn-primary">
+                    <i class="ti ti-device-floppy"></i>
+                    <span>{{ _x('button', 'Save') }}</span>
+                </button>
+                {% if can_delete %}
+                    <button type="submit" name="delete" value="1" class="btn btn-outline-danger">
+                        <i class="ti ti-trash"></i>
+                        <span>{{ _x('button', 'Delete permanently') }}</span>
+                    </button>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+    {{ fields.hiddenField('id', id) }}
+    {{ fields.hiddenField('reminders_id', reminders_id) }}
+    {{ fields.hiddenField('_glpi_csrf_token', csrf_token()) }}
+</form>

@@ -1,0 +1,309 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * resources plugin for GLPI
+ * Copyright (C) 2015-2026 by the resources Development Team.
+ *
+ * https://github.com/InfotelGLPI/resources
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of resources.
+ *
+ * resources is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * resources is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with resources. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use Glpi\Plugin\Hooks;
+use GlpiPlugin\Behaviors\Common;
+use GlpiPlugin\Behaviors\Rule;
+use GlpiPlugin\Mydashboard\Menu as DashboardMenu;
+use GlpiPlugin\Resources\Dashboard;
+use GlpiPlugin\Resources\Directory;
+use GlpiPlugin\Resources\Employment;
+use GlpiPlugin\Resources\LinkAd;
+use GlpiPlugin\Resources\Menu;
+use GlpiPlugin\Resources\Metademand;
+use GlpiPlugin\Resources\Notification;
+use GlpiPlugin\Resources\Profile;
+use GlpiPlugin\Resources\Recap;
+use GlpiPlugin\Resources\Resource;
+use GlpiPlugin\Resources\Resource_Item;
+use GlpiPlugin\Resources\ResourcePDF;
+use GlpiPlugin\Resources\RuleChecklist;
+use GlpiPlugin\Resources\RuleChecklistCollection;
+use GlpiPlugin\Resources\RuleContracttype;
+use GlpiPlugin\Resources\RuleContracttypeCollection;
+use GlpiPlugin\Resources\RuleContracttypeHidden;
+use GlpiPlugin\Resources\RuleContracttypeHiddenCollection;
+use GlpiPlugin\Resources\RuleContracttypeReadonly;
+use GlpiPlugin\Resources\RuleContracttypeReadonlyCollection;
+use GlpiPlugin\Resources\Servicecatalog;
+use GlpiPlugin\Resources\TaskPlanning;
+use GlpiPlugin\Reports\Report;
+
+define('PLUGIN_RESOURCES_VERSION', '4.1.5');
+
+global $CFG_GLPI;
+
+if (!defined("PLUGIN_RESOURCES_DIR")) {
+    define("PLUGIN_RESOURCES_DIR", Plugin::getPhpDir("resources"));
+    $root = ($CFG_GLPI['root_doc'] ?? '') . '/plugins/resources';
+    define("PLUGIN_RESOURCES_WEBDIR", $root);
+}
+
+// Init the hooks of the plugins -Needed
+function plugin_init_resources()
+{
+    global $PLUGIN_HOOKS;
+
+    $PLUGIN_HOOKS[Hooks::CHANGE_PROFILE]['resources'] = [Profile::class, 'initProfile'];
+    $PLUGIN_HOOKS[Hooks::ASSIGN_TO_TICKET]['resources'] = true;
+
+    if (Session::getLoginUserID()) {
+        $PLUGIN_HOOKS[Hooks::PRE_ITEM_FORM]['resources'] = [LinkAd::class, 'messageSolution'];
+        $PLUGIN_HOOKS[Hooks::POST_ITEM_FORM]['resources'] = [LinkAd::class, 'deleteButtton'];
+        $noupdate = false;
+        if (Session::getCurrentInterface() != 'central') {
+            $noupdate = true;
+        }
+
+        Plugin::registerClass(Resource::class, [
+            //         'linkuser_types'               => true,
+            'document_types' => true,
+            'ticket_types' => true,
+            'helpdesk_visible_types' => true,
+            'notificationtemplates_types' => true,
+            'unicity_types' => true,
+            //         'massiveaction_nodelete_types' => $noupdate,
+            //         'massiveaction_noupdate_types' => $noupdate
+        ]);
+
+        Plugin::registerClass(Directory::class, [
+            //         'massiveaction_nodelete_types' => true,
+            //         'massiveaction_noupdate_types' => true
+        ]);
+
+        Plugin::registerClass(Recap::class, [
+            //         'massiveaction_nodelete_types' => true,
+            //         'massiveaction_noupdate_types' => true
+        ]);
+
+        Plugin::registerClass(TaskPlanning::class, [
+            'planning_types' => true,
+        ]);
+
+        Plugin::registerClass(RuleChecklistCollection::class, [
+            'rulecollections_types' => true,
+
+        ]);
+
+        Plugin::registerClass(RuleContracttypeCollection::class, [
+            'rulecollections_types' => true,
+
+        ]);
+        Plugin::registerClass(RuleContracttypeHiddenCollection::class, [
+            'rulecollections_types' => true,
+
+        ]);
+
+        Plugin::registerClass(RuleContracttypeReadonlyCollection::class, [
+            'rulecollections_types' => true,
+
+        ]);
+
+        Plugin::registerClass(
+            Profile::class,
+            ['addtabon' => 'Profile'],
+        );
+
+        Plugin::registerClass(Employment::class, [
+            //         'massiveaction_nodelete_types' => true
+        ]);
+
+        if (Session::haveRight("plugin_servicecatalog", READ)
+            || Session::haveRight("plugin_servicecatalog_setup", UPDATE)) {
+            $PLUGIN_HOOKS['servicecatalog']['resources'] = [Servicecatalog::class];
+        }
+
+        if ((Session::haveRight("plugin_resources", READ)
+            || Session::haveRight("plugin_resources_employee", UPDATE))) {
+            $PLUGIN_HOOKS[Hooks::HELPDESK_MENU_ENTRY]['resources'] = PLUGIN_RESOURCES_WEBDIR . '/front/menu.php';
+            $PLUGIN_HOOKS[Hooks::HELPDESK_MENU_ENTRY_ICON]['resources'] = Resource::getIcon();
+        }
+
+        if (Session::haveRight("plugin_resources_checklist", READ)
+            && class_exists(DashboardMenu::class)
+        ) {
+            $PLUGIN_HOOKS['mydashboard']['resources'] = [Dashboard::class];
+        }
+
+        if (class_exists(GlpiPlugin\Positions\Position::class)) {
+            GlpiPlugin\Positions\Position::registerType(Resource::class);
+        }
+
+        if (class_exists(Common::class)) {
+            Common::addCloneType(RuleChecklist::class, Rule::class);
+            Common::addCloneType(RuleContracttype::class, Rule::class);
+            Common::addCloneType(RuleContracttypeHidden::class, Rule::class); // TODO Confirm usefull
+            Common::addCloneType(RuleContracttypeReadonly::class, Rule::class);
+        }
+
+        if (class_exists('PluginTreeviewConfig')) {
+            PluginTreeviewConfig::registerType(Resource::class);
+            $PLUGIN_HOOKS['treeview'][Resource::class] = '../resources/pics/miniresources.png';
+            $PLUGIN_HOOKS['treeview_params']['resources'] = [Resource::class, 'showResourceTreeview'];
+        }
+
+        if ((Session::haveRight("plugin_resources", READ)
+            || Session::haveRight("plugin_resources_employee", UPDATE))) {
+            $PLUGIN_HOOKS[Hooks::MENU_TOADD]['resources'] = ['admin' => Menu::class];
+        }
+        Plugin::registerClass(LinkAd::class, ['addtabon' => 'Ticket']);
+
+        if (class_exists(Report::class)) {
+            Report::setReportsTitles(
+                ["budgetsummary" => __("Summary by budget with total amount and quantity", "resources"),
+                    "checkgroup" => __("Report listing the groups not included in the resource's permissions", "resources"),
+                    "checkhabilitation" => __("Report listing the permissions not present in the user's groups", "resources"),
+                    "checkmissingN0group" => __("Report listing human resources without group N0", "resources"),
+                    "checkmissingN1group" => __("Report listing human resources without group N1", "resources"),
+                    "lapserankprofession" => __("Report listing obsolete corps and ranks", "resources"),
+                    "professionwithoutcost" => __("Report listing the corps and grades without budgetary valuation", "resources"),
+                    "professionwithoutvolume" => __("Report listing the corps and grades without budget allocation", "resources"),
+                    "resourceemploymentdiff" => __("Report of pledges", "resources"),
+                    "resourceemploymentwithlapseprofession" => __("Report listing resources or jobs with an expired corp", "resources"),
+                    "resourceemploymentwithlapserank" => __("Report listing resources or jobs with an obsolete grade", "resources"),
+                    "resourceleavingwithactiveemployment" => __("Report listing departing resources with active employment", "resources"),
+                    "resourcewithoutemployment" => __("Report listing unemployed resources", "resources"),
+                    "resourcewithoutuser" => __("Report listing resources without users", "resources"),
+                    "userwithmorethanoneresource" => __("Report listing users linked to more than one resource", "resources"),
+                    "userwithnoresource" => __("User without resource", "resources"),
+                ],
+            );
+        }
+
+        // Resource menu
+        if (Session::haveRight("plugin_resources", READ)
+            || Session::haveRight("plugin_resources_employee", UPDATE)) {
+            $PLUGIN_HOOKS['redirect_page']['resources'] = PLUGIN_RESOURCES_WEBDIR . "/front/resource.form.php";
+        }
+
+        //
+        $PLUGIN_HOOKS[Hooks::USE_MASSIVE_ACTION]['resources'] = true;
+        //      }
+
+        // Config
+        if (Session::haveRight("config", UPDATE)) {
+            $PLUGIN_HOOKS[Hooks::CONFIG_PAGE]['resources'] = 'front/config.form.php';
+        }
+
+        // Add specific files to add to the header : javascript or css
+        if (Session::haveRight("plugin_resources", READ)) {
+            $PLUGIN_HOOKS[Hooks::ADD_CSS]['resources'] = ["css/resources.css"];
+            $PLUGIN_HOOKS[Hooks::ADD_JAVASCRIPT]['resources'] = [
+                "scripts/resources.js",
+                "scripts/import.js",
+            ];
+
+            // The resource card is not wired to anything: ResourceCard::resourceCard() has no
+            // caller, and the empty front/resource.card.form.php it used to point at has been
+            // removed rather than left reachable. Its script lib/resources_card.js also relies
+            // on jquery.address and jScrollPane, which were removed because no live code used
+            // them. Reviving the card means adding a controller back and either restoring those
+            // two libraries or porting the script off jQuery.
+        }
+
+        //TODO : Check
+        $PLUGIN_HOOKS['plugin_pdf'][Resource::class] = ResourcePDF::class;
+
+        $PLUGIN_HOOKS[Hooks::ITEM_ADD]['resources'] =
+            [
+                'Item_Ticket' => [new Resource(), 'afterInsert'],
+            ];
+
+        //Clean Plugin on Profile delete
+        if (class_exists(Resource_Item::class)) { // only if plugin activated
+            $PLUGIN_HOOKS[Hooks::PRE_ITEM_PURGE]['resources'] = [
+                Resource::class => [
+                    Notification::class,
+                    'purgeNotification',
+                ],
+            ];
+            $PLUGIN_HOOKS['plugin_datainjection_populate']['resources'] = 'plugin_datainjection_populate_resources';
+        }
+
+        //planning action
+        $PLUGIN_HOOKS['planning_populate']['resources'] = [TaskPlanning::class, 'populatePlanning'];
+        $PLUGIN_HOOKS['display_planning']['resources'] = [TaskPlanning::class, 'displayPlanningItem'];
+        $PLUGIN_HOOKS['migratetypes']['resources'] = 'plugin_datainjection_migratetypes_resources';
+
+        $PLUGIN_HOOKS['metademands']['resources'] = [Metademand::class];
+    }
+
+    // End init, when all types are registered
+    $PLUGIN_HOOKS[Hooks::POST_INIT]['resources'] = 'plugin_resources_postinit';
+}
+
+// Get the name and the version of the plugin - Needed
+/**
+ * @return array
+ */
+function plugin_version_resources()
+{
+    return [
+        'name' => _n('Human Resource', 'Human Resources', 2, 'resources'),
+        'version' => PLUGIN_RESOURCES_VERSION,
+        'license' => 'GPLv2+',
+        'author' => "<a href='https://blogglpi.infotel.com'>Infotel</a>, Xavier CAILLAUD",
+        'homepage' => 'https://github.com/InfotelGLPI/resources',
+        'requirements' => [
+            'glpi' => [
+                'min' => '11.0',
+                'max' => '12.0',
+                'dev' => false,
+            ],
+        ],
+    ];
+}
+
+// Optional : check prerequisites before install : may print errors or add to message after redirect
+/**
+ * @return bool
+ */
+/**
+ * @return bool
+ */
+function plugin_resources_check_prerequisites()
+{
+    if (!is_readable(__DIR__ . '/vendor/autoload.php') || !is_file(__DIR__ . '/vendor/autoload.php')) {
+        echo "Run composer install --no-dev in the plugin directory<br>";
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * @param $types
+ *
+ * @return mixed
+ */
+function plugin_datainjection_migratetypes_resources($types)
+{
+    $types[4300] = Resource::class;
+    return $types;
+}

@@ -1,0 +1,783 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * LICENSE
+ *
+ * This file is part of Transferticketentity plugin for GLPI.
+ *
+ * Transferticketentity is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Transferticketentity is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with Reports. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * @author    Yannick Comba, Xavier Caillaud, Infotel
+ * @category  Ticket
+ * @copyright 2015-2026 Transferticketentity team
+ * @license   AGPL License 3.0 or (at your option) any later version
+ * @link      https://github.com/pluginsGLPI/transferticketentity/
+ * @package   Transferticketentity
+ *            https://www.gnu.org/licenses/gpl-3.0.html
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Transferticketentity;
+
+use Ajax;
+use CommonDBTM;
+use CommonITILActor;
+use CommonITILObject;
+use CommonGLPI;
+use Dropdown;
+use Glpi\Application\View\TemplateRenderer;
+use Glpi\Exception\Http\AccessDeniedHttpException;
+use Group;
+use Group_Ticket;
+use Group_User;
+use Html;
+use Item_Ticket;
+use Session;
+use Ticket_User;
+use ITILFollowup;
+use Planning;
+use TicketTask;
+use TicketTemplateMandatoryField;
+
+class Ticket extends CommonDBTM
+{
+    public static $rightname = "plugin_transferticketentity_use";
+
+
+    /**
+     * @return string
+     */
+    public static function getIcon()
+    {
+        return "ti ti-transfer";
+    }
+
+    /**
+     * Get all the entities which aren't the current entity with their rights
+     *
+     * @return array
+     */
+    public function getEntitiesRights($entities_id)
+    {
+        $array = [];
+        $entity_config = new Entity();
+        $entities = $entity_config->find(['NOT' => ['entities_id' => $entities_id]]);
+
+        if (count($entities) > 0) {
+            foreach ($entities as $data) {
+                $temp_array['id'] = $data['id'];
+                $temp_array['entities_id'] = $data['entities_id'];
+                $entity = new \Entity();
+                $entity->getFromDB($data['entities_id']);
+                $temp_array['name'] = $entity->getName();
+                $temp_array['allow_entity_only_transfer'] = $data['allow_entity_only_transfer'];
+                $temp_array['justification_transfer'] = $data['justification_transfer'];
+                $temp_array['allow_transfer'] = $data['allow_transfer'];
+                array_push($array, $temp_array);
+            }
+        }
+
+        return $array;
+    }
+
+    /**
+     * Get the groups to which tickets can be assigned
+     *
+     * @return array $allGroupsEntities
+     */
+    public static function getGroupEntities($entities)
+    {
+        global $DB;
+
+        $array = [];
+
+        $criteria = [
+            'SELECT' => ['id', 'name'],
+            'FROM' => 'glpi_groups',
+            'WHERE' => [
+                'is_assign' => 1,
+            ],
+            'ORDERBY' => 'name',
+        ];
+        $criteria['WHERE'] = $criteria['WHERE'] + getEntitiesRestrictCriteria(
+            'glpi_groups',
+            '',
+            $entities,
+            true,
+        );
+
+        $iterator = $DB->request($criteria);
+
+        if (count($iterator) > 0) {
+            foreach ($iterator as $data) {
+                $array[$data['id']] = $data['name'];
+            }
+        }
+
+        return $array;
+    }
+
+
+    /**
+     * Display the ticket transfer form
+     *
+     * @return void
+     */
+    public function showFormMcv($ticket)
+    {
+        $params['id_ticket'] = $ticket->getID();
+        $entity = new \Entity();
+        $entity->getFromDB($ticket->fields['entities_id']);
+        $checkAssign = self::checkAssign($params);
+        if (!Session::haveright("plugin_transferticketentity_bypass", READ) && !$checkAssign) {
+            echo "<div class='alert alert-danger'>";
+            echo "<p>" .
+                __("You must be assigned to the ticket to be able to transfer it", "transferticketentity")
+                . "</p>";
+            echo "</div>";
+
+            return false;
+        }
+
+        $getEntitiesRights = self::getEntitiesRights($ticket->fields['entities_id']);
+
+        if (!Session::haveRight('ticket', UPDATE)) {
+            echo "<div class='alert alert-danger'>";
+            echo "<p>" .
+                __("You don't have right to update tickets. Please contact your administrator.", "transferticketentity")
+                . "</p>";
+            echo "</div>";
+
+            return false;
+        }
+
+        if (count($getEntitiesRights) == 0) {
+            echo "<div class='alert alert-danger'>";
+            echo "<p>" .
+                __("No entity available found, transfer impossible.", "transferticketentity")
+                . "</p>";
+            echo "</div>";
+
+            return false;
+        }
+
+        // Check if ticket is closed
+        if ($ticket->fields['status'] == CommonITILObject::CLOSED) {
+            echo "<div class='alert alert-danger'>";
+            echo "<p>" .
+                __("Unauthorized transfer on closed ticket.", "transferticketentity")
+                . "</p>";
+            echo "</div>";
+
+            return false;
+        }
+
+        $group_required = 0;
+        $entities_selection[-1] = Dropdown::EMPTY_VALUE;
+        foreach ($getEntitiesRights as $getEntitiesRight) {
+            if ($getEntitiesRight['allow_transfer']) {
+                $entities_selection[$getEntitiesRight['entities_id']] = $getEntitiesRight['name'];
+            }
+
+            if ($getEntitiesRight['allow_entity_only_transfer'] == 1) {
+                $group_required = 1;
+            }
+        }
+
+        $target = $this->getFormURL();
+
+        TemplateRenderer::getInstance()->display(
+            '@transferticketentity/ticket.html.twig',
+            [
+                'can_edit' => Session::haveRight(self::$rightname, READ),
+                'root_plugin' => PLUGIN_TRANSFERTICKETENTITY_WEBDIR,
+                'action' => $target,
+                'id_ticket' => $ticket->getID(),
+                'entities_id' => $ticket->fields['entities_id'],
+                'entities_name' => $entity->getName(),
+                'entities' => $entities_selection,
+                'group_required' => $group_required,
+            ],
+        );
+
+    }
+
+
+    /**
+     * Checks that the technician or his group is assigned to the ticket
+     *
+     * @return bool
+     */
+    public static function checkAssign($params)
+    {
+        $ticket = new \Ticket();
+        $ticket->getfromDB($params['id_ticket']);
+
+        $groupTech = Group_User::getUserGroups($_SESSION['glpiID']);
+
+        $checkAssignedTech = [];
+        $checkAssignedGroup = [];
+
+        $users_ticket = $ticket->getUsers(CommonITILActor::ASSIGN);
+        foreach ($users_ticket as $data) {
+            array_push($checkAssignedTech, $data['users_id']);
+        }
+        $groups_ticket = $ticket->getGroups(CommonITILActor::ASSIGN);
+        foreach ($groups_ticket as $data) {
+            array_push($checkAssignedGroup, $data['groups_id']);
+        }
+
+        $var_check = 0;
+
+        if (in_array($_SESSION['glpiID'], $checkAssignedTech)) {
+            $var_check++;
+        }
+
+        foreach ($groupTech as $checkAssign) {
+            if (in_array($checkAssign['id'], $checkAssignedGroup)) {
+                $var_check++;
+            }
+        }
+
+        if ($var_check >= 1) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * Get only the entities with at least one active group
+     *
+     * @return array $checkEntityETT
+     */
+    public static function checkEntityETT()
+    {
+        $array = [];
+
+        $entity_config = new Entity();
+        $entities = $entity_config->find(['allow_transfer' => 1]);
+        foreach ($entities as $data) {
+            array_push($array, $data['entities_id']);
+        }
+
+        return $array;
+    }
+
+    /**
+     * Get only the groups belonging to the selected entity
+     *
+     * @return array $checkGroup
+     */
+    public static function checkGroup($params)
+    {
+        global $DB;
+
+        $array = [];
+
+        $entities = $params['entity_choice'];
+
+        $criteria = [
+            'SELECT' => 'id',
+            'FROM' => 'glpi_groups',
+            'WHERE' => [
+                'is_assign' => 1,
+            ],
+            'ORDERBY' => 'name',
+        ];
+        $criteria['WHERE'] = $criteria['WHERE'] + getEntitiesRestrictCriteria(
+            'glpi_groups',
+            '',
+            $entities,
+            true,
+        );
+
+        $iterator = $DB->request($criteria);
+
+        if (count($iterator) > 0) {
+            foreach ($iterator as $data) {
+                array_push($array, $data['id']);
+            }
+        }
+
+        return $array;
+    }
+
+
+    /**
+     * Check if category exist in target entity
+     *
+     * @return bool
+     */
+    public static function checkExistingCategory($params)
+    {
+        global $DB;
+
+        $id_ticket = $params['id_ticket'];
+        $targetEntity = $params['entity_choice'];
+
+
+        $result = $DB->request([
+            'SELECT' => 'itilcategories_id',
+            'FROM' => 'glpi_tickets',
+            'WHERE' => ['id' => $id_ticket],
+        ]);
+
+        $getTicketCategory = '';
+
+        foreach ($result as $data) {
+            $getTicketCategory = $data['itilcategories_id'];
+        }
+
+        $result = $DB->request([
+            'FROM' => 'glpi_entities',
+            'WHERE' => ['id' => $targetEntity],
+        ]);
+
+        $ancestorsEntities = [];
+
+        foreach ($result as $data) {
+            if ($data['ancestors_cache']) {
+                $ancestorsEntities = $data['ancestors_cache'];
+                $ancestorsEntities = json_decode($ancestorsEntities, true);
+                array_push($ancestorsEntities, $targetEntity);
+            } else {
+                array_push($ancestorsEntities, 0);
+            }
+        }
+
+        $result = $DB->request([
+            'FROM' => 'glpi_itilcategories',
+            'WHERE' => ['id' => $getTicketCategory],
+        ]);
+
+
+        $getEntitiesFromCategoryTicket = '';
+        $isRecursiveCategory = '';
+
+        foreach ($result as $data) {
+            $getEntitiesFromCategoryTicket = $data['entities_id'];
+            $isRecursiveCategory = $data['is_recursive'];
+        }
+
+        if (!$isRecursiveCategory) {
+            if ($getEntitiesFromCategoryTicket == $targetEntity) {
+                $isRecursiveCategory = true;
+            }
+        }
+
+        if (in_array($getEntitiesFromCategoryTicket, $ancestorsEntities) && $isRecursiveCategory) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+
+    /**
+     * If the profile is authorised, add an extra tab
+     *
+     * @param object $item Ticket
+     * @param int $withtemplate 0
+     *
+     * @return string
+     */
+    public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0)
+    {
+        // Same plugin-right gate as displayTabContentForItem()
+        if (!Session::haveRight(self::$rightname, READ)) {
+            return '';
+        }
+        if ($item->getType() == \Ticket::class
+            && $_SESSION['glpiactiveprofile']['interface'] == 'central') {
+            return self::createTabEntry(__("Transfer Ticket Entity", "transferticketentity"));
+        }
+        return '';
+    }
+
+    /**
+     * If we are on tickets, an additional tab is displayed
+     *
+     * @param object $item Ticket
+     * @param int $tabnum 1
+     * @param int $withtemplate 0
+     *
+     * @return true
+     */
+    public static function displayTabContentForItem(CommonGLPI $item, $tabnum = 1, $withtemplate = 0)
+    {
+        if ($item->getType() == \Ticket::class
+            && $_SESSION['glpiactiveprofile']['interface'] == 'central'
+        && Session::haveRight(self::$rightname, READ)) {
+            $ticket = new self();
+            $ticket->showFormMcv($item);
+        }
+
+        return true;
+    }
+
+
+    /**
+     * Check GLPIs mandatory fields
+     *
+     * @return boolean
+     */
+    public static function checkMandatoryCategory($params)
+    {
+        $entity = new \Entity();
+        $entity->getFromDB($params['entity_choice']);
+
+        $tickettemplates_id = \Entity::getUsedConfig('tickettemplates_strategy', $params['entity_choice'], 'tickettemplates_id', 0);
+
+        $ttm = new TicketTemplateMandatoryField();
+        $mandatoryFields = $ttm->getMandatoryFields($tickettemplates_id);
+
+        // Check if category field is mandatory
+        foreach ($mandatoryFields as $mandatoryField => $MF) {
+            if ($mandatoryField == 'itilcategories_id') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Carries out the necessary actions for the transfer entity
+     *
+     * @return void
+     */
+    /**
+     * Unlink the associated items (assets...) of a transferred ticket that are not
+     * visible from its new entity, so the target entity does not get access to
+     * items of the source entity.
+     *
+     * @param int $tickets_id
+     * @param int $entities_id Target entity
+     *
+     * @return int Number of unlinked items
+     */
+    private static function unlinkItemsOutsideEntity(int $tickets_id, int $entities_id): int
+    {
+        $ancestors   = getAncestorsOf(\Entity::getTable(), $entities_id);
+        $item_ticket = new Item_Ticket();
+        $unlinked    = 0;
+
+        foreach ($item_ticket->find(['tickets_id' => $tickets_id]) as $link) {
+            $item = getItemForItemtype($link['itemtype']);
+            if (!$item || !$item->getFromDB((int) $link['items_id']) || !$item->isEntityAssign()) {
+                continue;
+            }
+
+            $item_entity = (int) $item->getEntityID();
+            $visible     = $item_entity === $entities_id
+                || ($item->isRecursive() && in_array($item_entity, array_map('intval', $ancestors), true));
+            if (!$visible && $item_ticket->delete(['id' => $link['id']], true)) {
+                $unlinked++;
+            }
+        }
+
+        return $unlinked;
+    }
+
+    public function launchTicketTransfer($params)
+    {
+        global $CFG_GLPI;
+
+        // Enforce the real UPDATE authorization on the SOURCE ticket before any write.
+        // The plugin READ right and checkAssign() alone are not enough to gate a mutation
+        // that changes the ticket entity, status and actors: a forged POST could otherwise
+        // reach this path. can($id, UPDATE) also verifies the ticket belongs to an entity
+        // the user can access, which closes the cross-entity IDOR reachable through the
+        // "bypass" right. This intentionally guards the SOURCE ticket only: a technician is
+        // still allowed to transfer INTO a target entity they do not manage (feature intent).
+        // The global ticket UPDATE right is also required, as for the form and the AJAX
+        // endpoints: can() alone lets a requester update their own new ticket.
+        $source_ticket = new \Ticket();
+        if (
+            !Session::haveRight('ticket', UPDATE)
+            || !$source_ticket->can((int) ($params['id_ticket'] ?? 0), UPDATE)
+        ) {
+            throw new AccessDeniedHttpException();
+        }
+
+        // Replay the form guard: a closed ticket cannot be transferred (it would be reopened)
+        if ($source_ticket->fields['status'] == CommonITILObject::CLOSED) {
+            Session::addMessageAfterRedirect(
+                __("Unauthorized transfer on closed ticket.", "transferticketentity"),
+                true,
+                ERROR,
+            );
+            Html::back();
+        }
+
+        $checkAssign = self::checkAssign($params);
+        $checkEntity = self::checkEntityETT();
+        $checkGroup = self::checkGroup($params);
+
+        $checkEntityRight = Entity::checkEntityRight($params);
+
+        $checkExistingCategory = self::checkExistingCategory($params);
+
+        $checkMandatoryCategory = self::checkMandatoryCategory($params);
+
+        $justification = $params['justification'];
+        $requiredGroup = true;
+
+        $entity = new \Entity();
+        $entity->getfromDB($params['entity_choice']);
+        $theEntity = $entity->getName();
+
+        if (!isset($params['justification'])
+            || $params['justification'] == '') {
+            if ($checkEntityRight['justification_transfer'] == 1) {
+                Session::addMessageAfterRedirect(
+                    __(
+                        "Please explain your transfer",
+                        'transferticketentity',
+                    ),
+                    true,
+                    ERROR,
+                );
+
+                Html::back();
+            } else {
+                $justification = '';
+            }
+        }
+
+        if (empty($params['group_choice'])
+            && $checkEntityRight['allow_entity_only_transfer'] == 1) {
+            Session::addMessageAfterRedirect(
+                __(
+                    "Please select a valid group",
+                    'transferticketentity',
+                ),
+                true,
+                ERROR,
+            );
+
+            Html::back();
+        } elseif (empty($params['group_choice'])
+            && $checkEntityRight['allow_entity_only_transfer'] == 0) {
+            $requiredGroup = false;
+        }
+
+        if (!Session::haveright("plugin_transferticketentity_bypass", READ)
+            && !$checkAssign) {
+            Session::addMessageAfterRedirect(
+                __(
+                    "You must be assigned to the ticket to be able to transfer it",
+                    'transferticketentity',
+                ),
+                true,
+                ERROR,
+            );
+
+            Html::back();
+        } elseif (!in_array((int) $params['entity_choice'], array_map('intval', $checkEntity), true)) {
+            // Check that the selected entity belongs to those available (strict, int-cast
+            // comparison mirrors the AJAX endpoints so a "1abc"-style POST cannot match).
+            Session::addMessageAfterRedirect(
+                __(
+                    "Please select a valid entity",
+                    'transferticketentity',
+                ),
+                true,
+                ERROR,
+            );
+
+            Html::back();
+        } elseif (!empty($params['group_choice'])
+            && !in_array((int) $params['group_choice'], array_map('intval', $checkGroup), true)) {
+            Session::addMessageAfterRedirect(
+                __(
+                    "Please select a valid group",
+                    'transferticketentity',
+                ),
+                true,
+                ERROR,
+            );
+
+            Html::back();
+        } else {
+            // Change the entity ticket and set its status to processing (assigned)
+            $ticket = new \Ticket();
+
+            $ticket_update = [
+                'id' => $params['id_ticket'],
+                'entities_id' => $params['entity_choice'],
+            ];
+
+            if (!empty($params['group_choice']) && $params['group_choice'] > 0) {
+                $ticket_status = ['status' => CommonITILObject::ASSIGNED];
+                $ticket_update = array_merge($ticket_update, $ticket_status);
+            } else {
+                $ticket_status = ['status' => CommonITILObject::INCOMING];
+                $ticket_update = array_merge($ticket_update, $ticket_status);
+            }
+
+            if ($checkEntityRight['keep_category']) {
+                if ($checkExistingCategory) {
+                    // Explicitly include the current category so GLPI does not reset it on entity change
+                    $currentTicket = new \Ticket();
+                    $currentTicket->getFromDB($params['id_ticket']);
+                    $ticket_category = ['itilcategories_id' => $currentTicket->fields['itilcategories_id']];
+                } else {
+                    $ticket_category = ['itilcategories_id' => 0];
+                }
+            } else {
+                $ticket_category = ['itilcategories_id' => $checkEntityRight['itilcategories_id'] ?? 0];
+            }
+            $ticket_update = array_merge($ticket_update, $ticket_category);
+
+            // If category is mandatory with GLPIs template and category will be null
+            if ($ticket_category['itilcategories_id'] == 0
+                && $checkMandatoryCategory) {
+                Session::addMessageAfterRedirect(
+                    __(
+                        "Category will be set to null but its configured as mandatory in GLPIs template, please contact your administrator.",
+                        'transferticketentity',
+                    ),
+                    true,
+                    ERROR,
+                );
+
+                Html::back();
+            }
+
+            // Remove the link with the current user
+            $delete_link_user = [
+                'tickets_id' => $params['id_ticket'],
+                'type' => CommonITILActor::ASSIGN,
+            ];
+
+            $ticket_user = new Ticket_User();
+            $found_user = $ticket_user->find($delete_link_user);
+
+            foreach ($found_user as $id => $tu) {
+                //delete user
+                $ticket_user->delete(['id' => $id]);
+            }
+
+            // Remove the link with the current group
+            $delete_link_group = [
+                'tickets_id' => $params['id_ticket'],
+                'type' => CommonITILActor::ASSIGN,
+            ];
+
+            $group_ticket = new Group_Ticket();
+            $found_group = $group_ticket->find($delete_link_group);
+
+            foreach ($found_group as $id => $tu) {
+                //delete group
+                $group_ticket->delete(['id' => $id]);
+            }
+
+            $ticket->update($ticket_update);
+
+            $unlinked_items = self::unlinkItemsOutsideEntity(
+                (int) $params['id_ticket'],
+                (int) $params['entity_choice'],
+            );
+
+            if ($requiredGroup) {
+                // Change group ticket
+                $group_check = [
+                    'tickets_id' => $params['id_ticket'],
+                    'groups_id' => $params['group_choice'],
+                    'type' => CommonITILActor::ASSIGN,
+                ];
+
+                if (!$group_ticket->find($group_check)) {
+                    $group_ticket->add($group_check);
+                } else {
+                    $group_ticket->update($group_check);
+                }
+            }
+
+            // The followup/task content is HTML: escape every external fragment
+            $content = __("Transfer to", "transferticketentity") . " " . htmlescape($theEntity);
+
+            if (!empty($params['group_choice']) && $params['group_choice'] > 0) {
+                $group = new Group();
+                $group->getFromDB($params['group_choice']);
+                $content .= " " . __("in the group", "transferticketentity") . " " . htmlescape($group->getName());
+            }
+
+            if (!empty($justification)) {
+                $content .= "<br><br>" . nl2br(htmlescape($justification));
+            }
+
+            if ($unlinked_items > 0) {
+                $content .= "<br><br>" . sprintf(
+                    _n(
+                        '%d associated item not visible from the target entity has been unlinked',
+                        '%d associated items not visible from the target entity have been unlinked',
+                        $unlinked_items,
+                        'transferticketentity',
+                    ),
+                    $unlinked_items,
+                );
+            }
+
+            // Log the transfer as a followup or task depending on entity configuration
+            if (($checkEntityRight['log_type'] ?? 0) == 1) {
+                $task = new TicketTask();
+                $task->add([
+                    'tickets_id' => $params['id_ticket'],
+                    'is_private' => true,
+                    'state'      => Planning::INFO,
+                    'content'    => $content,
+                ]);
+            } else {
+                $followup = new ITILFollowup();
+                $followup->add([
+                    'itemtype'  => \Ticket::class,
+                    'items_id'  => $params['id_ticket'],
+                    'is_private' => true,
+                    'content'   => $content,
+                ]);
+            }
+
+            $ticket = new \Ticket();
+            $ticket->getFromDB($params['id_ticket']);
+
+            if ($ticket->can($ticket->getID(), READ)) {
+                Session::addMessageAfterRedirect(
+                    __(
+                        "Successful transfer for ticket",
+                        "transferticketentity",
+                    ) . $ticket->getLink(),
+                    true,
+                    INFO,
+                );
+
+                if ($ticket->getID() > 0) {
+                    Html::redirect($CFG_GLPI["root_doc"] . "/front/ticket.form.php?id=" . (int) $ticket->getID());
+                } else {
+                    Html::back();
+                }
+            } else {
+                Session::addMessageAfterRedirect(
+                    __("Successful transfer for ticket", "transferticketentity"),
+                    true,
+                    INFO,
+                );
+                Html::redirect(\Ticket::getSearchURL());
+            }
+        }
+    }
+}

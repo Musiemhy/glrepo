@@ -1,0 +1,68 @@
+{#
+ # -------------------------------------------------------------------------
+ # mydashboard plugin for GLPI
+ # Copyright (C) 2016-2026 by the mydashboard Development Team.
+ #
+ # https://github.com/InfotelGLPI/mydashboard
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of mydashboard.
+ #
+ # mydashboard is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # mydashboard is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with mydashboard. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{#
+ # Clicking the button or a row loads the translation form in the container: handled by
+ # public/scripts/config-translation.js from the data-* attributes.
+ #}
+{% set datatable_id = 'datatable_translations' ~ rand %}
+
+{% if canedit %}
+    <div id="viewtranslationconfig{{ rand }}"
+         data-md-translation-view="{{ view_url }}"
+         data-md-translation-datatable="{{ datatable_id }}"
+         data-type="{{ type }}"
+         data-parenttype="{{ parenttype }}"
+         data-parent-fk="{{ parent_fk }}"
+         data-parent-id="{{ parent_id }}"></div>
+    <div class="text-center mb-3">
+        <button type="button" class="btn btn-primary" data-md-translation-add="viewtranslationconfig{{ rand }}">
+            {{- __('Add a new translation') -}}
+        </button>
+    </div>
+    <script type="module" src="{{ script_url }}"></script>
+{% endif %}
+
+{{ include('components/datatable.html.twig', {
+    'datatable_id': datatable_id,
+    'is_tab': true,
+    'nofilter': true,
+    'nosort': true,
+    'columns': {
+        'language': __('Language'),
+        'field': __('Field'),
+        'value': __('Value'),
+    },
+    'entries': entries,
+    'total_number': entries|length,
+    'filtered_number': entries|length,
+    'showmassiveactions': canedit,
+    'massiveactionparams': {
+        'num_displayed': entries|length,
+        'container': container,
+    },
+}, with_context = false) }}

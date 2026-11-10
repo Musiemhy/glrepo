@@ -1,0 +1,109 @@
+{#
+ # -------------------------------------------------------------------------
+ # metademands plugin for GLPI
+ # Copyright (C) 2018-2026 by the metademands Development Team.
+ #
+ # https://github.com/InfotelGLPI/metademands
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of metademands.
+ #
+ # metademands is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # metademands is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{#
+ # Expected context:
+ #  - add                 bool   template picker (creation) vs template manager
+ #  - target              string form / link target URL
+ #  - multi_entities      bool   whether the entity column is shown
+ #  - metademand_typename string
+ #  - templates           list   [{id, name, entity_name}, ...]
+ #}
+
+<div class="card mt-2">
+    <div class="card-header">
+        <h5 class="card-title">
+            {% if add %}
+                {{ __('Choose a template', 'metademands') }} - {{ metademand_typename }}
+            {% else %}
+                {{ __('Templates') }} - {{ metademand_typename }}
+            {% endif %}
+        </h5>
+    </div>
+
+    {% if add %}
+        <div class="card-body text-center">
+            <a class="btn btn-outline-secondary" href="{{ target }}?id=-1&amp;withtemplate=2">
+                {{ __('Blank Template') }}
+            </a>
+        </div>
+    {% endif %}
+
+    <div class="table-responsive">
+        <table class="table card-table">
+            <thead>
+                <tr>
+                    <th>{{ __('Name') }}</th>
+                    {% if multi_entities %}
+                        <th>{{ __('Entity') }}</th>
+                    {% endif %}
+                    {% if not add %}
+                        <th class="text-end"></th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for template in templates %}
+                    <tr>
+                        <td>
+                            <a href="{{ target }}?id={{ template.id }}&amp;withtemplate={{ add ? 2 : 1 }}">
+                                {{ template.name }}
+                            </a>
+                        </td>
+                        {% if multi_entities %}
+                            <td>{{ template.entity_name }}</td>
+                        {% endif %}
+                        {% if not add %}
+                            <td class="text-end">
+                                <form method="post" action="{{ target }}" style="display:inline">
+                                    <input type="hidden" name="id" value="{{ template.id }}">
+                                    <input type="hidden" name="withtemplate" value="1">
+                                    <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" name="purge" value="1" class="btn btn-sm btn-outline-danger">
+                                        {{ _x('button', 'Delete permanently') }}
+                                    </button>
+                                </form>
+                            </td>
+                        {% endif %}
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="{{ 1 + (multi_entities ? 1 : 0) + (add ? 0 : 1) }}" class="text-center">
+                            {{ __('No results found') }}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if not add %}
+        <div class="card-footer text-center">
+            <a class="btn btn-primary" href="{{ target }}?withtemplate=1">{{ __('Add a template') }}</a>
+        </div>
+    {% endif %}
+</div>

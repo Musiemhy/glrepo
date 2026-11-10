@@ -1,0 +1,151 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2024-12-30 01:37+0000\n"
+"PO-Revision-Date: 2025-03-06 07:38+0100\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: de_DE\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Poedit 3.5\n"
+
+msgid "RoundRobin Settings"
+msgstr "Round Robin-Einstellungen"
+
+msgid "Enable Group Round Robin Ticket Assignment for each ITILCategory"
+msgstr "Gruppeneuzuordnung von Tickets im Round Robin für jede ITIL-Kategorie aktivieren"
+
+msgid "Assign also to the original Group:"
+msgstr "Weiterhin der Originalgruppe zuweisen:"
+
+msgid "Yes"
+msgstr "Ja"
+
+msgid "No"
+msgstr "Nein"
+
+msgid "ITILCategory"
+msgstr "ITIL-Kategorie"
+
+msgid "Group"
+msgstr "Gruppe"
+
+msgid "Members #"
+msgstr "Mitgliederanzahl"
+
+msgid "Setting"
+msgstr "Einstellung"
+
+msgid "Enabled"
+msgstr "Aktiviert"
+
+msgid "Disabled"
+msgstr "Deaktiviert"
+
+msgid "Save"
+msgstr "Speichern"
+
+msgid "Cancel"
+msgstr "Abbrechen"
+
+msgid "New tickets pick the next technician from the category technician group."
+msgstr "Neue Tickets weisen den nächsten Techniker aus der Technikergruppe der Kategorie zu."
+
+msgid "RoundRobin"
+msgstr "RoundRobin"
+
+msgid "N/A"
+msgstr "k. A."
+
+msgid "Group assignment behaviour"
+msgstr "Gruppenzuweisungsverhalten"
+
+msgid "Assign the rotated technician plus the technician group linked to the category when checked."
+msgstr "Wenn aktiviert, wird zusätzlich zum rotierend zugewiesenen Techniker die mit der Kategorie verknüpfte Technikergruppe zugewiesen."
+
+msgid "Categories & technician groups"
+msgstr "Kategorien und Technikergruppen"
+
+msgid "Search…"
+msgstr "Suchen…"
+
+msgid "No ITIL categories found."
+msgstr "Keine ITIL-Kategorien gefunden."
+
+msgid "Assign a technician group on the ITIL category first."
+msgstr "Weisen Sie der ITIL-Kategorie zuerst eine Technikergruppe zu."
+
+msgid "General options"
+msgstr "Allgemeine Optionen"
+
+msgid "Also assign tickets to this category's technician group"
+msgstr "Tickets auch der Technikergruppe dieser Kategorie zuweisen"
+
+msgid "ITIL categories"
+msgstr "ITIL-Kategorien"
+
+msgid "Round-robin is available only when a technician group is set on the category."
+msgstr "Round-Robin ist nur verfügbar, wenn der Kategorie eine Technikergruppe zugewiesen ist."
+
+msgid "ITIL category"
+msgstr "ITIL-Kategorie"
+
+msgid "Technician group"
+msgstr "Technikergruppe"
+
+msgid "Active members"
+msgstr "Aktive Mitglieder"
+
+msgid "No technician group assigned"
+msgstr "Keine Technikergruppe zugewiesen"
+
+msgid "Enable"
+msgstr "Aktivieren"
+
+msgid "Assign a technician group to the ITIL category first."
+msgstr "Weisen Sie der ITIL-Kategorie zuerst eine Technikergruppe zu."
+
+msgid "No changes were made."
+msgstr "Es wurden keine Änderungen vorgenommen."
+
+msgid "Configuration saved."
+msgstr "Konfiguration gespeichert."
+
+msgid "Category settings saved."
+msgstr "Kategorieeinstellungen gespeichert."
+
+msgid "Assign a technician group to the ITIL category first, then enable round-robin here."
+msgstr "Weisen Sie der ITIL-Kategorie zuerst eine Technikergruppe zu, und aktivieren Sie hier anschließend Round-Robin."
+
+msgid "Settings"
+msgstr "Einstellungen"
+
+msgid "No group assigned"
+msgstr "Keine Gruppe zugewiesen"
+
+msgid "Select all"
+msgstr "Alle auswählen"
+
+msgid "Search for category or group"
+msgstr "Kategorie oder Gruppe suchen"
+
+msgid "Member filter"
+msgstr "Mitgliederfilter"
+
+msgid "Show all"
+msgstr "Alle anzeigen"
+
+msgid "With active members only"
+msgstr "Nur mit aktiven Mitgliedern"
+
+msgid "Without members"
+msgstr "Ohne Mitglieder"

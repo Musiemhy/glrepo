@@ -1,0 +1,45 @@
+{#
+ # -------------------------------------------------------------------------
+ # metademands plugin for GLPI
+ # Copyright (C) 2018-2026 by the metademands Development Team.
+ #
+ # https://github.com/InfotelGLPI/metademands
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of metademands.
+ #
+ # metademands is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # metademands is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{#- Legacy-identical concatenation order: wrapper+canvas, optional existing-signature
+ #  preview, buttons, result span, hidden input, then the script/css asset tags and the
+ #  inline SignaturePad <script>. ids, name, labels and value are data and are escaped.
+ #  script_tag / css_tag / inline_script are core-widget / generated output injected raw.
+ #  Escaping is byte-identical to the legacy htmlspecialchars(ENT_QUOTES) for valid UTF-8.
+ #  One physical line so no inter-element whitespace enters the output. -#}
+<div class='wrapper'>
+    <canvas id='{{ canvas_id }}' class='signature-pad' width=400 height=100></canvas>
+</div>{% if has_value %}
+<div id='existing-sign-{{ field_id }}'><img src='{{ picture_url }}' style='max-height:100px;border:1px solid #ccc;'>
+</div>{% endif %}<br>
+<div>
+    <button type='button' id='{{ save_id }}' class='btn btn-primary'>{{ label_add }}</button>
+    <button type='button' id='{{ clear_id }}' class='btn btn-primary'>{{ label_clear }}</button>
+</div><br><span class='result' id='{{ result_id }}'></span><input type='hidden' id='{{ hidden_id }}'
+                                                                      name='{{ name }}'
+                                                                      value='{{ value }}'>{{ script_tag|raw }}{{ css_tag|raw }}{{ inline_script|raw }}
+{#- -#}

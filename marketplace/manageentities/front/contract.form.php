@@ -1,0 +1,102 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * manageentities plugin for GLPI
+ * Copyright (C) 2017-2026 by the manageentities Development Team.
+ *
+ * https://github.com/InfotelGLPI/manageentities
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of manageentities.
+ *
+ * manageentities is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * manageentities is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with manageentities. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use Glpi\Exception\Http\AccessDeniedHttpException;
+use GlpiPlugin\Manageentities\Contract;
+use GlpiPlugin\Manageentities\ContractDay;
+use GlpiPlugin\Manageentities\Entity;
+
+$contractday = new ContractDay();
+$contract    = new Contract();
+
+if (isset($_POST["addcontract"])) {
+    // The posted body has to reach the right check: with an id of -1, CommonDBTM::can() only
+    // copies the submitted fields into the evaluated object when a third argument is given, so
+    // without it canCreateItem() validated an empty object whose entities_id is 0 - never the
+    // entity actually posted. front/entity.php:69 already calls it this way.
+    $contract->check(-1, CREATE, $_POST);
+    $newID = $contract->add($_POST);
+    Html::back();
+
+} elseif (isset($_POST["delcontract"])) {
+    // Separation of duties: the row is really removed from the table (no is_deleted column),
+    // so evaluate the PURGE bit - the deletion bit exposed by the rights matrix of
+    // 'plugin_manageentities' - and not UPDATE, which an administrator may want to grant alone.
+    $contract->check($_POST["id"], PURGE);
+    $contract->delete($_POST);
+    Html::back();
+
+} elseif (isset($_POST["updatecontract"])) {
+    $contract->check($_POST["id"], UPDATE);
+    // check() validates the stored row only: pin the ownership columns to it, so the
+    // posted body cannot move the details to another entity or core contract
+    $input                 = $_POST;
+    $input['entities_id']  = (int) $contract->fields['entities_id'];
+    $input['contracts_id'] = (int) $contract->fields['contracts_id'];
+    $contract->update($input);
+    Html::back();
+
+} elseif (isset($_POST["add_nbday"]) && isset($_POST['nbday'])) {
+    Session::checkRight("contract", UPDATE);
+    // addNbDay() writes contracts_id/entities_id straight from the POST body: enforce access
+    // to the target entity and that the contract really belongs to it before inserting (IDOR).
+    $entities_id  = (int) ($_POST['entities_id'] ?? -1);
+    $coreContract = new \Contract();
+    if (
+        !Session::haveAccessToEntity($entities_id)
+        || !$coreContract->getFromDB((int) ($_POST['contracts_id'] ?? 0))
+        || (int) $coreContract->fields['entities_id'] !== $entities_id
+    ) {
+        throw new AccessDeniedHttpException();
+    }
+    $contractday->addNbDay($_POST);
+    Html::back();
+
+} elseif (isset($_POST["delete_nbday"])) {
+    // Same guard as the twin branch of contractday.form.php: this is a permanent deletion,
+    // so it requires PURGE on the plugin right (UPDATE can be granted alone).
+    Session::checkRight(ContractDay::$rightname, PURGE);
+    foreach ($_POST["item_nbday"] ?? [] as $key => $val) {
+        if ($val == 1) {
+            // Per-item check: the global right does not scope the deletion to the user's
+            // entity perimeter on each row.
+            $contractday->check((int) $key, PURGE);
+            $contractday->delete(['id' => (int) $key]);
+        }
+    }
+    Html::back();
+
+} else {
+    $contract->checkGlobal(READ);
+
+    Html::header(ContractDay::getTypeName(2), '', "management", Entity::class, "contractday");
+    $contract->display($_GET);
+
+    Html::footer();
+}

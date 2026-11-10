@@ -1,0 +1,81 @@
+{#
+ # -------------------------------------------------------------------------
+ # resources plugin for GLPI
+ # Copyright (C) 2015-2026 by the resources Development Team.
+ #
+ # https://github.com/InfotelGLPI/resources
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of resources.
+ #
+ # resources is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 2 of the License, or
+ # (at your option) any later version.
+ #
+ # resources is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with resources. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{% if show_form %}
+    <form method="post" name="form_reports{{ rand }}" id="form_reports{{ rand }}" action="./reportconfig.form.php">
+        <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token() }}">
+{% endif %}
+        <div class="center">
+            <table class="tab_cadre_fixe">
+                <tr><th colspan="2">{{ title }}</th></tr>
+                {% for report in reports %}
+                    <tr class="tab_bg_1">
+                        <td>{{ label_comments }}</td>
+                        <td>{{ report.comment_field|raw }}</td>
+                    </tr>
+                    <tr class="tab_bg_1">
+                        <td>{{ label_information }}</td>
+                        <td>{{ report.information_field|raw }}</td>
+                    </tr>
+                    <tr class="tab_bg_2">
+                        <td>{{ label_send_report }}</td>
+                        <td>{{ report.send_report_dropdown|raw }}</td>
+                    </tr>
+                    <tr class="tab_bg_2">
+                        <td>{{ label_send_transfer }}</td>
+                        <td>{{ report.send_transfer_dropdown|raw }}</td>
+                    </tr>
+                    <tr class="tab_bg_2">
+                        <td>{{ label_send_other }}</td>
+                        <td>{{ report.send_other_dropdown|raw }}</td>
+                    </tr>
+                    {% if show_buttons %}
+                        <tr class="tab_bg_1 center">
+                            <td colspan="2">
+                                <button type="submit" name="update" class="btn btn-primary">
+                                    <i class="ti ti-device-floppy"></i>
+                                    {{ _x('button', 'Save') }}
+                                </button>
+                            </td>
+                        </tr>
+                        <tr class="tab_bg_1 center">
+                            <td colspan="2" class="right">
+                                {{ report.id_hidden|raw }}
+                                {{ report.resource_hidden|raw }}
+                                <button type="submit" name="delete" class="btn btn-primary">
+                                    <i class="ti ti-trash"></i>
+                                    {{ _x('button', 'Delete permanently') }}
+                                </button>
+                            </td>
+                        </tr>
+                    {% endif %}
+                {% endfor %}
+            </table>
+        </div>
+{% if show_form %}
+    </form>
+{% endif %}

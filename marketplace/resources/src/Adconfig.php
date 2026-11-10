@@ -1,0 +1,589 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * resources plugin for GLPI
+ * Copyright (C) 2015-2026 by the resources Development Team.
+ *
+ * https://github.com/InfotelGLPI/resources
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of resources.
+ *
+ * resources is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * resources is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with resources. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Resources;
+
+use AuthLDAP;
+use CommonDBTM;
+use CommonGLPI;
+use DBConnection;
+use Dropdown;
+use GLPIKey;
+use Html;
+use ITILCategory;
+use Location;
+use Migration;
+use Session;
+use Glpi\Application\View\TemplateRenderer;
+
+/**
+ * Class Adconfig
+ */
+class Adconfig extends CommonDBTM
+{
+    public static $rightname = 'plugin_resources';
+
+    // Initial password of the accounts created in the directory.
+    /** Initials of the holder, optionally their arrival date, plus a shared suffix. */
+    public const PASSWORD_FORMAT_DYNAMIC = 1;
+    /** A single secret shared by every account created by the plugin. */
+    public const PASSWORD_FORMAT_STATIC = 2;
+    /** Drawn at random for each account; nothing to store, nothing to guess. */
+    public const PASSWORD_FORMAT_RANDOM = 3;
+
+    // Bind and default-account secrets are stored encrypted (GLPIKey); keep them out of
+    // API/exports and out of the update history so the (encrypted) value is not disclosed.
+    public static $undisclosedFields = [
+        'password',
+        'default_account_password',
+    ];
+
+    public $history_blacklist = [
+        'password',
+        'default_account_password',
+    ];
+
+    /**
+     * functions mandatory
+     * getTypeName(), canCreate(), canView()
+     * */
+    public static function getTypeName($nb = 0)
+    {
+        return __('Setup LDAP directory', 'resources');
+    }
+
+    /**
+     * Have I the global right to "view" the Object
+     *
+     * Default is true and check entity if the objet is entity assign
+     *
+     * May be overloaded if needed
+     *
+     * @return
+     **/
+    public static function canView(): bool
+    {
+        return Session::haveRight(self::$rightname, READ);
+    }
+
+    /**
+     * Have I the global right to "create" the Object
+     * May be overloaded if needed (ex KnowbaseItem)
+     *
+     * @return
+     **/
+    public static function canCreate(): bool
+    {
+        return Session::haveRightsOr(self::$rightname, [CREATE, UPDATE, DELETE]);
+    }
+
+    public function __construct()
+    {
+        global $DB;
+
+        if ($DB->tableExists($this->getTable())) {
+            $this->getFromDB(1);
+        }
+    }
+
+    public static function getIcon()
+    {
+        return "ti ti-vocabulary";
+    }
+
+    public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0)
+    {
+        return self::createTabEntry(self::getTypeName());
+    }
+
+    /**
+     * @param CommonGLPI $item
+     * @param int $tabnum
+     * @param int $withtemplate
+     *
+     * @return bool
+     * @see CommonGLPI::displayTabContentForItem()
+     */
+    public static function displayTabContentForItem(CommonGLPI $item, $tabnum = 1, $withtemplate = 0)
+    {
+        if ($item->getType() == Config::class) {
+            $self = new self();
+            $self->showConfigForm();
+        }
+        return true;
+    }
+
+    /**
+     * @return bool
+     */
+    public function showConfigForm()
+    {
+        if (!$this->canView()) {
+            return false;
+        }
+        if (!$this->canCreate()) {
+            return false;
+        }
+
+        $ID = 1;
+        $this->getFromDB($ID);
+
+        // Capture a GLPI widget that echoes its own HTML (Dropdown::*) into a string
+        // so it can be injected into the Twig template with |raw.
+        $capture = static function (callable $renderer): string {
+            ob_start();
+            $renderer();
+            return ob_get_clean();
+        };
+
+        // Build the ITILCategory option list once (reused by the three category dropdowns).
+        $categories  = [];
+        $itilCategory = new ITILCategory();
+        foreach ($itilCategory->find([]) as $cat) {
+            $categories[$cat['id']] = $cat['completename'];
+        }
+        $decodeValues = static function ($json): array {
+            $values = json_decode((string) $json);
+            return is_array($values) ? $values : [];
+        };
+
+        $data = [
+            'form_action' => $this->getFormURL(),
+            'id'          => $ID,
+            'title'       => self::getTypeName(),
+
+            // Labels (translated server-side, auto-escaped by Twig).
+            'label_rootdn'                => __('RootDN (for non anonymous binds)'),
+            'label_password'              => __('Password'),
+            'label_clear'                 => __('Clear'),
+            'label_server'                => __('Server'),
+            'label_allow_invalid_cert'    => __('Accept a directory certificate that cannot be validated', 'resources'),
+            'label_creation_category'     => __('Creation category', 'resources'),
+            'label_modification_category' => __('Modification category', 'resources'),
+            'label_deletion_category'     => __('Deletion category', 'resources'),
+            'label_login_creation'        => __('Login Creation', 'resources'),
+            'label_first_form'            => __('First Form', 'resources'),
+            'label_second_form'           => __('Second Form', 'resources'),
+            'label_password_creation'     => __('Password Creation', 'resources'),
+            'label_use_password_module'   => __('Use Password creation module', 'resources'),
+            'label_format_password'       => __('Format password', 'resources'),
+            'label_prefix'                => __('Prefix', 'resources'),
+            'label_mail_creation'         => __('Mail Creation', 'resources'),
+            'label_suffix'                => __('Suffix', 'resources'),
+            'label_field_mapping'         => __('Field mapping', 'resources'),
+
+            // Bind credentials (the password itself is rendered empty by the template).
+            'login_field' => Html::input('login', ['value' => $this->fields['login'], 'size' => 40]),
+
+            // Directory + ITIL categories.
+            'auth_dropdown' => $capture(fn() => Dropdown::show(
+                AuthLDAP::getType(),
+                ['name' => 'auth_id', 'value' => $this->getField('auth_id')],
+            )),
+            'creation_dropdown' => $capture(fn() => Dropdown::showFromArray(
+                'creation_categories_id',
+                $categories,
+                ['values' => $decodeValues($this->fields['creation_categories_id']), 'multiple' => 'multiples'],
+            )),
+            'modification_dropdown' => $capture(fn() => Dropdown::showFromArray(
+                'modification_categories_id',
+                $categories,
+                ['values' => $decodeValues($this->fields['modification_categories_id']), 'multiple' => 'multiples'],
+            )),
+            'deletion_dropdown' => $capture(fn() => Dropdown::showFromArray(
+                'deletion_categories_id',
+                $categories,
+                ['values' => $decodeValues($this->fields['deletion_categories_id']), 'multiple' => 'multiples'],
+            )),
+
+            // Login creation.
+            'first_form_dropdown' => $capture(fn() => Dropdown::showFromArray(
+                'first_form',
+                $this->loginForm(),
+                ['value' => $this->fields['first_form']],
+            )),
+            'second_form_dropdown' => $capture(fn() => Dropdown::showFromArray(
+                'second_form',
+                $this->loginForm(),
+                ['value' => $this->fields['second_form']],
+            )),
+
+            // Mail creation.
+            'mail_prefix_dropdown' => $capture(fn() => Dropdown::showFromArray(
+                'mail_prefix',
+                $this->prefixForm(),
+                ['value' => $this->fields['mail_prefix']],
+            )),
+            'mail_suffix_field' => Html::input('mail_suffix', ['value' => $this->fields['mail_suffix']]),
+        ];
+
+        // Certificate validation of the provisioning connection. Offered here rather than left to
+        // the ldap.conf of the host, because that connection carries the initial password of the
+        // accounts the plugin creates.
+        $allow_invalid_cert = self::allowsInvalidCertificate();
+        $data['allow_invalid_cert_dropdown'] = $capture(
+            fn() => Dropdown::showYesNo('tls_allow_invalid_cert', $allow_invalid_cert ? 1 : 0),
+        );
+        $data['allow_invalid_cert_warning'] = $allow_invalid_cert
+            ? __('The certificate of the directory is not checked, so the far end of the encrypted connection cannot be authenticated: the password creation module below is disabled.', 'resources')
+            : '';
+
+        // Optional password-creation block: only offered when the connection to the directory is
+        // both encrypted and certificate-validated, since the module writes a secret to it.
+        $data['ssl_tls'] = LDAP::isTrustedADChannel();
+        if ($data['ssl_tls']) {
+            $data['use_password_module_dropdown'] = $capture(
+                fn() => Dropdown::showYesNo('use_password_module', $this->fields['use_password_module']),
+            );
+            $data['show_format'] = (bool) $this->fields['use_password_module'];
+
+            $format = (int) $this->fields['format_default_account_password'];
+            $data['format_dropdown'] = $capture(fn() => Dropdown::showFromArray(
+                'format_default_account_password',
+                [
+                    0 => Dropdown::EMPTY_VALUE,
+                    self::PASSWORD_FORMAT_DYNAMIC => __('Dynamic prefix and static suffix', 'resources'),
+                    self::PASSWORD_FORMAT_STATIC => __('Static default password ', 'resources'),
+                    self::PASSWORD_FORMAT_RANDOM => __('Random password (recommended)', 'resources'),
+                ],
+                ['value' => $format],
+            ));
+            // The random format stores no secret; the two others are only worth the value
+            // entered below, so say so instead of presenting the three as equivalent.
+            $stored_formats = [self::PASSWORD_FORMAT_DYNAMIC, self::PASSWORD_FORMAT_STATIC];
+            $data['show_password_detail'] = in_array($format, $stored_formats, true);
+            $data['is_prefix_format']     = ($format === self::PASSWORD_FORMAT_DYNAMIC);
+            $data['password_warning']     = $data['show_password_detail']
+                ? __(
+                    'This password is derived from the identity of the account holder, or shared by every account created by the plugin. It is expired on first logon, but prefer the random format.',
+                    'resources',
+                )
+                : '';
+            $data['prefix_dropdown'] = $capture(fn() => Dropdown::showFromArray(
+                'prefix_default_account_password',
+                [
+                    0 => Dropdown::EMPTY_VALUE,
+                    1 => __('First name initial (uppercase) + last name initial (lowercase) + arrival date (DDMMYYYY)', 'resources'),
+                    2 => __('First name initial (uppercase) + last name initial (lowercase)', 'resources'),
+                ],
+                ['value' => $this->fields['prefix_default_account_password']],
+            ));
+            $data['password_detail_label'] = ($format == 2)
+                ? __('Default password', 'resources')
+                : __('Suffix', 'resources');
+            // Never re-expose the stored secret in the HTML: render an empty field (like the
+            // bind password). Only require input on first configuration; an empty submit keeps
+            // the existing value (see prepareInputForUpdate).
+            $data['default_account_password_field'] = Html::input('default_account_password', [
+                'value'    => '',
+                'required' => empty($this->fields['default_account_password']),
+            ]);
+        }
+
+        // Field mapping: an ordered label => AD attribute list, laid out two cells per row.
+        $mapping_fields = [
+            'logAD'               => __('Login'),
+            'departmentAD'        => _n('Department', 'Departments', 1, 'resources'),
+            'nameAD'              => __('Name'),
+            'firstnameAD'         => __('First name'),
+            'phoneAD'             => __('Phone'),
+            'mailAD'              => __('Email'),
+            'companyAD'           => Employer::getTypeName(1),
+            'contractEndAD'       => __('Departure date', 'resources'),
+            'cellPhoneAD'         => __('Mobile phone'),
+            'roleAD'              => __('Role', 'resources'),
+            'contractTypeAD'      => _n('Contract type', 'Contract types', 1),
+            'serviceAD'           => Service::getTypeName(1),
+            'locationAD'          => Location::getTypeName(),
+            'fonctionAD'          => __('Function', 'resources'),
+            'ouDesactivateUserAD' => __('Destination OU on user deactivation', 'resources'),
+            'ouUser'              => __('Destination OU during user creation', 'resources'),
+        ];
+        $mapping_rows = [];
+        $cells        = [];
+        foreach ($mapping_fields as $field => $label) {
+            $cells[] = [
+                'label' => $label,
+                'field' => Html::input($field, ['value' => $this->fields[$field], 'entity' => -1]),
+            ];
+            if (count($cells) === 2) {
+                $mapping_rows[] = $cells;
+                $cells          = [];
+            }
+        }
+        if (!empty($cells)) {
+            $mapping_rows[] = $cells;
+        }
+        $data['mapping_rows'] = $mapping_rows;
+
+        TemplateRenderer::getInstance()->display('@resources/adconfig_config.html.twig', $data);
+
+        return true;
+    }
+
+    public function loginForm()
+    {
+        $options[0] = Dropdown::EMPTY_VALUE;
+        $options[1] = __("first letter of given name + name", 'resources');
+        $options[2] = __("given name + name", 'resources');
+        $options[3] = __("2 letters of given name + 2 letters of name", 'resources');
+
+        return $options;
+    }
+
+    public function prefixForm()
+    {
+        $options[0] = Dropdown::EMPTY_VALUE;
+        $options[1] = __("given name.name", 'resources');
+        $options[2] = __("Login");
+
+        return $options;
+    }
+
+    /**
+     * @param $input
+     *
+     * @return $input
+     */
+    public function prepareInputForAdd($input)
+    {
+        return $this->encodeSubtypes($input);
+    }
+
+    /**
+     * Encode sub types
+     *
+     * @param $input
+     *
+     * @return
+     */
+    public function encodeSubtypes($input)
+    {
+        if (!empty($input['creation_categories_id'])) {
+            $input['creation_categories_id'] = json_encode(array_values($input['creation_categories_id']));
+        } else {
+            $input['creation_categories_id'] = json_encode([]);
+        }
+        if (!empty($input['modification_categories_id'])) {
+            $input['modification_categories_id'] = json_encode(array_values($input['modification_categories_id']));
+        } else {
+            $input['modification_categories_id'] = json_encode([]);
+        }
+        if (!empty($input['deletion_categories_id'])) {
+            $input['deletion_categories_id'] = json_encode(array_values($input['deletion_categories_id']));
+        } else {
+            $input['deletion_categories_id'] = json_encode([]);
+        }
+
+        return $input;
+    }
+
+    public function prepareInputForUpdate($input)
+    {
+        if (isset($input["password"])) {
+            if (empty($input["password"])) {
+                unset($input["password"]);
+            } else {
+                $input["password"] = (new GLPIKey())->encrypt($input["password"]);
+            }
+        }
+
+        if (isset($input["_blank_passwd"]) && $input["_blank_passwd"]) {
+            $input['password'] = '';
+        }
+
+        if (isset($input["default_account_password"])) {
+            if (empty($input["default_account_password"])) {
+                // Empty submit: keep the currently stored secret instead of wiping it.
+                unset($input["default_account_password"]);
+            } else {
+                $input["default_account_password"] = (new GLPIKey())->encrypt($input["default_account_password"]);
+            }
+        }
+
+        $input = $this->encodeSubtypes($input);
+
+        return $input;
+    }
+
+    /**
+     * Whether the administrator stored the decision to accept a directory certificate GLPI
+     * cannot validate.
+     *
+     * Off by default, on upgrade as well: the certificate of the domain controller is checked
+     * unless someone says otherwise here. Saying otherwise also closes the password creation
+     * module, since its whole point is to write a secret to that directory.
+     *
+     * @return bool
+     */
+    public static function allowsInvalidCertificate(): bool
+    {
+        $config = new self();
+        if (!$config->getFromDB(1)) {
+            return false;
+        }
+
+        return !empty($config->fields['tls_allow_invalid_cert']);
+    }
+
+    /**
+     * @return mixed
+     */
+    public function useSecurity()
+    {
+        return $this->fields['security_display'];
+    }
+
+    /**
+     * @return mixed
+     */
+    public function useSecurityCompliance()
+    {
+        return $this->fields['security_compliance'];
+    }
+
+    public function getArrayAttributes()
+    {
+        $array = [
+            "logAD",
+            "nameAD",
+            "phoneAD",
+            "companyAD",
+            "departmentAD",
+            "firstnameAD",
+            "mailAD",
+            "contractEndAD",
+            "contractTypeAD",
+            "cellPhoneAD",
+            "roleAD",
+            "serviceAD",
+            "locationAD",
+            "fonctionAD",
+        ];
+        return $array;
+    }
+
+    public function prepareFields($fields)
+    {
+        $fields['creation_categories_id'] = json_decode($fields['creation_categories_id']);
+
+        $fields['modification_categories_id'] = json_decode($fields['modification_categories_id']);
+
+        $fields['deletion_categories_id'] = json_decode($fields['deletion_categories_id']);
+
+        return $fields;
+    }
+
+    public static function install(Migration $migration)
+    {
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+        $table  = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $query = "CREATE TABLE `$table` (
+                        `id`           int {$default_key_sign} NOT NULL auto_increment,
+                        `auth_id`                    int {$default_key_sign} NOT NULL                   DEFAULT '0',
+                        `login`                      varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT '',
+                        `password`                   varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT '',
+                        `creation_categories_id`     TEXT         NOT NULL,
+                        `modification_categories_id` TEXT         NOT NULL,
+                        `deletion_categories_id`     TEXT         NOT NULL,
+                        `logAD`                      varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT '',
+                        `nameAD`                     varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT '',
+                        `phoneAD`                    varchar(255) COLLATE utf8mb4_unicode_ci default NULL,
+                        `companyAD`                  varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT '',
+                        `departmentAD`               varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT '',
+                        `firstnameAD`                varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT '',
+                        `mailAD`                     varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT '',
+                        `contractEndAD`              varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT '',
+                        `contractTypeAD`             varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT '',
+                        `ouDesactivateUserAD`        varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT '',
+                        `ouUser`                     varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT '',
+                        `cellPhoneAD`                varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT '',
+                        `roleAD`                     varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT '',
+                        `serviceAD`                  varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT '',
+                        `locationAD`                 varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT '',
+                        `first_form`                 int {$default_key_sign} NOT NULL                   DEFAULT '0',
+                        `second_form`                int {$default_key_sign} NOT NULL                   DEFAULT '0',
+                        `mail_prefix`                int {$default_key_sign} NOT NULL                   DEFAULT '0',
+                        `mail_suffix`                varchar(255) NOT NULL                   DEFAULT '',
+                        `fonctionAD`                 varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT '',
+                        `use_password_module`        tinyint      NOT NULL                   DEFAULT '0',
+                        `default_account_password`   varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT '',
+                        `format_default_account_password` int {$default_key_sign} NOT NULL  DEFAULT '0',
+                        `prefix_default_account_password` int {$default_key_sign} NOT NULL  DEFAULT '0',
+                        `tls_allow_invalid_cert`     tinyint      NOT NULL                   DEFAULT '0',
+                        PRIMARY KEY (`id`)
+               ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
+
+            $DB->doQuery($query);
+
+            $DB->insert(
+                $table,
+                ['id' => 1,
+                    'auth_id' => 0,
+                    'login' => '',
+                    'password' => '',
+                    'creation_categories_id' => '',
+                    'modification_categories_id' => '',
+                    'deletion_categories_id' => '',
+                    'logAD' => '',
+                    'nameAD' => '',
+                    'phoneAD' => '',
+                    'companyAD' => '',
+                    'departmentAD' => '',
+                    'firstnameAD' => '',
+                    'mailAD' => '',
+                    'contractEndAD' => '',
+                    'contractTypeAD' => '',
+                    'ouDesactivateUserAD' => '',
+                    'ouUser' => '',
+                    'cellPhoneAD' => '',
+                    'roleAD' => '',
+                    'serviceAD' => '',
+                    'locationAD' => '',
+                    'first_form' => 0,
+                    'second_form' => 0,
+                    'mail_prefix' => 0,
+                    'mail_suffix' => '',
+                    'fonctionAD' => '',
+                    'use_password_module' => 0,
+                    'default_account_password' => '',
+                    'format_default_account_password' => 0,
+                    'prefix_default_account_password' => 0,
+                    // Validate the certificate of the domain controller unless told otherwise.
+                    'tls_allow_invalid_cert' => 0],
+            );
+        }
+    }
+}

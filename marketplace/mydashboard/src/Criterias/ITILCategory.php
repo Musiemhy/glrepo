@@ -1,0 +1,128 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * mydashboard plugin for GLPI
+ * Copyright (C) 2016-2026 by the mydashboard Development Team.
+ *
+ * https://github.com/InfotelGLPI/mydashboard
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of mydashboard.
+ *
+ * mydashboard is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * mydashboard is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with mydashboard. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Mydashboard\Criterias;
+
+use Dropdown;
+use GlpiPlugin\Mydashboard\Criteria;
+use GlpiPlugin\Mydashboard\Preference;
+use Session;
+use User;
+
+/**
+ * Class ITILCategory
+ */
+class ITILCategory
+{
+    public static $criteria_name = 'itilcategories_id';
+    public static $criteria_number = 7;
+
+    public static function getDefaultValue()
+    {
+
+        $itilcategories_id = 0;
+
+        $preference = new Preference();
+        if (!$preference->getFromDB(Session::getLoginUserID())) {
+            $preference->initPreferences(Session::getLoginUserID());
+        }
+        $preference->getFromDB(Session::getLoginUserID());
+        $preferences = $preference->fields;
+        if (isset($preferences['prefered_category'])) {
+            if ($preferences['prefered_category'] > 0) {
+                $itilcategories_id = $preferences['prefered_category'];
+            }
+        }
+
+        return $itilcategories_id;
+    }
+
+    /**
+     * @param array $opt
+     *
+     * @return array<int, array{label: string, values: array<int, string>}>
+     */
+    public static function getDisplayValue($opt): array
+    {
+        if ($opt[self::$criteria_name] != 0) {
+            return [[
+                'label'  => __("Category", 'mydashboard'),
+                'values' => [(string) Dropdown::getDropdownName(
+                    'glpi_itilcategories',
+                    $opt[self::$criteria_name],
+                )],
+            ]];
+        }
+
+        return [];
+    }
+
+    public static function getDisplayForm($default, $opt, $count)
+    {
+
+        if (isset($opt['entities_id'])) {
+            // $opt mirrors the widget parameters posted to ajax/refreshWidget.php and
+            // getEntitiesRestrictCriteria() trusts its $value argument as is, so the
+            // requested entity is validated against the session first.
+            $restrict = getEntitiesRestrictCriteria(
+                'glpi_entities',
+                '',
+                Entity::getAllowedEntity($opt['entities_id']),
+                $opt['is_recursive_entities'] ?? false,
+            );
+        } else {
+            $restrict = [];
+        }
+
+        $params = [
+            'name' => 'itilcategories_id',
+            'value' => $opt['itilcategories_id'] ?? $default['itilcategories_id'],
+            'condition' => ['OR' => ['is_request' => 1, 'is_incident' => 1]],
+        ] + $restrict;
+
+        return Criteria::getFieldHtml(__('Category', 'mydashboard'), $count, [\ITILCategory::class, 'dropdown'], [$params]);
+    }
+
+    public static function getQueryCriteria($params)
+    {
+
+        return $params['query']['WHERE'] + ['glpi_tickets.' . self::$criteria_name => $params[self::$criteria_name]];
+    }
+
+    public static function getSearchCriteria($params, $value = 0)
+    {
+
+        $searchtype = 'equals';
+        if (empty($params["params"][self::$criteria_name])) {
+            $params["params"][self::$criteria_name] = '^$';
+            $searchtype = 'contains';
+        }
+        return Criteria::addUrlCriteria(self::$criteria_number, $searchtype, $params["params"][self::$criteria_name], 'AND');
+    }
+}

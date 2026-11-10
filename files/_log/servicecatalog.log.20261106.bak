@@ -1,0 +1,141 @@
+2026-11-05 09:05:08 [11@dbhqitmuatappsrv]
+Saving Ticket 218. Custom Data: Array
+(
+    [Type] => new
+    [new] => wwwwwwwww
+)
+
+2026-11-05 09:06:42 [11@dbhqitmuatappsrv]
+Saving Ticket 219. Custom Data: Array
+(
+    [Branch / Department Name:] => 958
+    [Employee Name] => 5
+    [Position] => 2
+    [Employee_ Mobile No] => 1233
+    [ Request for] => Office 365 E1/Teams/Yammer
+    [Request Type ] => enable
+    [Enable Reason] => fgfr
+)
+
+2026-11-05 09:22:40 [11@dbhqitmuatappsrv]
+Saving Ticket 220. Custom Data: Array
+(
+    [Type] => new
+    [new] => dfdf
+)
+
+2026-11-05 09:23:50 [11@dbhqitmuatappsrv]
+Saving Ticket 221. Custom Data: Array
+(
+    [Branch / Department Name:] => 1159
+    [Employee Name] => 18
+    [Position] => 17
+    [Employee_ Mobile No] => fggf
+    [ Request for] => Office 365 E1/Teams/Yammer
+    [Request Type ] => disable
+    [Disable Reason] => dddddddd
+)
+
+2026-11-05 10:24:18 [11@dbhqitmuatappsrv]
+Saving Ticket 222. Custom Data: Array
+(
+    [Branch / Department Name:] => 958
+    [Employee Name] => 5
+    [Position] => 1
+    [Employee_ Mobile No] => 912654322
+    [ Request for] => Office 365 E1/Teams/Yammer
+    [Request Type ] => disable
+    [Disable Reason] => Employee Absent
+)
+
+2026-11-05 11:23:06 [2@dbhqitmuatappsrv]
+Saving Ticket 223. Custom Data: Array
+(
+    [Department] => 958
+    [User] => 5
+    [purpose] => Test
+    [Request Type] => update
+    [Update Reason] => uuuuuu
+)
+
+2026-11-05 11:25:28 [2@dbhqitmuatappsrv]
+Saving Ticket 224. Custom Data: Array
+(
+    [Type] => new
+    [new] => New Request
+)
+
+2026-11-05 11:26:48 [2@dbhqitmuatappsrv]
+Saving Ticket 225. Custom Data: Array
+(
+    [Request Type] => change
+    [loan amount] => 6567
+    [loan owner] => 5
+)
+
+2026-11-05 11:27:32 [2@dbhqitmuatappsrv]
+Saving Ticket 226. Custom Data: Array
+(
+    [Branch / Department Name:] => 
+    [Employee Name] => 
+    [Position] => 
+    [Employee_ Mobile No] => 
+    [ Request for] => 
+    [Request Type ] => 
+)
+
+2026-11-05 12:10:56 [2@dbhqitmuatappsrv]
+Saving Ticket 227. Custom Data: Array
+(
+    [Request Type] => change
+    [loan amount] => 454
+    [loan owner] => 5
+)
+
+2026-11-05 12:12:19 [2@dbhqitmuatappsrv]
+Saving Ticket 228. Custom Data: Array
+(
+    [Type] => new
+    [new] => nn
+)
+
+2026-11-05 13:42:05 [2@dbhqitmuatappsrv]
+Saving Ticket 229. Custom Data: Array
+(
+    [Request Type] => change
+    [loan amount] => 65655757
+    [loan owner] => 4
+)
+
+2026-11-05 14:00:24 [2@dbhqitmuatappsrv]
+Saving Ticket 230. Custom Data: Array
+(
+    [Request Type] => change
+    [loan amount] => 654
+    [loan owner] => 5
+)
+
+2026-11-05 14:41:20 [11@dbhqitmuatappsrv]
+Saving Ticket 231. Custom Data: Array
+(
+    [Request Type] => enable
+    [Type] => 21
+)
+
+2026-11-05 14:44:04 [11@dbhqitmuatappsrv]
+Saving Ticket 232. Custom Data: Array
+(
+    [Department] => 958
+    [User] => 5
+    [purpose] => 12344
+    [Request Type] => update
+    [Update Reason] => 
+)
+
+2026-11-05 14:45:05 [11@dbhqitmuatappsrv]
+Saving Ticket 233. Custom Data: Array
+(
+    [Type] => new
+    [new] => ggg
+)
+

@@ -1,0 +1,47 @@
+{#
+ # -------------------------------------------------------------------------
+ # metademands plugin for GLPI
+ # Copyright (C) 2018-2026 by the metademands Development Team.
+ #
+ # https://github.com/InfotelGLPI/metademands
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of metademands.
+ #
+ # metademands is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # metademands is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{#- Whole "my devices" picker of a metademand field: the requester's own devices,
+ #  then the ones their groups hold.
+ #
+ #  Expected context:
+ #    sections : list of {title, separator, items, empty_message} kept in display order
+ #    alert    : 'on' to light the mandatory-field warning up, 'off' to switch it off,
+ #               '' to leave it as the caller rendered it
+-#}
+<div class="container" style="display:contents;" data-metademands-devices data-metademands-alert="{{ alert }}">
+    <div class="row" data-toggle="buttons" style="margin-left: 1px;">
+        {% for section in sections %}
+            {% if section.separator %}<br>{% endif %}
+            <span data-toggle="buttons" style="margin-bottom: 15px;">
+                <h5>{{ section.title }}</h5>
+                {% include '@metademands/fields/field_dropdownmeta_device.html.twig' with {'items': section.items} only %}
+                {%- if section.empty_message is not empty %}{{ section.empty_message }}{% endif -%}
+            </span>
+        {% endfor %}
+    </div>
+</div>

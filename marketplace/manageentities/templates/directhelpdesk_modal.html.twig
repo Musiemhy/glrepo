@@ -1,0 +1,117 @@
+{#
+ # -------------------------------------------------------------------------
+ # manageentities plugin for GLPI
+ # Copyright (C) 2017-2026 by the manageentities Development Team.
+ #
+ # https://github.com/InfotelGLPI/manageentities
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of manageentities.
+ #
+ # manageentities is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # manageentities is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with manageentities. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{% import 'components/form/basic_inputs_macros.html.twig' as _inputs %}
+
+<form action="{{ form_url }}" method="post">
+    <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token() }}">
+    {# The entity refreshes the contract alert: public/scripts/directhelpdesk-modal.js #}
+    <div class="modal" tabindex="-1" id="directhelpdesk-modal" data-me-entity-alert="{{ alert_url }}">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="ti ti-file-euro me-2"></i>
+                        {{ __('Add an unbilled intervention', 'manageentities') }}
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"
+                            aria-label="{{ __('Close') }}"></button>
+                </div>
+                <div class="modal-body">
+                    <table class="tab_cadre">
+                        <tr class="tab_bg_1">
+                            <td>{{ 'Entity'|itemtype_name }} <span class="red">*</span></td>
+                            <td>
+                                {{ 'Entity'|itemtype_dropdown({
+                                    'name': 'entities_id',
+                                    'on_change': change_event_js,
+                                }) }}
+                            </td>
+                        </tr>
+                        <span id="entity_alert">
+                            {% if no_days_left %}
+                                {{ include('@manageentities/contract_no_days_alert.html.twig') }}
+                            {% endif %}
+                        </span>
+                        <tr class="tab_bg_1">
+                            <td>{{ __('Title') }} <span class="red">*</span></td>
+                            <td>
+                                {{ 'ITILCategory'|itemtype_dropdown({
+                                    'name': 'name',
+                                    'condition': {
+                                        'OR': {
+                                            'is_incident': 1,
+                                            'is_request': 1,
+                                        },
+                                    },
+                                }) }}
+                            </td>
+                        </tr>
+                        <tr class="tab_bg_1">
+                            <td>{{ __('Description') }} </td>
+                            <td colspan="4">{{ _inputs.textarea('comment', '', {'rows': 10}) }}</td>
+                        </tr>
+                        <tr class="tab_bg_1">
+                            <td>{{ __('Date') }} <span class="red">*</span></td>
+                            <td>{{ _inputs.date('date', date, {'maybeempty': true}) }}</td>
+                        </tr>
+                        <tr class="tab_bg_1">
+                            <td>
+                                <i class="ti ti-clock-stop me-1" title="{{ __('Duration') }}"> </i>
+                                <span class="red">*</span>
+                            </td>
+                            <td>
+                                {% do call('Dropdown::showTimeStamp', ['actiontime', {
+                                    'min': 0,
+                                    'max': duration_max,
+                                }]) %}
+                            </td>
+                        </tr>
+                        <tr class="tab_bg_1">
+                            <td><i class="ti ti-ticket me-1" title="{{ __('Linked ticket') }}"></i></td>
+                            <td>
+                                {# TODO only opened tickets for selected entity #}
+                                {{ 'Ticket'|itemtype_dropdown({
+                                    'name': 'tickets_id',
+                                    'displaywith': ['id'],
+                                }) }}
+                            </td>
+                        </tr>
+                        <tr class="tab_bg_1 center">
+                            <td>
+                                <input type="hidden" name="users_id" value="{{ users_id }}">
+                                <button type="submit" name="add" class="btn btn-primary">
+                                    {{ _x('button', 'Post') }}
+                                </button>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>

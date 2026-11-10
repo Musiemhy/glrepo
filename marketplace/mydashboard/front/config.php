@@ -1,0 +1,51 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * mydashboard plugin for GLPI
+ * Copyright (C) 2016-2026 by the mydashboard Development Team.
+ *
+ * https://github.com/InfotelGLPI/mydashboard
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of mydashboard.
+ *
+ * mydashboard is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * mydashboard is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with mydashboard. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use Glpi\Application\View\TemplateRenderer;
+use Glpi\Exception\Http\AccessDeniedHttpException;
+
+global $CFG_GLPI;
+
+if (Plugin::isPluginActive("mydashboard")) {
+    if (Session::haveRight("plugin_mydashboard_config", UPDATE)) {
+
+        Html::redirect(PLUGIN_MYDASHBOARD_WEBDIR . "/front/config.form.php");
+
+    } else {
+        throw new AccessDeniedHttpException();
+    }
+
+} else {
+    Html::header(__s('Setup'), '', "config", "plugin");
+    TemplateRenderer::getInstance()->display('@mydashboard/plugin_inactive.html.twig', [
+        'message' => __('Please activate the plugin', 'mydashboard'),
+    ]);
+    Html::footer();
+
+}

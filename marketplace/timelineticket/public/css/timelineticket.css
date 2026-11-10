@@ -1,0 +1,220 @@
+/*!
+ * -------------------------------------------------------------------------
+ * TimelineTicket
+ * Copyright (C) 2013-2026 by the TimelineTicket Development Team.
+ *
+ * https://github.com/pluginsGLPI/timelineticket
+ * ------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of TimelineTicket project.
+ *
+ * TimelineTicket plugin is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * TimelineTicket plugin is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with TimelineTicket plugin. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * ------------------------------------------------------------------------
+ *
+ * @copyright Copyright (C) 2013-2025 TimelineTicket team
+ * @license   AGPL License 3.0 or (at your option) any later version
+ * @link      https://github.com/pluginsGLPI/timelineticket
+ * @package   TimelineTicket plugin
+ * @since     2013
+ *            http://www.gnu.org/licenses/agpl-3.0-standalone.html
+ * --------------------------------------------------------------------------
+ */
+
+/* ── Swimlane toolbar ────────────────────────────────────────────────────── */
+
+.tt-toolbar {
+    display: flex;
+    gap: .4rem;
+    flex-wrap: wrap;
+}
+
+.tt-toolbar .tt-filter-btn {
+    font-size: .75rem;
+    padding: .25rem .6rem;
+}
+
+/* ── Swimlane diagram ────────────────────────────────────────────────────── */
+
+.tt-swimlane-wrap {
+    position: relative;
+}
+
+.tt-swimlane {
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    overflow: visible;
+    font-size: .8rem;
+}
+
+.tt-lane {
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid #ccc;
+    min-height: 100px;
+}
+
+.tt-lane:last-child {
+    border-bottom: none;
+}
+
+.tt-lane-hdr {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 130px;
+    min-width: 130px;
+    padding: 8px 6px;
+    text-align: center;
+    color: #fff;
+    font-weight: 700;
+    font-size: .7rem;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+}
+
+.tt-lane-body {
+    flex: 1;
+    padding: 8px 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 50px;
+    align-items: flex-start;
+}
+
+.tt-card {
+    position: relative;
+    background: #fff;
+    border: 1px solid #bbb;
+    border-radius: 3px;
+    padding: 5px 8px;
+    font-size: .72rem;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .08);
+    min-width: 110px;
+    max-width: 170px;
+}
+
+.tt-card .tt-card-type {
+    font-size: .6rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin-bottom: 2px;
+}
+
+.tt-card .tt-card-name {
+    font-weight: 600;
+    color: #333;
+    word-break: break-word;
+}
+
+.tt-card .tt-card-date {
+    font-size: .6rem;
+    color: #999;
+    margin-top: 2px;
+}
+
+.tt-card-group .tt-card-type {
+    color: #3a7bbf;
+}
+
+.tt-card-user .tt-card-type {
+    color: #e05555;
+}
+
+.tt-card-followup .tt-card-type {
+    color: #0891b2;
+}
+
+.tt-card-task .tt-card-type {
+    color: #b45309;
+}
+
+.tt-card-solution .tt-card-type {
+    color: #16a34a;
+}
+
+.tt-card-validation .tt-card-type {
+    color: #7c3aed;
+}
+
+.tt-card-private {
+    border-left: 3px solid #aaa;
+    opacity: .85;
+}
+
+.tt-card-private .tt-card-type::after {
+    content: ' 🔒';
+    font-size: .55rem;
+}
+
+.tt-card-excerpt {
+    font-size: .65rem;
+    color: #666;
+    margin-top: 2px;
+    font-style: italic;
+    word-break: break-word;
+}
+
+.tt-lane-empty {
+    color: #000;
+    font-style: italic;
+    font-size: .72rem;
+    align-self: center;
+}
+
+.tt-arrows {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: visible;
+}
+
+/*
+ * Google Charts resolves its drawing modules from www.gstatic.com when a chart is drawn.
+ * On an instance with no outbound access, or under a strict script-src content security
+ * policy, the container simply stays empty and the tab used to show nothing at all, with
+ * no way for the user to tell a plugin failure from a ticket without history.
+ * The notice below is out of the flow and invisible, and only surfaces once the modules
+ * have had time to arrive; a drawn chart injects an <svg>, which removes it outright.
+ */
+.tt-chart {
+    position: relative;
+    min-height: 2rem;
+}
+
+.tt-chart-fallback {
+    position: absolute;
+    inset: 0 0 auto 0;
+    margin: 0;
+    opacity: 0;
+    visibility: hidden;
+    animation: tt-chart-fallback-reveal 0s linear 5s forwards;
+}
+
+@keyframes tt-chart-fallback-reveal {
+    to {
+        opacity: 1;
+        visibility: visible;
+    }
+}
+
+.tt-chart:has(svg) .tt-chart-fallback {
+    display: none;
+}

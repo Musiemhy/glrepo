@@ -1,0 +1,479 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * metademands plugin for GLPI
+ * Copyright (C) 2018-2026 by the metademands Development Team.
+ *
+ * https://github.com/InfotelGLPI/metademands
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of metademands.
+ *
+ * metademands is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * metademands is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Metademands;
+
+use CommonDBChild;
+use DBConnection;
+use DbUtils;
+use Glpi\Application\View\TemplateRenderer;
+use Glpi\DBAL\QueryExpression;
+use Group_User;
+use Migration;
+use Session;
+use CommonGLPI;
+use Toolbox;
+
+/**
+ * Class Group
+ */
+class Group extends CommonDBChild
+{
+    public static $rightname = 'plugin_metademands';
+
+    public static $itemtype = Metademand::class;
+    public static $items_id = 'plugin_metademands_metademands_id';
+
+    /**
+     * functions mandatory
+     * getTypeName(), canCreate(), canView()
+     *
+     * @param int $nb
+     *
+     * @return string
+     */
+    public static function getTypeName($nb = 0)
+    {
+        return __('Groups rights', 'metademands');
+    }
+
+    /**
+     * @return bool|int
+     */
+    public static function canView(): bool
+    {
+        return Session::haveRight(self::$rightname, READ);
+    }
+
+    /**
+     * @return bool
+     */
+    public static function canCreate(): bool
+    {
+        return Session::haveRightsOr(self::$rightname, [CREATE, UPDATE, DELETE]);
+    }
+
+
+    public static function getIcon()
+    {
+        return "ti ti-users";
+    }
+
+    public static function install(Migration $migration)
+    {
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+        $table  = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $query = "CREATE TABLE `$table` (
+                        `id` int {$default_key_sign} NOT NULL auto_increment,
+                        `entities_id`                       int {$default_key_sign} NOT NULL DEFAULT '0',
+                        `groups_id`                         int {$default_key_sign} NOT NULL DEFAULT '0',
+                        `plugin_metademands_metademands_id` int {$default_key_sign} NOT NULL DEFAULT '0',
+                        PRIMARY KEY (`id`),
+                        KEY (`plugin_metademands_metademands_id`),
+                        KEY `entities_id` (`entities_id`),
+                        KEY (`groups_id`)
+               ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
+
+            $DB->doQuery($query);
+        }
+
+        //version 3.3.0
+        if (!$DB->fieldExists($table, "entities_id")) {
+            $migration->addField($table, "entities_id", "int {$default_key_sign} NOT NULL DEFAULT '0'");
+            if (!isIndex($table, "entities_id")) {
+                $migration->addKey($table, "entities_id");
+            }
+            $migration->migrationOneTable($table);
+        }
+    }
+
+    public static function uninstall()
+    {
+        global $DB;
+
+        $DB->dropTable(self::getTable(), true);
+    }
+
+
+    /**
+     * Display tab for each users
+     *
+     * @param CommonGLPI $item
+     * @param int $withtemplate
+     * @return array|string
+     */
+    public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0)
+    {
+
+        $dbu = new DbUtils();
+        if ($item->getType() == Metademand::class) {
+            if ($_SESSION['glpishow_count_on_tabs']) {
+                return self::createTabEntry(
+                    self::getTypeName(),
+                    $dbu->countElementsInTable(
+                        $this->getTable(),
+                        ["plugin_metademands_metademands_id" => $item->getID()],
+                    ),
+                );
+            }
+            return self::getTypeName();
+        }
+        return '';
+    }
+
+    /**
+     * Display content for each users
+     *
+     * @static
+     * @param CommonGLPI $item
+     * @param int $tabnum
+     * @param int $withtemplate
+     * @return bool|true
+     */
+    public static function displayTabContentForItem(CommonGLPI $item, $tabnum = 1, $withtemplate = 0)
+    {
+        $field = new self();
+
+        if ($item->getType() == Metademand::class) {
+            $field->showConfigForMetademand($item);
+            $field->showForMetademand($item);
+        }
+        return true;
+    }
+
+    /**
+     * Get request criteria to search for an item
+     *
+     * @param string $itemtype Item type
+     * @param integer $items_id Item ID
+     *
+     * @return array|null
+     **@since 9.4
+     *
+     */
+    public static function getSQLCriteriaToSearchForItem($itemtype, $items_id)
+    {
+        $table = static::getTable();
+
+        $criteria = [
+            'SELECT' => [
+                static::getIndexName(),
+                'plugin_metademands_metademands_id AS items_id',
+            ],
+            'FROM' => $table,
+            'WHERE' => [
+                $table . '.' . 'plugin_metademands_metademands_id' => $items_id,
+            ],
+        ];
+
+        // Check item 1 type
+        $request = false;
+        if (preg_match('/^itemtype/', static::$itemtype)) {
+            $criteria['SELECT'][] = static::$itemtype . ' AS itemtype';
+            $criteria['WHERE'][$table . '.' . static::$itemtype] = $itemtype;
+            $request = true;
+        } else {
+            $criteria['SELECT'][] = new QueryExpression("'" . static::$itemtype . "' AS itemtype");
+            if (($itemtype == static::$itemtype)
+                || is_subclass_of($itemtype, static::$itemtype)
+            ) {
+                $request = true;
+            }
+        }
+        if ($request === true) {
+            return $criteria;
+        }
+        return null;
+    }
+
+
+    /**
+     * @param $item
+     *
+     * @return bool
+     */
+    public function showConfigForMetademand($item)
+    {
+
+        $groupconfig = new GroupConfig();
+
+        if (!$groupconfig->getFromDBByCrit(['plugin_metademands_metademands_id' => $item->fields['id']])) {
+            $groupconfig->getEmpty();
+        }
+
+        $visibility = [
+            0 => __('Only these groups', 'metademands'),
+            1 => __('All groups and not these groups', 'metademands'),
+        ];
+
+        TemplateRenderer::getInstance()->display('@metademands/group_config.html.twig', [
+            'action'           => Toolbox::getItemTypeFormURL(Group::class),
+            'metademand_id'    => $item->fields['id'],
+            'visibility'       => $visibility,
+            'visibility_value' => $groupconfig->fields['visibility'],
+        ]);
+    }
+
+    /**
+     * @param $item
+     *
+     * @return bool
+     */
+    public function showForMetademand($item)
+    {
+
+        if (!$this->canView()) {
+            return false;
+        }
+        if (!$this->canCreate()) {
+            return false;
+        }
+        $config = Config::getInstance();
+        $used_groups = [];
+
+        $dataMetademandGroup = $this->find(['plugin_metademands_metademands_id' => $item->fields['id']]);
+
+        $meta = new Metademand();
+        $canedit = $meta->can($item->fields['id'], UPDATE);
+
+        if ($dataMetademandGroup) {
+            foreach ($dataMetademandGroup as $field) {
+                $used_groups[] = $field['groups_id'];
+            }
+        }
+
+        $groups = [];
+        $group = new \Group();
+        $condition = [];
+        $config = new Config();
+        $config->getFromDB(1);
+        $dbu = new DbUtils();
+        $condition += $dbu->getEntitiesRestrictCriteria($group->getTable(), '', '', $group->maybeRecursive());
+        $dataGroup = $group->find($condition, 'name');
+        if ($dataGroup) {
+            foreach ($dataGroup as $field) {
+                $groups[$field['id']] = $field['completename'];
+            }
+        }
+
+        $groups_items = [];
+        if ($dataMetademandGroup) {
+            foreach ($dataMetademandGroup as $field) {
+                $group = new \Group();
+                $group->getFromDB($field['groups_id']);
+                $groups_items[] = [
+                    'id'   => $field['id'],
+                    'link' => $group->getLink(),
+                ];
+            }
+        }
+
+        TemplateRenderer::getInstance()->display('@metademands/group.html.twig', [
+            'action'               => Toolbox::getItemTypeFormURL(Group::class),
+            'metademand_id'        => $item->fields['id'],
+            'canedit'              => $canedit,
+            'groups'               => $groups,
+            'used_groups'          => $used_groups,
+            'add_groups_with_regex' => (bool) $config->fields['add_groups_with_regex'],
+            'groups_items'         => $groups_items,
+            'itemtype'             => static::class,
+        ]);
+    }
+
+
+    /**
+     * @param $metademands_id
+     *
+     * @return bool
+     */
+    public static function isUserHaveRight($metademands_id)
+    {
+        $dbu = new DbUtils();
+
+        $groupconfig = new GroupConfig();
+
+        $visibility = 0;
+        if ($groupconfig->getFromDBByCrit(['plugin_metademands_metademands_id' => $metademands_id])) {
+            $visibility = $groupconfig->fields['visibility'];
+        }
+
+        // Get metademand groups
+        $metademands_groups_data = $dbu->getAllDataFromTable(
+            'glpi_plugin_metademands_groups',
+            ['`plugin_metademands_metademands_id`' => $metademands_id],
+        );
+
+        if (!empty($metademands_groups_data)) {
+            $metademands_groups_id = [];
+            foreach ($metademands_groups_data as $groups) {
+                $metademands_groups_id[] = $groups['groups_id'];
+            }
+
+            // Is the user allowed with his groups ?
+            $group_user_data = Group_User::getUserGroups(Session::getLoginUserID());
+
+            if ($visibility == 0) {
+                foreach ($group_user_data as $groups) {
+                    if (in_array($groups['id'], $metademands_groups_id)) {
+                        return true;
+                    }
+                }
+                return false;
+            } else {
+                foreach ($group_user_data as $groups) {
+                    if (in_array($groups['id'], $metademands_groups_id)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            return false;
+        }
+
+        // No restrictions if no group was added in metademand
+        return true;
+    }
+
+    /**
+     * @return array
+     */
+    public function rawSearchOptions()
+    {
+
+        $tab = [];
+
+        $tab[] = [
+            'id' => 'common',
+            'name' => self::getTypeName(1),
+        ];
+
+        $tab[] = [
+            'id' => '1',
+            'table' => $this->getTable(),
+            'field' => 'name',
+            'name' => __('Name'),
+            'datatype' => 'itemlink',
+            'itemlink_type' => $this->getType(),
+        ];
+
+        $tab[] = [
+            'id' => '30',
+            'table' => $this->getTable(),
+            'field' => 'id',
+            'name' => __('ID'),
+            'datatype' => 'number',
+        ];
+
+        $tab[] = [
+            'id' => '92',
+            'table' => 'glpi_groups',
+            'field' => 'name',
+            'name' => __('Group'),
+            'datatype' => 'dropdown',
+        ];
+
+        return $tab;
+    }
+
+    /**
+     * @param array $input
+     *
+     * @return array|bool
+     */
+    public function prepareInputForAdd($input)
+    {
+        if (!$this->checkMandatoryFields($input)) {
+            return false;
+        }
+
+        return $input;
+    }
+
+    /**
+     * @param array $input
+     *
+     * @return array|bool
+     */
+    public function prepareInputForUpdate($input)
+    {
+        if (!$this->checkMandatoryFields($input)) {
+            return false;
+        }
+
+        return $input;
+    }
+
+    /**
+     * @param $input
+     *
+     * @return bool
+     */
+    public function checkMandatoryFields($input)
+    {
+        $msg = [];
+        $checkKo = false;
+
+        $mandatory_fields = ['groups_id' => __('Group')];
+
+        foreach ($input as $key => $value) {
+            if (array_key_exists($key, $mandatory_fields)) {
+                if (empty($value)) {
+                    $msg[] = $mandatory_fields[$key];
+                    $checkKo = true;
+                }
+            }
+        }
+
+        if ($checkKo) {
+            Session::addMessageAfterRedirect(sprintf(__("Mandatory fields are not filled. Please correct: %s"), implode(', ', $msg)), false, ERROR);
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * @return array
+     */
+    public function getForbiddenStandardMassiveAction()
+    {
+        $forbidden = parent::getForbiddenStandardMassiveAction();
+
+        $forbidden[] = 'update';
+        $forbidden[] = 'clone';
+        $forbidden[] = 'add_transfer_list';
+        return $forbidden;
+    }
+}

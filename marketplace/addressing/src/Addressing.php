@@ -1,0 +1,1119 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * addressing plugin for GLPI
+ * Copyright (C) 2016-2026 by the addressing Development Team.
+ *
+ * https://github.com/pluginsGLPI/addressing
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of addressing.
+ *
+ * addressing is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * addressing is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with addressing. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Addressing;
+
+use CommonDBTM;
+use CommonGLPI;
+use DbUtils;
+use Dropdown;
+use FQDN;
+use Glpi\Application\View\TemplateRenderer;
+use Glpi\DBAL\QueryExpression;
+use Glpi\DBAL\QuerySubQuery;
+use Glpi\DBAL\QueryUnion;
+use Html;
+use MassiveAction;
+use NetworkEquipment;
+use Session;
+use Toolbox;
+use Vlan;
+
+/**
+ * Class Addressing
+ */
+class Addressing extends CommonDBTM
+{
+    public static $rightname = "plugin_addressing";
+
+    public static $types = [
+        'Computer', 'NetworkEquipment', 'Peripheral', 'Phone', 'Printer', 'Enclosure', 'PDU', 'Cluster'];
+    public $dohistory = true;
+
+    /**
+     * Largest number of addresses an addressing range may span.
+     *
+     * compute() materialises one PHP array entry per address of the range before it
+     * even queries the database, and the ping scan sends one ICMP probe per address:
+     * the cost of a range is strictly linear in its size. Without an upper bound, any
+     * user holding the plugin's CREATE right could store 0.0.0.0 - 255.255.255.255
+     * (4.29 billion entries) and exhaust the memory of the host.
+     * 65536 is a /16, well above any realistic addressing plan.
+     */
+    public const MAX_RANGE_SIZE = 65536;
+
+    public static function getTypeName($nb = 0)
+    {
+        return _n('IP Addressing', 'IP Addressing', $nb, 'addressing');
+    }
+
+    public static function getIcon()
+    {
+        return "ti ti-map-pin";
+    }
+
+    /**
+     * Actions done when item is deleted from the database
+     *
+     * @return nothing
+     **/
+    public function cleanDBonPurge()
+    {
+        $temp1 = new PingInfo();
+        $temp1->deleteByCriteria(['plugin_addressing_addressings_id' => $this->fields['id']]);
+        $temp2 = new Filter();
+        $temp2->deleteByCriteria(['plugin_addressing_addressings_id' => $this->fields['id']]);
+        // IpComment carries the same plugin_addressing_addressings_id foreign key as the
+        // two tables above (rows are created by ajax/ipcomment.php): purge it too, otherwise
+        // free text annotations survive the range and resurface on a later range that gets
+        // the same auto increment id, possibly in another entity.
+        $temp3 = new IpComment();
+        $temp3->deleteByCriteria(['plugin_addressing_addressings_id' => $this->fields['id']]);
+    }
+
+    /**
+     * Whether the given IPv4 address falls within this range (begin_ip..end_ip).
+     *
+     * Comparison is done on unsigned 32-bit values so it stays correct above
+     * 127.255.255.255. Returns false for IPv6 or malformed input (fail-closed):
+     * an IPv4 range can never legitimately contain such an address anyway.
+     *
+     * @param string $ip IP already validated by FILTER_VALIDATE_IP.
+     */
+    public function containsIp(string $ip): bool
+    {
+        $ip_long    = ip2long($ip);
+        $begin_long = ip2long((string) ($this->fields['begin_ip'] ?? ''));
+        $end_long   = ip2long((string) ($this->fields['end_ip'] ?? ''));
+
+        if ($ip_long === false || $begin_long === false || $end_long === false) {
+            return false;
+        }
+
+        $ip_u    = (int) sprintf('%u', $ip_long);
+        $begin_u = (int) sprintf('%u', $begin_long);
+        $end_u   = (int) sprintf('%u', $end_long);
+
+        return $ip_u >= $begin_u && $ip_u <= $end_u;
+    }
+
+    /**
+     * Whether the given IP belongs to at least one addressing range the current
+     * user may READ (entity perimeter included).
+     *
+     * Used to constrain the server-side ping so a caller-supplied address cannot
+     * turn the endpoint into an arbitrary internal-network scan oracle: only IPs
+     * inside a range the user is allowed to see may be probed.
+     *
+     * @param string $ip IP already validated by FILTER_VALIDATE_IP.
+     */
+    public static function isIpInReadableRange(string $ip): bool
+    {
+        return self::findReadableRangeForIp($ip) instanceof self;
+    }
+
+    /**
+     * Return a range the caller may READ that contains this address, if there is one.
+     *
+     * The ping switch is carried by the range, so the callers deciding whether to probe an
+     * address need the range itself and not only the fact that one exists.
+     *
+     * @param string $ip address to look for
+     **/
+    public static function findReadableRangeForIp(string $ip): ?self
+    {
+        if (!Session::haveRight(self::$rightname, READ)) {
+            return null;
+        }
+
+        $range = new self();
+        foreach ($range->find(getEntitiesRestrictCriteria(self::getTable())) as $row) {
+            $range->fields = $row;
+            if ($range->containsIp($ip)) {
+                return $range;
+            }
+        }
+
+        return null;
+    }
+
+    public function rawSearchOptions()
+    {
+        $tab[] = [
+            'id' => 'common',
+            'name' => self::getTypeName(2),
+        ];
+
+        $tab[] = [
+            'id' => '2',
+            'table' => 'glpi_networks',
+            'field' => 'name',
+            'name' => _n('Network', 'Networks', 2),
+            'datatype' => 'dropdown',
+        ];
+
+        $tab[] = [
+            'id' => '3',
+            'table' => $this->getTable(),
+            'field' => 'comment',
+            'name' => __('Comments'),
+            'datatype' => 'text',
+        ];
+
+        $tab[] = [
+            'id' => '4',
+            'table' => $this->getTable(),
+            'field' => 'use_ping',
+            'name' => __('Ping free IP', 'addressing'),
+            'datatype' => 'bool',
+        ];
+
+        $tab[] = [
+            'id' => '5',
+            'table' => 'glpi_locations',
+            'field' => 'name',
+            'name' => __('Location'),
+            'datatype' => 'dropdown',
+        ];
+
+        $tab[] = [
+            'id' => '6',
+            'table' => 'glpi_fqdns',
+            'field' => 'name',
+            'name' => FQDN::getTypeName(1),
+            'datatype' => 'dropdown',
+        ];
+
+        $tab[] = [
+            'id' => '7',
+            'table' => 'glpi_vlans',
+            'field' => 'name',
+            'name' => Vlan::getTypeName(1),
+            'datatype' => 'dropdown',
+        ];
+
+        $tab[] = [
+            'id' => '30',
+            'table' => $this->getTable(),
+            'field' => 'id',
+            'name' => __('ID'),
+            'datatype' => 'number',
+        ];
+
+        $tab[] = [
+            'id' => '80',
+            'table' => 'glpi_entities',
+            'field' => 'completename',
+            'name' => __('Entity'),
+            'datatype' => 'dropdown',
+        ];
+
+        $tab[] = [
+            'id' => '100',
+            'table' => $this->getTable(),
+            'field' => 'begin_ip',
+            'name' => __('First IP', 'addressing'),
+            'massiveaction' => false,
+        ];
+
+        $tab[] = [
+            'id' => '101',
+            'table' => $this->getTable(),
+            'field' => 'end_ip',
+            'name' => __('Last IP', 'addressing'),
+            'massiveaction' => false,
+        ];
+
+        $tab[] = [
+            'id' => '1',
+            'table' => $this->getTable(),
+            'field' => 'name',
+            'name' => __('Name'),
+            'datatype' => 'itemlink',
+            'massiveaction' => false,
+        ];
+
+        return $tab;
+    }
+
+
+    public function defineTabs($options = [])
+    {
+        $ong = [];
+        $this->addDefaultFormTab($ong);
+        $this->addStandardTab(__CLASS__, $ong, $options);
+        $this->addStandardTab(Filter::class, $ong, $options);
+        $this->addStandardTab('Log', $ong, $options);
+        return $ong;
+    }
+
+
+    /**
+     * @return string
+     */
+    public function getTitle()
+    {
+        return __('Report for the IP Range', 'addressing') . " " . $this->fields["begin_ip"] . " "
+            . __('to') . " " . $this->fields["end_ip"];
+    }
+
+
+    public function post_getEmpty()
+    {
+        $this->fields['alloted_ip'] = 1;
+        $this->fields['free_ip'] = 1;
+        $this->fields['reserved_ip'] = 1;
+        $this->fields['double_ip'] = 1;
+    }
+
+    public function showForm($ID, $options = [])
+    {
+
+        $this->initForm($ID, $options);
+        $config = new Config();
+        $config->getFromDB('1');
+
+        TemplateRenderer::getInstance()->display('@addressing/addressing.html.twig', [
+            'item' => $this,
+            'params' => $options,
+            'config'  => $config,
+        ]);
+
+        return true;
+    }
+
+
+    /**
+     * Check if IP is valid
+     *
+     * @param array<string,mixed> $a_input array of IPs
+     * @return bool
+     */
+    public function checkip($a_input)
+    {
+
+        $count = 0;
+        foreach ($a_input as $num => $value) {
+
+            if (strstr($num, "begin_ip")) {
+                if ($value > 255 || !is_numeric($value) || strstr($value, ".")) {
+                    $count++;
+                }
+            }
+            if (strstr($num, "end_ip")) {
+                if ($value > 255 || !is_numeric($value) || strstr($value, ".")) {
+                    $count++;
+                }
+            }
+        }
+
+        if ($count == '0') {
+            return true;
+        } else {
+            // The raw octets are attacker-controlled ($_POST) and rendered through
+            // Session::addMessageAfterRedirect(), which outputs its message as raw HTML.
+            // Escape them so an invalid-IP submission cannot inject markup/script into the
+            // error message shown after redirect (reflected XSS).
+            Session::addMessageAfterRedirect("<span color='#ff0000'>" . __('Invalid data !!', 'addressing')
+                . "</span><br/>"
+                . __('First IP', 'addressing') . " : "
+                . htmlspecialchars((string) ($a_input['begin_ip0'] ?? ''), ENT_QUOTES, 'UTF-8') . "."
+                . htmlspecialchars((string) ($a_input['begin_ip1'] ?? ''), ENT_QUOTES, 'UTF-8') . "."
+                . htmlspecialchars((string) ($a_input['begin_ip2'] ?? ''), ENT_QUOTES, 'UTF-8') . "."
+                . htmlspecialchars((string) ($a_input['begin_ip3'] ?? ''), ENT_QUOTES, 'UTF-8') . "<br/>"
+                . __('Last IP', 'addressing') . " : "
+                . htmlspecialchars((string) ($a_input['end_ip0'] ?? ''), ENT_QUOTES, 'UTF-8') . "."
+                . htmlspecialchars((string) ($a_input['end_ip1'] ?? ''), ENT_QUOTES, 'UTF-8') . "."
+                . htmlspecialchars((string) ($a_input['end_ip2'] ?? ''), ENT_QUOTES, 'UTF-8') . "."
+                . htmlspecialchars((string) ($a_input['end_ip3'] ?? ''), ENT_QUOTES, 'UTF-8'), false, ERROR);
+            return false;
+        }
+    }
+
+
+    /**
+     * Validate the posted range boundaries.
+     *
+     * Complements checkip(), which only checks that each octet is a number <= 255 and
+     * therefore accepts both an inverted range and an arbitrarily wide one.
+     *
+     * @param array<string,mixed> $input
+     */
+    private function validateRange(array $input): bool
+    {
+        $has_begin = array_key_exists('begin_ip', $input);
+        $has_end   = array_key_exists('end_ip', $input);
+
+        if (!$has_begin && !$has_end) {
+            // Partial update (massive action, single field): boundaries left untouched.
+            return true;
+        }
+
+        // A partial update may carry a single boundary: complete it with the stored
+        // one so the pair is always validated as a whole.
+        $begin = ip2long((string) ($has_begin ? $input['begin_ip'] : ($this->fields['begin_ip'] ?? '')));
+        $end   = ip2long((string) ($has_end ? $input['end_ip'] : ($this->fields['end_ip'] ?? '')));
+
+        if ($begin === false || $end === false) {
+            Session::addMessageAfterRedirect(__('Invalid data !!', 'addressing'), false, ERROR);
+            return false;
+        }
+
+        // Compare as unsigned 32 bit values so the check stays correct above
+        // 127.255.255.255, where ip2long() yields a negative int.
+        $size = (int) sprintf('%u', $end) - (int) sprintf('%u', $begin) + 1;
+
+        if ($size <= 0) {
+            Session::addMessageAfterRedirect(
+                __('The last IP address must be greater than or equal to the first one', 'addressing'),
+                false,
+                ERROR,
+            );
+            return false;
+        }
+
+        if ($size > self::MAX_RANGE_SIZE) {
+            Session::addMessageAfterRedirect(
+                sprintf(
+                    __('The IP range is too wide: %d addresses at most', 'addressing'),
+                    self::MAX_RANGE_SIZE,
+                ),
+                false,
+                ERROR,
+            );
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Validate the posted target entity.
+     *
+     * check()/can() validate the LOADED row, not the posted value, and
+     * CommonDBTM::update() does not enforce entity access on a changed entities_id.
+     * Without this guard a user restricted to entity A could move one of their own
+     * ranges into an entity they have no access to (cross-entity write). The same
+     * guard already exists on the "transfer" massive action; validating it here
+     * covers every write path at once (form, datainjection, API).
+     *
+     * @param array<string,mixed> $input
+     */
+    private function validateEntity(array $input): bool
+    {
+        if (!isset($input['entities_id'])) {
+            return true;
+        }
+
+        $entities_id = (int) $input['entities_id'];
+
+        if (isset($this->fields['entities_id'])
+            && $entities_id === (int) $this->fields['entities_id']) {
+            return true;
+        }
+
+        if (!Session::haveAccessToEntity($entities_id)) {
+            Session::addMessageAfterRedirect(__('You are not allowed to do this action'), false, ERROR);
+            return false;
+        }
+
+        return true;
+    }
+
+    public function prepareInputForAdd($input)
+    {
+        if (!is_array($input)
+            || !$this->validateRange($input)
+            || !$this->validateEntity($input)) {
+            return false;
+        }
+        return $input;
+    }
+
+    public function prepareInputForUpdate($input)
+    {
+        if (!is_array($input)
+            || !$this->validateRange($input)
+            || !$this->validateEntity($input)) {
+            return false;
+        }
+        return $input;
+    }
+
+    /**
+     * @param       $start
+     * @param array $params
+     *
+     * @return array
+     * @throws \GlpitestSQLError
+     */
+    public function compute($start, $params = [])
+    {
+        global $DB;
+
+        // The parameters used to be turned into local variables by a variable-variable
+        // loop, so any key of the caller's array could create -- or silently overwrite --
+        // a local of this method, including the $where fragments, the $allowed_types
+        // whitelist and the $DB handle. Only four keys are actually understood here, and
+        // each one is normalised as it enters rather than further down, because $ipdeb
+        // and $ipfin are interpolated into a raw QueryExpression and $entities is
+        // concatenated into an SQL fragment by getEntitiesRestrictRequest().
+        $ipdeb = (int) ($params['ipdeb'] ?? 0);
+        $ipfin = (int) ($params['ipfin'] ?? 0);
+
+        $entities = null;
+        if (isset($params['entities'])) {
+            $entities = is_array($params['entities'])
+                ? array_map('intval', $params['entities'])
+                : (int) $params['entities'];
+        }
+
+        // Kept as a plain string, compared against the readable itemtypes below: an array
+        // or an object would reach in_array() and the SQL criteria untyped.
+        $type_filter = null;
+        if (isset($params['type_filter']) && is_scalar($params['type_filter'])) {
+            $type_filter = (string) $params['type_filter'];
+        }
+        // $start comes straight from the HTTP request and is used in the pagination
+        // arithmetic below: a non numeric value raises a TypeError on PHP 8 and a negative
+        // one walks the lower bound outside the declared range.
+        $start = max(0, (int) $start);
+
+        if (isset($_GET["export"])) {
+            // Keep the paginated window inside the stored range whatever the offset is.
+            $ipdeb = min($ipdeb + $start, $ipfin);
+            if ($ipdeb + $_SESSION["glpilist_limit"] <= $ipfin) {
+                $ipfin = $ipdeb + $_SESSION["glpilist_limit"] - 1;
+            }
+        }
+
+        // Defensive bound, mirroring the MAX_RANGE_SIZE check now enforced at write
+        // time: rows stored before that check existed may still span an arbitrary
+        // interval, and the loop below materialises one array entry per address of the
+        // range. Refuse to compute rather than exhaust the memory of the host.
+        if ($ipfin < $ipdeb || ($ipfin - $ipdeb + 1) > self::MAX_RANGE_SIZE) {
+            if (!isCommandLine()) {
+                Session::addMessageAfterRedirect(
+                    sprintf(
+                        __('The IP range is too wide: %d addresses at most', 'addressing'),
+                        self::MAX_RANGE_SIZE,
+                    ),
+                    false,
+                    ERROR,
+                );
+            }
+            return [];
+        }
+
+        $result = [];
+        for ($ip = $ipdeb; $ip <= $ipfin; $ip++) {
+            $result["IP" . $ip] = [];
+        }
+
+        $dbu = new DbUtils();
+        $subqueries = [];
+
+        // Collect only the itemtypes the caller may actually read. getTypes(true) returns
+        // every supported itemtype regardless of rights, which leaks the name, MAC address,
+        // port name and assigned user of assets the profile has no READ right on. An address
+        // carried by an unreadable itemtype stays counted as used, but without asset detail.
+        $allowed_types = self::getTypes();
+
+        $where = [
+            'glpi_ipaddresses.name'   => ['!=', ''],
+            'glpi_ipaddresses.version' => ['LIKE', 4],
+            new QueryExpression("INET_ATON(glpi_ipaddresses.name) BETWEEN $ipdeb AND $ipfin"),
+            'dev.is_deleted'          => 0,
+            'dev.is_template'         => 0,
+        ];
+
+        if ($entities !== null) {
+            $where[] = new QueryExpression($dbu->getEntitiesRestrictRequest("", "dev", "entities_id", $entities));
+        } else {
+            $where[] = new QueryExpression($dbu->getEntitiesRestrictRequest(
+                "",
+                "dev",
+                "entities_id",
+                $this->fields['entities_id'],
+            ));
+        }
+        if ($type_filter !== null) {
+            $where['glpi_ipaddresses.mainitemtype'] = $type_filter;
+        }
+        if ($this->fields["use_as_filter"] == 1 && $this->fields["networks_id"]) {
+            $where['dev.networks_id'] = $this->fields["networks_id"];
+        }
+
+        $networkequipment_subquery = new QuerySubQuery([
+            'SELECT' => [
+                'port.id',
+                new QueryExpression("'NetworkEquipment' AS itemtype"),
+                'dev.id AS on_device',
+                'dev.name AS dname',
+                new QueryExpression("'' AS pname"),
+                'glpi_ipaddresses.name AS ip',
+                'port.mac',
+                'dev.users_id',
+                new QueryExpression("INET_ATON(glpi_ipaddresses.name) AS ipnum"),
+            ],
+            'FROM' => 'glpi_networkports AS port',
+            'LEFT JOIN' => [
+                'glpi_networkequipments AS dev' => [
+                    'ON' => [
+                        'port' => 'items_id',
+                        'dev'  => 'id',
+                        ['AND' => ['port.itemtype' => 'NetworkEquipment']],
+                    ],
+                ],
+                'glpi_networknames' => [
+                    'ON' => [
+                        'port' => 'id',
+                        'glpi_networknames' => 'items_id',
+                    ],
+                ],
+                'glpi_ipaddresses' => [
+                    'ON' => [
+                        'glpi_ipaddresses' => 'items_id',
+                        'glpi_networknames' => 'id',
+                    ],
+                ],
+            ],
+            'WHERE' => $where,
+        ]);
+
+        // The subquery above is hardcoded on NetworkEquipment: only feed it to the union
+        // when the profile is actually allowed to read that itemtype.
+        if (in_array(NetworkEquipment::class, $allowed_types, true)) {
+            $subqueries[] = $networkequipment_subquery;
+        }
+
+        if ($type_filter !== null) {
+            $types = in_array($type_filter, $allowed_types, true) ? [$type_filter] : [];
+        } else {
+            $types = $allowed_types;
+        }
+
+        foreach ($types as $type) {
+            if (!($item = $dbu->getItemForItemtype($type))) {
+                continue;
+            }
+            $itemtable = $dbu->getTableForItemType($type);
+            $where = [
+                'glpi_ipaddresses.name'   => ['!=', ''],
+                'glpi_ipaddresses.version' => ['LIKE', 4],
+                new QueryExpression("INET_ATON(glpi_ipaddresses.name) BETWEEN $ipdeb AND $ipfin"),
+            ];
+            if ($entities !== null) {
+                $where[] = new QueryExpression($dbu->getEntitiesRestrictRequest("", "dev", "entities_id", $entities));
+            } else {
+                $where[] = new QueryExpression(
+                    $dbu->getEntitiesRestrictRequest("", "dev", "entities_id", $this->fields['entities_id']),
+                );
+            }
+            if ($type_filter !== null) {
+                $where['glpi_ipaddresses.mainitemtype'] = $type_filter;
+            }
+            if ($item->maybeDeleted()) {
+                $where['dev.is_deleted'] = 0;
+            }
+            if ($item->maybeTemplate()) {
+                $where['dev.is_template'] = 0;
+            }
+            if ($this->fields["use_as_filter"] == 1 && $this->fields["networks_id"] && $DB->fieldExists(
+                $type::getTable(),
+                'networks_id',
+            )) {
+                $where['dev.networks_id'] = $this->fields["networks_id"];
+            }
+
+            $select = [
+                'port.id',
+                // addslashes() is not an SQL quoting function: it knows nothing of the
+                // connection charset nor of the MySQL escaping rules, and the result was
+                // concatenated straight into a QueryExpression, which the builder emits
+                // verbatim. The list of types is already narrowed to $allowed_types above,
+                // so nothing arbitrary reaches this point today, but the quoting of the
+                // connection is what must decide here.
+                new QueryExpression($DB::quoteValue($type) . ' AS itemtype'),
+                'port.items_id',
+                'dev.name AS dname',
+                'port.name AS pname',
+                'glpi_ipaddresses.name AS ipaddr',
+                'port.mac',
+            ];
+            if ($type == 'Enclosure' || $type == 'PDU' || $type == 'Cluster' || $type == 'Unmanaged') {
+                $select[] = new QueryExpression("0 AS users_id");
+            } else {
+                $select[] = 'dev.users_id';
+            }
+            $select[] = new QueryExpression("INET_ATON(glpi_ipaddresses.name) AS ipnum");
+
+            $subqueries[] = new QuerySubQuery([
+                'SELECT' => $select,
+                'FROM' => 'glpi_networkports AS port',
+                'LEFT JOIN' => [
+                    $itemtable . ' AS dev' => [
+                        'ON' => [
+                            'port' => 'items_id',
+                            'dev'  => 'id',
+                            ['AND' => ['port.itemtype' => $type]],
+                        ],
+                    ],
+                    'glpi_networknames' => [
+                        'ON' => [
+                            'port' => 'id',
+                            'glpi_networknames' => 'items_id',
+                        ],
+                    ],
+                    'glpi_ipaddresses' => [
+                        'ON' => [
+                            'glpi_ipaddresses' => 'items_id',
+                            'glpi_networknames' => 'id',
+                        ],
+                    ],
+                ],
+                'WHERE' => $where,
+                'GROUPBY' => ['ipaddr', 'port.mac'],
+                'ORDER' => 'ipnum',
+            ]);
+        }
+
+        // Every itemtype was filtered out by the rights check above: there is nothing
+        // this profile may read, and a UNION of zero subqueries is not valid SQL.
+        if (count($subqueries) === 0) {
+            return $result;
+        }
+
+        $union = new QueryUnion($subqueries, false);
+        $req = $DB->request(['FROM' => $union]);
+
+        foreach ($req as $row) {
+            $result["IP" . $row["ipnum"]][] = $row;
+        }
+
+        foreach ($result as $key => $data) {
+            if (count($data) > 1) {
+                foreach ($data as $keyip => $ip) {
+                    if (empty($ip['pname'])) {
+                        unset($result[$key][$keyip]);
+                    }
+                }
+            }
+        }
+        if ($type_filter !== null) {
+            foreach ($result as $key => $data) {
+                if (empty($data)) {
+                    unset($result[$key]);
+                }
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * @param $params
+     */
+    public function showReport($params)
+    {
+        $Report = new Report();
+
+        // Read each parameter explicitly rather than through a variable-variable loop, which
+        // turned any key later added to the defaults into a local controlled by the caller
+        // ($params is $_GET). getFromDB() does not cast its argument, and MySQL coerces a
+        // string to a number when comparing it to an INT column: "1-alert(1)" would match
+        // the row with id 1 and then reach the template. $start is also used in pagination
+        // arithmetic, which raises a TypeError in PHP 8 on a non numeric value and lets a
+        // negative offset walk outside the stored range.
+        $id     = (int) ($params['id'] ?? 0);
+        $start  = max(0, (int) ($params['start'] ?? 0));
+        $filter = (int) ($params['filter'] ?? 0);
+
+        if (!$this->getFromDB($id)) {
+            TemplateRenderer::getInstance()->display('@addressing/report_invalid.html.twig');
+            return;
+        }
+
+        // Entity isolation on the filter: a filter id is attacker-controllable and
+        // enumerable, so only honour it when it belongs to THIS addressing record and
+        // targets an entity the caller may access. Otherwise fall back to the record's
+        // own range (which already passed can(READ)); never let a cross-entity filter
+        // widen compute()'s entity restriction to leak another entity's IP inventory.
+        $addressingFilter = new Filter();
+        if ($filter > 0
+            && $addressingFilter->getFromDB($filter)
+            && (int) $addressingFilter->fields['plugin_addressing_addressings_id'] === (int) $id
+            && Session::haveAccessToEntity((int) $addressingFilter->fields['entities_id'])) {
+            $ipdeb = sprintf("%u", ip2long($addressingFilter->fields['begin_ip']));
+            $ipfin = sprintf("%u", ip2long($addressingFilter->fields['end_ip']));
+
+            $result = $this->compute($start, [
+                'ipdeb' => $ipdeb,
+                'ipfin' => $ipfin,
+                'entities' => $addressingFilter->fields['entities_id'],
+                'type_filter' => $addressingFilter->fields['type'],
+            ]);
+        } else {
+            $ipdeb = sprintf("%u", ip2long($this->fields["begin_ip"]));
+            $ipfin = sprintf("%u", ip2long($this->fields["end_ip"]));
+            $result = $this->compute($start, [
+                'ipdeb' => $ipdeb,
+                'ipfin' => $ipfin,
+            ]);
+        }
+
+        $nbipf = 0; // ip libres
+        $nbipr = 0; // ip reservees
+        $nbipt = 0; // ip trouvees
+        $nbipd = 0; // doublons
+
+        foreach ($result as $ip => $lines) {
+            if (count($lines)) {
+                if (count($lines) > 1) {
+                    $nbipd++;
+                    if (!$this->fields['double_ip']
+                        || (isset($params['seedoubleip']) && $params['seedoubleip'] == 0)) {
+                        unset($result[$ip]);
+                    }
+                }
+                if ((isset($lines[0]['pname']) && strstr($lines[0]['pname'], "reserv"))) {
+                    $nbipr++;
+                    if (!$this->fields['alloted_ip']
+                        || (isset($params['seereservedip']) && $params['seereservedip'] == 0)) {
+                        unset($result[$ip]);
+                    }
+                }
+                $nbipt++;
+                if (!$this->fields['alloted_ip']
+                    || (isset($params['seeallotedip']) && $params['seeallotedip'] == 0)) {
+                    unset($result[$ip]);
+                }
+            } else {
+                $nbipf++;
+                if (!$this->fields['free_ip'] || (isset($params['seefreeip']) && $params['seefreeip'] == 0)) {
+                    unset($result[$ip]);
+                }
+            }
+        }
+
+        $free     = $params['seefreeip'] ?? $this->fields['free_ip'];
+        $reserved = $params['seereservedip'] ?? $this->fields['reserved_ip'];
+        $alloted  = $params['seeallotedip'] ?? $this->fields['alloted_ip'];
+        $doubles  = $params['seedoubleip'] ?? $this->fields['double_ip'];
+
+        $use_ping = isset($this->fields['use_ping']) && $this->fields['use_ping'];
+        // The manual launch button submits to ajax/updatepinginfo.php, which refuses the scan
+        // when ping is disabled globally: the legend and the filters stay, the button goes.
+        $can_scan = PingInfo::isRangeScanEnabled($this);
+        $ping_off = $params['ping_off'] ?? 1;
+        $ping_on  = $params['ping_on'] ?? 1;
+
+        // The three other access points to the filters of a range confront them with the
+        // entity perimeter of the session; this one did not, so a filter belonging to another
+        // entity was enough to make the selector appear. $params['id'] was also handed over
+        // raw while the very same identifier had already been cast a few lines above.
+        $filter_list = new Filter();
+        $datas = $filter_list->find(
+            ['plugin_addressing_addressings_id' => $id]
+            + getEntitiesRestrictCriteria(Filter::getTable()),
+        );
+        $filter_dropdown = '';
+        if (count($datas) > 0) {
+            $filter_dropdown = Filter::dropdownFilters($id, $filter);
+        }
+
+        // closeForm(false) returns the markup (including the CSRF hidden field) instead
+        // of echoing it, so the Twig template can place it inside the form fragment.
+        $close_form = Html::closeForm(false);
+
+        // printPager() only echoes, and the pager template of the core has no export selector.
+        ob_start();
+        Html::printPager(
+            $start,
+            count($result),
+            self::getFormURL(),
+            Toolbox::append_params(
+                [
+                    'id' => $id,
+                    'ping_on' => $ping_on,
+                    'ping_off' => $ping_off,
+                    'filter' => $filter,
+                    'seeallotedip' => $alloted,
+                    'seedoubleip' => $doubles,
+                    'seereservedip' => $reserved,
+                    'seefreeip' => $free,
+                ],
+            ),
+            Report::class,
+        );
+        $pager_html = ob_get_clean();
+
+        $result = array_slice($result, $start, $_SESSION["glpilist_limit"]);
+
+        // The rows of the report, rendered by report_ip_list.html.twig. The status array is
+        // read as [ping on, ping off]; it used to be handed over as the request parameters,
+        // which left both ping filters of the report silently inoperative.
+        $report = $Report->getReportData($result, $this, [$ping_on, $ping_off]);
+
+        $total_realfreeip = null;
+        if ($this->fields['use_ping']) {
+            $total_realfreeip = $nbipf - $report['ping_response'];
+        }
+
+        TemplateRenderer::getInstance()->display('@addressing/report.html.twig', [
+            'id'               => $id,
+            'nbipf'            => $nbipf,
+            'nbipr'            => $nbipr,
+            'nbipt'            => $nbipt,
+            'nbipd'            => $nbipd,
+            'free'             => $free,
+            'reserved'         => $reserved,
+            'alloted'          => $alloted,
+            'doubles'          => $doubles,
+            'use_ping'         => $use_ping,
+            'can_scan'         => $can_scan,
+            'ping_url'         => PLUGIN_ADDRESSING_WEBDIR . '/ajax/updatepinginfo.php',
+            'form_url'         => Toolbox::getItemTypeFormURL(Addressing::class),
+            'ping_on'          => $ping_on,
+            'ping_off'         => $ping_off,
+            'has_filters'      => count($datas) > 0,
+            'filter_dropdown'  => $filter_dropdown,
+            'close_form'       => $close_form,
+            'pager_html'       => $pager_html,
+            'report'           => $report,
+            'total_realfreeip' => $total_realfreeip,
+        ]);
+    }
+
+
+    public static function displayTabContentForItem(CommonGLPI $item, $tabnum = 1, $withtemplate = 0)
+    {
+        if ($item->getType() == __CLASS__) {
+            if ($tabnum == 0) {
+                $item->showReport($_GET);
+            }
+        }
+        return true;
+    }
+
+
+    public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0)
+    {
+        $icon = 'ti ti-message-report';
+        return [self::createTabEntry(Report::getTypeName(1), 0, null, $icon)];
+    }
+
+    //Massive Action
+    public function getSpecificMassiveActions($checkitem = null)
+    {
+        $isadmin = static::canUpdate();
+        $actions = parent::getSpecificMassiveActions($checkitem);
+
+        if (Session::haveRight('transfer', READ)
+            && Session::isMultiEntitiesMode()
+            && $isadmin) {
+            $actions['GlpiPlugin\Addressing\Addressing' . MassiveAction::CLASS_ACTION_SEPARATOR . 'transfer'] = __(
+                'Transfer',
+            );
+        }
+        return $actions;
+    }
+
+
+    public static function showMassiveActionsSubForm(MassiveAction $ma)
+    {
+        switch ($ma->getAction()) {
+            case "transfer":
+                Dropdown::show('Entity');
+                echo Html::submit(_x('button', 'Post'), ['name' => 'massiveaction', 'class' => 'btn btn-primary']);
+                return true;
+                break;
+        }
+        return parent::showMassiveActionsSubForm($ma);
+    }
+
+    /**
+     * @since version 0.85
+     *
+     * @see CommonDBTM::processMassiveActionsForOneItemtype()
+     **/
+    public static function processMassiveActionsForOneItemtype(
+        MassiveAction $ma,
+        CommonDBTM $item,
+        array $ids
+    ) {
+        switch ($ma->getAction()) {
+            case "transfer":
+                $input = $ma->getInput();
+
+                if ($item->getType() == Addressing::class) {
+                    // The destination entity is posted from the sub-form. The Entity
+                    // dropdown only restricts the choice in the UI, so this value is
+                    // attacker-controllable; confirm the caller actually has access to the
+                    // target entity before moving any range into it. GLPI does not enforce
+                    // entity access on the target of update(), so without this a privileged
+                    // user could push a range into an entity outside their scope.
+                    $entities_id = (int) ($input['entities_id'] ?? -1);
+                    if (!Session::haveAccessToEntity($entities_id)) {
+                        foreach ($ids as $key) {
+                            $ma->itemDone($item->getType(), $key, MassiveAction::ACTION_NORIGHT);
+                        }
+                        $ma->addMessage($item->getErrorMessage(ERROR_RIGHT));
+                        break;
+                    }
+
+                    foreach ($ids as $key) {
+                        // The core massive-action engine does not pre-filter the posted item
+                        // ids by right for a plugin handler, and CommonDBTM::update() does not
+                        // re-check rights or entity boundary on the loaded object. Without an
+                        // explicit per-item UPDATE check here, a user holding the global
+                        // plugin_addressing UPDATE right but restricted to entity A could forge
+                        // items[...] with a range id from entity B and move it out of scope
+                        // (cross-entity IDOR write). Mirror the core generic behaviour
+                        // (MassiveAction::processForSeveralItemtypes()) and skip unauthorized ids.
+                        if (!$item->can($key, UPDATE)) {
+                            $ma->itemDone($item->getType(), $key, MassiveAction::ACTION_NORIGHT);
+                            continue;
+                        }
+
+                        $values["id"] = $key;
+                        $values["entities_id"] = $entities_id;
+
+                        if ($item->update($values)) {
+                            $ma->itemDone($item->getType(), $key, MassiveAction::ACTION_OK);
+                        } else {
+                            $ma->itemDone($item->getType(), $key, MassiveAction::ACTION_KO);
+                        }
+                    }
+                }
+                break;
+        }
+    }
+
+    /**
+     * Type than could be linked to a Rack
+     *
+     * @param $all boolean all type, or only allowed ones
+     *
+     * @return array of types
+     **/
+    public static function getTypes($all = false)
+    {
+        global $CFG_GLPI;
+
+        if ($all) {
+            return $CFG_GLPI['networkport_types'];
+        }
+
+        // Only allowed types
+        $types = $CFG_GLPI['networkport_types'];
+
+        foreach ($types as $key => $type) {
+            if (!class_exists($type)) {
+                continue;
+            }
+
+            $item = new $type();
+            if (!$item->canView()) {
+                unset($types[$key]);
+            }
+        }
+
+        return $types;
+    }
+
+    /**
+     * Display a dropdown which contains all the available itemtypes
+     *
+     * @param $typocrit_id the field widget item id
+     * @param value the selected value
+     *
+     * @return array
+     **/
+    public static function dropdownItemtype()
+    {
+        //Add definition : display dropdown
+        $types = self::getTypes(true);
+
+        $options = [];
+
+        foreach ($types as $itemtype) {
+            // networkport_types can still list an itemtype whose plugin has been
+            // uninstalled; new $itemtype() would then be a fatal "Class not found".
+            $item = getItemForItemtype($itemtype);
+            if (!($item instanceof CommonDBTM)) {
+                continue;
+            }
+            $options[$itemtype] = $item->getTypeName(1);
+        }
+
+        //      asort($options);
+        return $options;
+    }
+
+    public static function getMenuContent()
+    {
+        $menu = [];
+        $menu['title'] = self::getTypeName(2);
+        $menu['page'] = self::getSearchURL(false);
+        $menu['links']['search'] = self::getSearchURL(false);
+        $menu['links']['lists'] = "";
+        if (Session::haveRight('plugin_addressing', UPDATE)) {
+            $menu['links']['add'] = self::getFormURL(false);
+        }
+
+        // front/config.php checks the core config UPDATE right: a profile holding only the
+        // plugin UPDATE right was shown a configuration entry that could only answer 403.
+        if (Session::haveRight("config", UPDATE)) {
+            //Entry icon in breadcrumb
+            $menu['links']['config'] = Config::getSearchURL(false);
+            //Link to config page in admin plugins list
+            $menu['config_page'] = Config::getSearchURL(false);
+
+            //Add a fourth level in breadcrumb for configuration page
+            $menu['options']['config']['title'] = __('Setup');
+            $menu['options']['config']['page'] = Config::getSearchURL(false);
+            $menu['options']['config']['links']['search'] = self::getSearchURL(false);
+            $menu['options']['config']['links']['add'] = self::getFormURL(false);
+        }
+
+        $menu['icon'] = self::getIcon();
+
+        return $menu;
+    }
+
+    public static function removeRightsFromSession()
+    {
+        if (isset($_SESSION['glpimenu']['tools']['types'][Addressing::class])) {
+            unset($_SESSION['glpimenu']['tools']['types'][Addressing::class]);
+        }
+        if (isset($_SESSION['glpimenu']['tools']['content'][Addressing::class])) {
+            unset($_SESSION['glpimenu']['tools']['content'][Addressing::class]);
+        }
+    }
+}

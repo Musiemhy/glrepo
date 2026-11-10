@@ -1,0 +1,240 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ *  LICENSE
+ *
+ * This file is part of Reports plugin for GLPI.
+ *
+ * Reports is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Reports is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with Reports. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * @authors   Nelly Mahu-Lasson, Remi Collet, Alexandre Delaunay, Xavier Caillaud, Infotel
+ * @copyright Copyright (c) 2009-2026 Reports plugin team
+ * @license   AGPL License 3.0 or (at your option) any later version
+ * @link      https://github.com/InfotelGLPI/reports
+ * @link      http://www.glpi-project.org/
+ * @package   reports
+ * @since     2009
+ *            http://www.gnu.org/licenses/agpl-3.0-standalone.html
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Reports;
+
+use Html;
+
+/**
+ * Criteria which allows to select a date interval
+ */
+class DateIntervalCriteria extends AutoCriteria
+{
+    public function __construct($report, $name = 'date-interval', $label = '', $start = '', $end = '')
+    {
+
+        parent::__construct($report, $name, $name, $label);
+        $this->addCriteriaLabel(
+            $this->getName() . "_1",
+            ($start ? $start : ($label ? __('After') : __('Start date'))),
+        );
+        $this->addCriteriaLabel(
+            $this->getName() . "_2",
+            ($end ? $end : ($label ? __('Before') : __('End date'))),
+        );
+    }
+
+
+    public function setStartDate($startdate)
+    {
+        $this->addParameter($this->getName() . "_1", $startdate);
+    }
+
+
+    public function setEndDate($enddate)
+    {
+        $this->addParameter($this->getName() . "_2", $enddate);
+    }
+
+
+    public function getStartDate()
+    {
+
+        $start = $this->getParameter($this->getName() . "_1");
+        $end   = $this->getParameter($this->getName() . "_2");
+
+        return (empty($start) || empty($end) || ($start < $end) ? $start : $end);
+    }
+
+
+    public function getEndDate()
+    {
+
+        $start = $this->getParameter($this->getName() . "_1");
+        $end   = $this->getParameter($this->getName() . "_2");
+
+        return (empty($start) || empty($end) || ($start < $end) ? $end : $start);
+    }
+
+
+    public function setDefaultValues()
+    {
+
+        $this->setStartDate('');
+        $this->setEndDate('');
+    }
+
+
+    public function displayCriteria()
+    {
+
+        $this->getReport()->startColumn();
+        $name = $this->getCriteriaLabel($this->getName());
+        if ($name) {
+            echo "$name, ";
+        }
+        echo $this->getCriteriaLabel($this->getName() . "_1") . '&nbsp;:';
+        $this->getReport()->endColumn();
+
+        $this->getReport()->startColumn();
+        Html::showDateField($this->getName() . "_1", ['value'      => $this->getStartDate(),
+            'maybeempty' => false,
+        ]);
+        $this->getReport()->endColumn();
+
+        $this->getReport()->startColumn();
+        if ($name) {
+            echo "$name, ";
+        }
+        echo $this->getCriteriaLabel($this->getName() . "_2") . '&nbsp;:';
+        $this->getReport()->endColumn();
+
+        $this->getReport()->startColumn();
+        Html::showDateField($this->getName() . "_2", ['value'      => $this->getEndDate(),
+            'maybeempty' => false]);
+        $this->getReport()->endColumn();
+    }
+
+
+    /**
+     * Validate a criteria date before it is concatenated into the legacy raw-SQL
+     * WHERE string. getStartDate()/getEndDate() return unfiltered POST values
+     * ("<name>_1"/"<name>_2"), so without this guard the string path below is
+     * SQL-injectable if ever reactivated (e.g. by a third-party report calling
+     * addSqlCriteriasRestriction()). Mirrors TimeIntervalCriteria::getSafeTime().
+     *
+     * @param string $date
+     *
+     * @return string the date in Y-m-d form, or '' if it is not a valid date
+     */
+    private function getSafeDate($date)
+    {
+        if (!is_string($date) || preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1) {
+            return '';
+        }
+        return $date;
+    }
+
+
+    /**
+     * @deprecated Kept for third-party reports that still concatenate SQL. Prefer
+     *             getNewSqlCriteriasRestriction(): its array criteria are quoted by
+     *             $DB->request() itself.
+     */
+    public function getSqlCriteriasRestriction($link = 'AND')
+    {
+        global $DB;
+
+        $start = $this->getSafeDate($this->getStartDate());
+        $end   = $this->getSafeDate($this->getEndDate());
+
+        if (empty($start) && empty($end)) {
+            return '';
+        }
+
+        $sql = '';
+        if (!empty($start)) {
+            $sql .= $DB::quoteName($this->getSqlField()) . ">= '" . $start . " 00:00:00'";
+        }
+
+        if (!empty($start) && !empty($end)) {
+            $sql .= ' AND ';
+        }
+
+        if (!empty($end)) {
+            $sql .= $DB::quoteName($this->getSqlField()) . "<='" . $end . " 23:59:59' ";
+        }
+
+        return $link . " ($sql)";
+    }
+
+    public function getNewSqlCriteriasRestriction($link = 'AND')
+    {
+
+        // Same filter as the legacy string branch above: getStartDate()/getEndDate() return the
+        // POST values untouched, and the query builder quotes them, so nothing is injectable -
+        // but a malformed date belongs in a rejection here rather than in a comparison MySQL has
+        // to make sense of.
+        $start = $this->getSafeDate($this->getStartDate());
+        $end   = $this->getSafeDate($this->getEndDate());
+
+        if (empty($start) && empty($end)) {
+            return [];
+        }
+
+        // Both bounds target the same column, so they cannot be two entries of the same map: the
+        // union operator keeps the left operand for a duplicated key and the end date was simply
+        // dropped whenever a start date was given. A numerically indexed list of conditions is
+        // combined with AND by the query builder.
+        $sql = [];
+        if (!empty($start)) {
+            $sql[] = [$this->getSqlField() => ['>=', $start . " 00:00:00"]];
+        }
+
+        if (!empty($end)) {
+            $sql[] = [$this->getSqlField() => ['<=', $end . " 23:59:59"]];
+        }
+
+        return $sql;
+    }
+
+
+    public function getSubName()
+    {
+
+        $start = $this->getStartDate();
+        $end   = $this->getEndDate();
+        $title = $this->getCriteriaLabel($this->getName());
+
+        if (empty($start) && empty($end)) {
+            return '';
+        }
+        if (empty($title)) {
+            if ($this->getName() == 'date-interval') {
+                $title = __('Date interval', 'reports');
+            } if ($this->getName() == 'time-interval') {
+                $title = __('Time interval', 'reports');
+            }
+        }
+
+        if (empty($start)) {
+            return $title . ', ' . sprintf(__('%1$s %2$s'), __('Before'), Html::convDate($end));
+        }
+
+        if (empty($end)) {
+            return $title . ', ' . sprintf(__('%1$s %2$s'), __('After'), Html::convDate($start));
+        }
+
+        return sprintf(__('%1$s (%2$s)'), $title, Html::convDate($start) . ',' . Html::convDate($end));
+    }
+
+}

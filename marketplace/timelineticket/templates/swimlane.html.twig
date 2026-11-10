@@ -1,0 +1,82 @@
+{#
+ # -------------------------------------------------------------------------
+ # TimelineTicket
+ # Copyright (C) 2013-2026 by the TimelineTicket Development Team.
+ #
+ # https://github.com/pluginsGLPI/timelineticket
+ # ------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of TimelineTicket project.
+ #
+ # TimelineTicket plugin is free software: you can redistribute it and/or modify
+ # it under the terms of the GNU Affero General Public License as published by
+ # the Free Software Foundation, either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # TimelineTicket plugin is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ # GNU Affero General Public License for more details.
+ #
+ # You should have received a copy of the GNU Affero General Public License
+ # along with TimelineTicket plugin. If not, see <http://www.gnu.org/licenses/>.
+ #
+ # ------------------------------------------------------------------------
+ #
+ # @copyright Copyright (C) 2013-2025 TimelineTicket team
+ # @license   AGPL License 3.0 or (at your option) any later version
+ # @link      https://github.com/pluginsGLPI/timelineticket
+ # @package   TimelineTicket plugin
+ # @since     2013
+ #            http://www.gnu.org/licenses/agpl-3.0-standalone.html
+ # --------------------------------------------------------------------------
+ #}
+
+<div class="tt-toolbar mb-2 d-flex gap-2">
+    {% for f in filters %}
+        <button type="button"
+                class="btn btn-sm {{ f.btn }} tt-filter-btn"
+                data-uid="{{ uid }}"
+                data-filter="{{ f.key }}"
+                {% if f.style is not empty %}style="{{ f.style }}"{% endif %}>
+            {% if f.icon is not empty %}<i class="{{ f.icon }} me-1"></i>{% endif %}{{ f.label }}
+        </button>
+    {% endfor %}
+</div>
+
+<div class="tt-swimlane-wrap"
+     id="{{ uid }}-wrap"
+     data-uid="{{ uid }}"
+     data-chains="{{ chains }}">
+    <div class="tt-swimlane" id="{{ uid }}-swimlane">
+        {% for lane in lanes %}
+            <div class="tt-lane">
+                <div class="tt-lane-hdr" style="background:{{ lane.hdr_color }}">{{ lane.label }}</div>
+                <div class="tt-lane-body" style="background:{{ lane.bg_color }}">
+                    {% for card in lane.cards %}
+                        <div class="tt-card {{ card.cls }}" id="{{ card.card_id }}">
+                            <div class="tt-card-type">{{ card.type_label }}</div>
+                            <div class="tt-card-name">{{ card.name }}</div>
+                            {% if card.excerpt is not empty %}
+                                <div class="tt-card-excerpt">{{ card.excerpt }}</div>
+                            {% endif %}
+                            <div class="tt-card-date">{{ card.date }}</div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endfor %}
+
+        <svg class="tt-arrows" id="{{ uid }}-svg" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                {% for m in markers %}
+                    <marker id="{{ uid }}-ah-{{ m.name }}" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                        <polygon points="0 0,8 3,0 6" fill="{{ m.color }}"/>
+                    </marker>
+                {% endfor %}
+            </defs>
+        </svg>
+    </div>
+</div>

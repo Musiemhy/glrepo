@@ -1,0 +1,41 @@
+{#
+ # -------------------------------------------------------------------------
+ # resources plugin for GLPI
+ # Copyright (C) 2015-2026 by the resources Development Team.
+ #
+ # https://github.com/InfotelGLPI/resources
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of resources.
+ #
+ # resources is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 2 of the License, or
+ # (at your option) any later version.
+ #
+ # resources is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with resources. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{# Comment fragment served by ajax/comments.php to the resource dropdown.
+ #
+ # `link_script` is an inline <script> because the fragment is injected with jQuery
+ # .load(), which evaluates the scripts it finds in the response: there is no static
+ # file that could carry the per-request element id and href. It is built in PHP with
+ # json_encode(JSON_HEX_TAG | JSON_HEX_AMP), so it cannot break out of the block. #}
+
+{# `comment` is a fragment built by Resource::getResourceName(), which escapes every database
+ # value it concatenates; only the surrounding markup (picture, <br>) is server side. #}
+{{ comment|raw }}
+
+{% if link_script %}
+    <script type="text/javascript">{{ link_script|raw }}</script>
+{% endif %}

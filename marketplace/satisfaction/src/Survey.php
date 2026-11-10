@@ -1,0 +1,543 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * satisfaction plugin for GLPI
+ * Copyright (C) 2018-2026 by the satisfaction Development Team.
+ *
+ * https://github.com/pluginsGLPI/satisfaction
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of satisfaction.
+ *
+ * satisfaction is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * satisfaction is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with satisfaction. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Satisfaction;
+
+use CommonDBTM;
+use DbUtils;
+use Glpi\Application\View\TemplateRenderer;
+use Dropdown;
+use Entity;
+use Html;
+use Log;
+use MassiveAction;
+use Session;
+
+/**
+ * Class Survey
+ */
+class Survey extends CommonDBTM
+{
+    public static $rightname = "plugin_satisfaction";
+    public $dohistory = true;
+
+    public $can_be_translated = true;
+
+    /**
+     * Return the localized name of the current Type
+     * Should be overloaded in each new class
+     *
+     * @return string
+     **/
+    public static function getTypeName($nb = 0)
+    {
+        return _n('Satisfaction survey', 'Satisfaction surveys', $nb, 'satisfaction');
+    }
+    public static function getIcon()
+    {
+        return Menu::getIcon();
+    }
+    /**
+     * Define tabs to display
+     *
+     * NB : Only called for existing object
+     *
+     * @param $options array
+     *     - withtemplate is a template view ?
+     *
+     * @return array containing the onglets
+     **/
+    public function defineTabs($options = [])
+    {
+
+        $ong = [];
+        $this->addDefaultFormTab($ong);
+        $this->addStandardTab(SurveyQuestion::class, $ong, $options);
+        $this->addStandardTab(SurveyAnswer::class, $ong, $options);
+        $this->addStandardTab(SurveyResult::class, $ong, $options);
+        $this->addStandardTab(SurveyTranslation::class, $ong, $options);
+        $this->addStandardTab(SurveyReminder::class, $ong, $options);
+
+        $this->addStandardTab(Log::class, $ong, $options);
+        return $ong;
+    }
+
+    /**
+     * Is translation enabled for this itemtype
+     *
+     * @return true if translation is available, false otherwise
+     **/
+    public function maybeTranslated()
+    {
+        return $this->can_be_translated;
+    }
+
+    /**
+     * Have I the right to "create" the Object
+     *
+     * Default is true and check entity if the objet is entity assign
+     *
+     * May be overloaded if needed
+     *
+     * @return boolean
+     **/
+    public function canCreateItem(): bool
+    {
+
+        if (!$this->checkEntity()) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * @return array
+     */
+    public function rawSearchOptions()
+    {
+
+        $tab = [];
+
+        $tab[] = [
+            'id'                 => 'common',
+            'name'               => self::getTypeName(2),
+        ];
+
+        $tab[] = [
+            'id'                 => '1',
+            'table'              => $this->getTable(),
+            'field'              => 'name',
+            'name'               => __('Name'),
+            'datatype'           => 'itemlink',
+            'itemlink_type'      => $this->getType(),
+            'massiveaction'      => false,
+        ];
+
+        $tab[] = [
+            'id'                 => '2',
+            'table'              => $this->getTable(),
+            'field'              => 'is_active',
+            'name'               => __('Active'),
+            'datatype'           => 'bool',
+        ];
+
+        $tab[] = [
+            'id'                 => '3',
+            'table'              => $this->getTable(),
+            'field'              => 'comment',
+            'name'               => __('Comments'),
+            'datatype'           => 'text',
+        ];
+
+        $tab[] = [
+            'id'                 => '4',
+            'table'              => $this->getTable(),
+            'field'              => 'date_mod',
+            'name'               => __('Last update'),
+            'massiveaction'      => false,
+            'datatype'           => 'datetime',
+        ];
+
+        $tab[] = [
+            'id'                 => '5',
+            'table'              => $this->getTable(),
+            'field'              => 'date_creation',
+            'name'               => __('Creation date'),
+            'datatype'           => 'date',
+        ];
+
+        $tab[] = [
+            'id'                 => '11',
+            'table'              => $this->getTable(),
+            'field'              => 'is_recursive',
+            'name'               => __('Child entities'),
+            'datatype'           => 'bool',
+        ];
+
+        $tab[] = [
+            'id'                 => '30',
+            'table'              => $this->getTable(),
+            'field'              => 'id',
+            'name'               => __('ID'),
+            'datatype'           => 'number',
+        ];
+
+        $tab[] = [
+            'id'                 => '80',
+            'table'              => 'glpi_entities',
+            'field'              => 'completename',
+            'name'               => __('Entity'),
+            'datatype'           => 'dropdown',
+        ];
+
+        $tab[] = [
+            'id'                 => '86',
+            'table'              => $this->getTable(),
+            'field'              => 'is_recursive',
+            'name'               => __('Child entities'),
+            'datatype'           => 'bool',
+        ];
+
+        return $tab;
+    }
+
+
+    /**
+     * Print survey
+     *
+     * @param       $ID
+     * @param array $options
+     *
+     * @return bool
+     */
+    public function showForm($ID, $options = [])
+    {
+
+        if (!$this->canView()) {
+            return false;
+        }
+
+        $this->initForm($ID, $options);
+        $this->showFormHeader($options);
+
+        ob_start();
+        Dropdown::showYesNo("is_active", $this->fields["is_active"]);
+        $yesno_active = ob_get_clean();
+
+        TemplateRenderer::getInstance()->display('@satisfaction/survey.html.twig', [
+            'item'         => $this,
+            'yesno_active' => $yesno_active,
+        ]);
+
+        $this->showFormButtons($options);
+
+        return true;
+    }
+
+    /**
+     * Prepare input datas for adding the item
+     *
+     * @param $input datas used to add the item
+     *
+     * @return false modified $input array
+     **/
+    public function prepareInputForAdd($input)
+    {
+
+        if ($input['is_active'] == 1) {
+            $dbu = new DbUtils();
+            //we must store only one survey by entity
+            $condition  = ['is_active' => 1]
+                        + $dbu->getEntitiesRestrictCriteria(
+                            $this->getTable(),
+                            'entities_id',
+                            $input['entities_id'],
+                            true,
+                        );
+            $found = $this->find($condition);
+            if (count($found) > 0) {
+                Session::addMessageAfterRedirect(__(
+                    'Error : only one survey is allowed by entity',
+                    'satisfaction',
+                ), false, ERROR);
+                return false;
+            }
+        }
+
+        return $input;
+    }
+
+    /**
+     * Prepare input datas for updating the item
+     *
+     * @param $input datas used to update the item
+     *
+     * @return false modified $input array
+     **/
+    public function prepareInputForUpdate($input)
+    {
+        // check() only validated the current entity: moving the survey requires
+        // access to the target entity too.
+        if (
+            isset($input['entities_id'])
+            && (int) $input['entities_id'] !== (int) $this->fields['entities_id']
+            && !Session::haveAccessToEntity((int) $input['entities_id'])
+        ) {
+            Session::addMessageAfterRedirect(
+                __('You are not allowed to move the survey to this entity', 'satisfaction'),
+                false,
+                ERROR,
+            );
+            return false;
+        }
+
+        //active external survey for entity
+        if (($input['is_active'] ?? 0) == 1) {
+            $dbu = new DbUtils();
+            //we must store only one survey by entity (other this one)
+            $condition  = ['is_active' => 1,
+                ['NOT' => ['id' => $this->getID()]]]
+                       + $dbu->getEntitiesRestrictCriteria(
+                           $this->getTable(),
+                           'entities_id',
+                           $input['entities_id'] ?? $this->fields['entities_id'],
+                           true,
+                       );
+            $found = $this->find($condition);
+            if (count($found) > 0) {
+                Session::addMessageAfterRedirect(__(
+                    'Error : only one survey is allowed by entity',
+                    'satisfaction',
+                ), false, ERROR);
+                return false;
+            }
+        }
+
+        return $input;
+    }
+
+    /**
+     * Actions done before the DELETE of the item in the database /
+     * Maybe used to add another check for deletion
+     *
+     * @return bool : true if item need to be deleted else false
+     **/
+    public function pre_deleteItem()
+    {
+        //we must delete associated questions and answers
+        $question = new SurveyQuestion();
+        $question->deleteByCriteria([SurveyQuestion::$items_id => $this->getID()]);
+
+        $answer = new SurveyAnswer();
+        $answer->deleteByCriteria([SurveyAnswer::$items_id => $this->getID()]);
+
+        $reminder = new SurveyReminder();
+        $reminder->deleteByCriteria([SurveyReminder::$items_id => $this->getID()]);
+
+        return true;
+    }
+
+    /**
+     * Return survey by entity
+     *
+     * @param $entities_id
+     *
+     * @return bool|Survey
+     */
+    public static function getObjectForEntity($entities_id)
+    {
+        global $DB;
+        $dbu = new DbUtils();
+
+        $result = $DB->request([
+            'SELECT'    => 'survey.id',
+            'FROM'      => self::getTable() . ' AS survey',
+            'LEFT JOIN' => [
+                'glpi_entities' => [
+                    'FKEY' => ['glpi_entities' => 'id', 'survey' => 'entities_id'],
+                ],
+            ],
+            'WHERE'     => array_merge(
+                ['survey.is_active' => 1],
+                $dbu->getEntitiesRestrictCriteria('survey', 'entities_id', $entities_id, true),
+            ),
+            'ORDER'     => 'glpi_entities.level DESC',
+            'LIMIT'     => 1,
+        ]);
+
+        $row = $result->current();
+        return $row ? $row['id'] : false;
+    }
+
+    /**
+     * @see CommonDBTM::getSpecificMassiveActions()
+     **/
+    public function getSpecificMassiveActions($checkitem = null)
+    {
+
+        $canadd = Session::haveRight(self::$rightname, CREATE);
+        $actions = parent::getSpecificMassiveActions($checkitem);
+
+        if ($canadd) {
+            $actions[__CLASS__ . MassiveAction::CLASS_ACTION_SEPARATOR . 'duplicate'] = _x('button', 'Duplicate');
+        }
+        return $actions;
+    }
+
+    /**
+     * @since version 0.85
+     *
+     * @see CommonDBTM::showMassiveActionsSubForm()
+     **/
+    public static function showMassiveActionsSubForm(MassiveAction $ma)
+    {
+
+        switch ($ma->getAction()) {
+            case 'duplicate':
+                $entity_assign = false;
+                $dbu = new DbUtils();
+                foreach ($ma->getitems() as $itemtype => $ids) {
+                    if ($item = $dbu->getItemForItemtype($itemtype)) {
+                        if ($item->isEntityAssign()) {
+                            $entity_assign = true;
+                            break;
+                        }
+                    }
+                }
+                ob_start();
+                if ($entity_assign) {
+                    Entity::dropdown();
+                }
+                $entity_dropdown = ob_get_clean();
+
+                TemplateRenderer::getInstance()->display(
+                    '@satisfaction/massiveaction_duplicate.html.twig',
+                    ['entity_dropdown' => $entity_dropdown],
+                );
+                return true;
+        }
+        return parent::showMassiveActionsSubForm($ma);
+    }
+
+    /**
+     * @since version 0.85
+     *
+     * @see CommonDBTM::processMassiveActionsForOneItemtype()
+     **/
+    public static function processMassiveActionsForOneItemtype(
+        MassiveAction $ma,
+        CommonDBTM $item,
+        array $ids
+    ) {
+
+        switch ($ma->getAction()) {
+            case 'duplicate':
+                $survey = new self();
+                foreach ($ids as $id) {
+                    if ($item->getFromDB($id)) {
+                        if ($survey->duplicateSurvey($id, $ma->POST['entities_id'])) {
+                            $ma->itemDone($item->getType(), $id, MassiveAction::ACTION_OK);
+                        } else {
+                            $ma->itemDone($item->getType(), $id, MassiveAction::ACTION_KO);
+                            $ma->addMessage($item->getErrorMessage(ERROR_ON_ACTION));
+                        }
+                    } else {
+                        $ma->itemDone($item->getType(), $id, MassiveAction::ACTION_KO);
+                        $ma->addMessage($item->getErrorMessage(ERROR_NOT_FOUND));
+                    }
+                }
+                break;
+        }
+        parent::processMassiveActionsForOneItemtype($ma, $item, $ids);
+    }
+
+    /**
+     * Duplicate a survey
+     *
+     * @param $ID        of the rule to duplicate
+     *
+     * @since version 0.85
+     *
+     * @return bool true if all ok, false otherwise
+     **/
+    public function duplicateSurvey($ID, $entities_id)
+    {
+
+        // Anti-IDOR: the target entity must be within the user's accessible scope
+        // (the dropdown is client-side only and can be bypassed by a forged request).
+        if (!Session::haveAccessToEntity((int) $entities_id)) {
+            return false;
+        }
+
+        //duplicate survey
+        $survey = new self();
+        if (!$survey->getFromDB($ID)) {
+            return false;
+        }
+
+        // Anti-IDOR: validate access to the SOURCE survey's own entity before copying
+        // it. MassiveAction populates $remainings straight from $_POST['items'] without
+        // a per-item can() check, so without this a request forged with a survey id from
+        // another entity would copy that survey (its questions and translations) into the
+        // caller's entity — a cross-entity read bypass. Mirror the target-entity check
+        // above and pass the recursive flag so a recursive survey declared in a parent
+        // entity stays duplicable from a child.
+        if (!Session::haveAccessToEntity(
+            (int) $survey->fields['entities_id'],
+            (bool) $survey->fields['is_recursive'],
+        )) {
+            return false;
+        }
+
+        //Update fields of the new duplicate
+        $survey->fields['name']        = sprintf(
+            __('Copy of %s'),
+            $survey->fields['name'],
+        );
+        $survey->fields['is_active']   = 0;
+        $survey->fields['entities_id'] = $entities_id;
+        unset($survey->fields['id']);
+
+        //add new duplicate
+        $input = $survey->fields;
+        $newID = $survey->add($input);
+        if (!$newID) {
+            return false;
+        }
+        //find and duplicate questions
+        $question_obj  = new SurveyQuestion();
+        $questions = $question_obj->find(['plugin_satisfaction_surveys_id' => $ID]);
+
+        foreach ($questions as $question) {
+            $question['plugin_satisfaction_surveys_id'] = $newID;
+            $question_id = $question['id'];
+            unset($question['id']);
+            if (!$new_question_id = $question_obj->add($question)) {
+                return false;
+            }
+            //find and duplicate translations
+            $translation_obj  = new SurveyTranslation();
+            $translations = $translation_obj->find([
+                'plugin_satisfaction_surveys_id' => $ID,
+                'glpi_plugin_satisfaction_surveyquestions_id' => $question_id,
+            ]);
+
+            foreach ($translations as $translation) {
+                $translation_obj->newSurveyTranslation([
+                    'survey_id' => $newID,
+                    'question_id' => $new_question_id,
+                    'language' => $translation['language'],
+                    'value' => $translation['value'],
+                ]);
+            }
+        }
+
+        return true;
+    }
+}

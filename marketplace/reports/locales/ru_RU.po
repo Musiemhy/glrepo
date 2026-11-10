@@ -1,0 +1,419 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# 
+# Translators:
+# Nelly Mahu-Lasson <nini.lasson@orange.fr>, 2013
+# Nikolai Petrov <techobsl@yandex.ru>, 2017
+msgid ""
+msgstr ""
+"Project-Id-Version: GLPI Project - reports plugin\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-16 17:10+0200\n"
+"PO-Revision-Date: 2021-03-05 12:54+0000\n"
+"Last-Translator: Nelly Mahu-Lasson <nini.lasson@orange.fr>\n"
+"Language-Team: Russian (Russia) (http://www.transifex.com/yllen/GLPI_reports/"
+"language/ru_RU/)\n"
+"Language: ru_RU\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=4; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n"
+"%10<=4 && (n%100<12 || n%100>14) ? 1 : n%10==0 || (n%10>=5 && n%10<=9) || (n"
+"%100>=11 && n%100<=14)? 2 : 3);\n"
+
+#: report/applicationsbylocation/applicationsbylocation.php:66
+msgid "Application"
+msgstr ""
+
+#: src/Report.php:138
+#: report/applicationsbylocation/applicationsbylocation.php:57
+msgid "Applications by locations and versions"
+msgstr ""
+
+#: src/PriorityCriteria.php:80
+msgid "At least"
+msgstr "Как минимум"
+
+#: report/applicationsbylocation/applicationsbylocation.php:69
+#: report/softversioninstallations/softversioninstallations.php:69
+msgid "Computer status"
+msgstr "Статус компьютера"
+
+#: src/DateIntervalCriteria.php:223 src/TimeIntervalCriteria.php:176
+msgid "Date interval"
+msgstr "Интервал дат"
+
+#: report/histohard/histohard.php:55
+msgid "Date of inventory"
+msgstr "Дата инвентаризации"
+
+#: src/Report.php:147 report/licenses/licenses.php:56
+msgid "Detailed license report"
+msgstr ""
+
+#: src/Report.php:156 report/softnotinstalled/softnotinstalled.php:56
+msgid "Detailed report of software installation by status"
+msgstr ""
+
+#: report/pcsbyentity/pcsbyentity.php:287
+msgid "Display"
+msgstr "Отобразить"
+
+#. TRANS: The name of the report = Duplicate computers
+#: src/Report.php:139 report/doublons/doublons.php:46
+#: report/doublons/doublons.php:78 report/doublons/doublons.php:620
+msgid "Duplicate computers"
+msgstr "Дубликаты компьютеров"
+
+#: report/pcsbyentity/pcsbyentity.php:288
+msgid "Entity tree"
+msgstr "Дерево организаций"
+
+#: src/Report.php:145 report/infocom/infocom.php:78
+msgid "Financial information"
+msgstr ""
+
+#: report/doublons/doublons.php:497
+msgid "First computer"
+msgstr "Первый компьютер"
+
+#: src/Report.php:142 report/globalhisto/globalhisto.php:65
+msgid "Global History (for Test / example only)"
+msgstr ""
+
+#: src/Report.php:159 report/statticketsbyentity/statticketsbyentity.php:65
+msgid "Helpdesk requesters and tickets by entity"
+msgstr ""
+
+#: src/Report.php:143 report/histohard/histohard.php:46
+#: report/histohard/histohard.php:53
+msgid "History of last hardware's installations"
+msgstr "История установок оборудования"
+
+#: src/Report.php:144 report/histoinst/histoinst.php:48
+#: report/histoinst/histoinst.php:55
+msgid "History of last software's installations"
+msgstr "Историй установки ПО"
+
+#: report/doublons/doublons.php:514 report/doublons/doublons.php:529
+msgid "Last inventory date"
+msgstr "Дата последней инвентаризации"
+
+#: src/Report.php:148 report/licensesexpires/licensesexpires.php:56
+msgid "Licenses by expiration date"
+msgstr ""
+
+#: report/location/location.php:59
+msgid "Link"
+msgid_plural "Links"
+msgstr[0] "Ссылка"
+msgstr[1] "Ссылка"
+msgstr[2] "Ссылки"
+msgstr[3] "Ссылки"
+
+#: src/Report.php:140 report/equipmentbygroups/equipmentbygroups.php:38
+msgid "List all devices of a group, ordered by users"
+msgstr ""
+
+#: src/Report.php:149
+#: report/listequipmentbylocation/listequipmentbylocation.php:52
+msgid "List of equipments by location"
+msgstr ""
+
+#: src/Report.php:150 report/listgroups/listgroups.php:52
+msgid "List of groups and members"
+msgstr ""
+
+#: src/Report.php:162 report/transferreditems/transferreditems.php:49
+msgid "List of transfered objects"
+msgstr ""
+
+#: report/listequipmentbylocation/listequipmentbylocation.php:141
+msgid "Location not selected"
+msgstr ""
+
+#: src/Report.php:151 report/location/location.php:49
+msgid "Location tree"
+msgstr ""
+
+#: report/histohard/histohard.php:59
+msgid "Modification"
+msgstr "Изменения"
+
+#: report/statticketsbyentity/statticketsbyentity.php:107
+msgid "Newer"
+msgstr "Новее"
+
+#: src/Profile.php:133
+msgid "No right on Assistance / Statistics"
+msgstr "Нет прав на просмотр данных"
+
+#: src/Profile.php:134
+msgid "No right on Tools / Reports"
+msgstr "Нет прав для отчетов"
+
+#: report/statusertask/statusertask.php:65
+msgid "Number created tasks"
+msgstr ""
+
+#: src/Report.php:141 report/equipmentbylocation/equipmentbylocation.php:46
+msgid "Number of equipments by location"
+msgstr ""
+
+#. TRANS: The name of the report = Number of items by entity
+#: src/Report.php:152 report/pcsbyentity/pcsbyentity.php:241
+#: report/pcsbyentity/pcsbyentity.php:250
+msgid "Number of items by entity"
+msgstr "Количество объектов по организациям"
+
+#: src/TimeIntervalCriteria.php:75 src/TimeIntervalCriteria.php:84
+msgid "Number pending"
+msgstr "Количество ожидающих"
+
+#: report/statticketsbyentity/statticketsbyentity.php:102
+msgid "Older"
+msgstr "Позднее"
+
+#: templates/report_config.html.twig:53
+msgctxt "button"
+msgid "Post"
+msgstr ""
+
+#: src/Report.php:153 report/printers/printers.php:68
+msgid "Printers"
+msgstr ""
+
+#: src/Profile.php:130
+msgid "Profiles rights"
+msgstr ""
+
+#: front/report.form.php:93 front/report.form.php:129 src/AutoReport.php:250
+msgid "Report"
+msgstr ""
+
+#: front/report.form.php:40 front/report.form.php:127
+msgid "Reports plugin configuration"
+msgstr "Настройки плагина Отчеты"
+
+#: front/report.form.php:128
+msgid "Rights management by report"
+msgstr "Управление правами на отчеты"
+
+#. TRANS: The name of the report = Rule's catalog
+#: src/Report.php:154 report/rules/rules.php:50 report/rules/rules.php:103
+#: report/rules/rules.php:121
+msgid "Rule's catalog"
+msgstr ""
+
+#: templates/profile.html.twig:37
+msgctxt "button"
+msgid "Save"
+msgstr ""
+
+#: src/AutoReport.php:946
+msgid "Search criteria"
+msgstr "Критерий отбора"
+
+#: src/Report.php:155 report/searchinfocom/searchinfocom.php:60
+msgid "Search in the financial information"
+msgstr ""
+
+#: report/doublons/doublons.php:498
+msgid "Second computer"
+msgstr "Последний компьютер"
+
+#: report/pcsbyentity/pcsbyentity.php:357
+msgid "Selection of type is mandatory"
+msgstr ""
+
+#: src/Report.php:157
+#: report/softversioninstallations/softversioninstallations.php:57
+msgid "Software version installations"
+msgstr ""
+
+#: report/softversioninstallations/softversioninstallations.php:62
+msgid "Software version status"
+msgstr "ПО, статус по версиям"
+
+#: report/pcsbyentity/pcsbyentity.php:291
+msgid "Sort by count"
+msgstr "Сортировать по величине"
+
+#: report/transferreditems/transferreditems.php:94
+msgid "Source entity"
+msgstr "Исходная организация"
+
+#: report/transferreditems/transferreditems.php:95
+msgid "Target entity"
+msgstr "Целевая организация"
+
+#: report/statusertask/statusertask.php:51
+msgid "Tasks created"
+msgstr ""
+
+#: src/Report.php:161 report/statusertask/statusertask.php:48
+msgid "Tasks list per user"
+msgstr ""
+
+#: report/histohard/histohard.php:204
+msgid "The list is limited to 100 items and 21 days"
+msgstr "Ограничения списка: 100 объектов, 21 день"
+
+#: report/histoinst/histoinst.php:143
+msgid "The list is limited to 200 items and 21 days"
+msgstr "Ограничения списка: 200 объектов, 21 день"
+
+#: report/statticketsbyentity/statticketsbyentity.php:96
+msgid "Tickets count"
+msgstr "Количество заявок"
+
+#: src/Report.php:160 report/statticketsbypriority/statticketsbypriority.php:54
+msgid "Tickets no closed, sorted by priority"
+msgstr ""
+
+#: src/Report.php:158
+#: report/statnightticketsbypriority/statnightticketsbypriority.php:54
+msgid "Tickets opened at night, sorted by priority"
+msgstr ""
+
+#: src/Report.php:146 report/iteminstall/iteminstall.php:58
+msgid "Time before equipment start-up"
+msgstr ""
+
+#: src/DateIntervalCriteria.php:225 src/TimeIntervalCriteria.php:178
+msgid "Time interval"
+msgstr "Интервал времени"
+
+#: report/transferreditems/transferreditems.php:96
+msgid "Transfert date"
+msgstr "Дата переноса"
+
+#: report/pcsbyentity/pcsbyentity.php:314
+#: report/pcsbyentity/pcsbyentity.php:343
+msgid "Unknown"
+msgstr "Неизвестно"
+
+#: templates/report_rights.html.twig:52
+msgctxt "button"
+msgid "Update"
+msgstr ""
+
+#: report/licenses/licenses.php:75
+msgid "Used version"
+msgstr "Используется версия"
+
+#: report/statticketsbyentity/statticketsbyentity.php:90
+msgid "Users count"
+msgstr "Количество пользователей"
+
+#: src/Report.php:163 report/zombies/zombies.php:71
+msgid "Users with no right"
+msgstr ""
+
+#: report/licensesexpires/licensesexpires.php:58
+msgid "Valid to"
+msgstr "Действительна до"
+
+#: report/zombies/zombies.php:77
+msgid "With no ticket"
+msgstr "Без заявок"
+
+#~ msgid "_report_title"
+#~ msgstr "_report_title"
+
+#~ msgid "Rights management by profil"
+#~ msgstr "Управление правами по профилям"
+
+#~ msgid "Profils rights"
+#~ msgstr "Права для профиля"
+
+#~ msgid "applicationsbylocation_report_title"
+#~ msgstr "ПО по версиям и расположению"
+
+#~ msgid "Applications"
+#~ msgstr "ПО"
+
+#~ msgid "doublons_report_title"
+#~ msgstr "Дубликаты компьютеров"
+
+#~ msgid "equipmentbygroups_report_title"
+#~ msgstr "Список всех устройств в группе, по пользователям."
+
+#~ msgid "equipmentbylocation_report_title"
+#~ msgstr "Количество устройст по местоположениям"
+
+#~ msgid "globalhisto_report_title"
+#~ msgstr "Общая история (для теста или примера)"
+
+#~ msgid "histohard_report_title"
+#~ msgstr "История установок оборудования"
+
+#~ msgid "histoinst_report_title"
+#~ msgstr "История установки ПО"
+
+#~ msgid "infocom_report_title"
+#~ msgstr "Фининсовый отчет"
+
+#~ msgid "iteminstall_report_title"
+#~ msgstr "Time before equipment start-up "
+
+#~ msgid "licensesexpires_report_title"
+#~ msgstr "Отчет окончания лицензий"
+
+#~ msgid "licenses_report_title"
+#~ msgstr "Подробный отчет о лицензиях"
+
+#~ msgid "listequipmentbylocation_report_title"
+#~ msgstr "Список обрудования по местоположению"
+
+#~ msgid "listgroups_report_title"
+#~ msgstr "Список групп и их членов"
+
+#~ msgid "location_report_title"
+#~ msgstr "Дерево местоположений"
+
+#~ msgid "pcsbyentity_report_title"
+#~ msgstr "Количество объектов по организациям"
+
+#~ msgid "printers_report_title"
+#~ msgstr "Принтеры"
+
+#~ msgid "Computers in the group"
+#~ msgstr "Компьютеры в группе"
+
+#~ msgid "Users in the group"
+#~ msgstr "Пользователи в групе"
+
+#~ msgid "Computers in the location"
+#~ msgstr "Компьютеры в местоположении"
+
+#~ msgid "Users in the location"
+#~ msgstr "Пользователи в местоположении"
+
+#~ msgid "rules_report_title"
+#~ msgstr "Каталог правил"
+
+#~ msgid "searchinfocom_report_title"
+#~ msgstr "Поиск в финансовой информации"
+
+#~ msgid "softnotinstalled_report_title"
+#~ msgstr "Подробный отчет установленного ПО"
+
+#~ msgid "softversioninstallations_report_title"
+#~ msgstr "Установленное ПО по версиям"
+
+#~ msgid "statnightticketsbypriority_report_title"
+#~ msgstr "Открытые заявки, по приоритету"
+
+#~ msgid "statticketsbyentity_report_title"
+#~ msgstr "Заявки по организациям"
+
+#~ msgid "statticketsbypriority_report_title"
+#~ msgstr "Незакрытые заявки, по приоритету"
+
+#~ msgid "transferreditems_report_title"
+#~ msgstr "Список перенесенныйх объектов"
+
+#~ msgid "zombies_report_title"
+#~ msgstr "Пользователи без прав"

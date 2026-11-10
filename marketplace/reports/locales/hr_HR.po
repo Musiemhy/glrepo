@@ -1,0 +1,414 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# 
+# Translators:
+# Robert Pavicic <rpavicic@brrax.hr>, 2013
+# SlimSim, 2013
+msgid ""
+msgstr ""
+"Project-Id-Version: GLPI Project - reports plugin\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-16 17:10+0200\n"
+"PO-Revision-Date: 2021-03-05 12:54+0000\n"
+"Last-Translator: Nelly Mahu-Lasson <nini.lasson@orange.fr>\n"
+"Language-Team: Croatian (Croatia) (http://www.transifex.com/yllen/"
+"GLPI_reports/language/hr_HR/)\n"
+"Language: hr_HR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n"
+"%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\n"
+
+#: report/applicationsbylocation/applicationsbylocation.php:66
+msgid "Application"
+msgstr ""
+
+#: src/Report.php:138
+#: report/applicationsbylocation/applicationsbylocation.php:57
+msgid "Applications by locations and versions"
+msgstr ""
+
+#: src/PriorityCriteria.php:80
+msgid "At least"
+msgstr "Najmanje"
+
+#: report/applicationsbylocation/applicationsbylocation.php:69
+#: report/softversioninstallations/softversioninstallations.php:69
+msgid "Computer status"
+msgstr "Status računala"
+
+#: src/DateIntervalCriteria.php:223 src/TimeIntervalCriteria.php:176
+msgid "Date interval"
+msgstr "Vremenski interval (dani)"
+
+#: report/histohard/histohard.php:55
+msgid "Date of inventory"
+msgstr "Datum inventoriranja"
+
+#: src/Report.php:147 report/licenses/licenses.php:56
+msgid "Detailed license report"
+msgstr ""
+
+#: src/Report.php:156 report/softnotinstalled/softnotinstalled.php:56
+msgid "Detailed report of software installation by status"
+msgstr ""
+
+#: report/pcsbyentity/pcsbyentity.php:287
+msgid "Display"
+msgstr "Prikaz"
+
+#. TRANS: The name of the report = Duplicate computers
+#: src/Report.php:139 report/doublons/doublons.php:46
+#: report/doublons/doublons.php:78 report/doublons/doublons.php:620
+msgid "Duplicate computers"
+msgstr "Duplicirana računala"
+
+#: report/pcsbyentity/pcsbyentity.php:288
+msgid "Entity tree"
+msgstr "Stablo entiteta "
+
+#: src/Report.php:145 report/infocom/infocom.php:78
+msgid "Financial information"
+msgstr ""
+
+#: report/doublons/doublons.php:497
+msgid "First computer"
+msgstr "Prvo računalo"
+
+#: src/Report.php:142 report/globalhisto/globalhisto.php:65
+msgid "Global History (for Test / example only)"
+msgstr ""
+
+#: src/Report.php:159 report/statticketsbyentity/statticketsbyentity.php:65
+msgid "Helpdesk requesters and tickets by entity"
+msgstr ""
+
+#: src/Report.php:143 report/histohard/histohard.php:46
+#: report/histohard/histohard.php:53
+msgid "History of last hardware's installations"
+msgstr "Povijest instalacija hardvera"
+
+#: src/Report.php:144 report/histoinst/histoinst.php:48
+#: report/histoinst/histoinst.php:55
+msgid "History of last software's installations"
+msgstr "Povijest instalacija aplikacija"
+
+#: report/doublons/doublons.php:514 report/doublons/doublons.php:529
+msgid "Last inventory date"
+msgstr "Zadnji datum inventoriranja"
+
+#: src/Report.php:148 report/licensesexpires/licensesexpires.php:56
+msgid "Licenses by expiration date"
+msgstr ""
+
+#: report/location/location.php:59
+msgid "Link"
+msgid_plural "Links"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#: src/Report.php:140 report/equipmentbygroups/equipmentbygroups.php:38
+msgid "List all devices of a group, ordered by users"
+msgstr ""
+
+#: src/Report.php:149
+#: report/listequipmentbylocation/listequipmentbylocation.php:52
+msgid "List of equipments by location"
+msgstr ""
+
+#: src/Report.php:150 report/listgroups/listgroups.php:52
+msgid "List of groups and members"
+msgstr ""
+
+#: src/Report.php:162 report/transferreditems/transferreditems.php:49
+msgid "List of transfered objects"
+msgstr ""
+
+#: report/listequipmentbylocation/listequipmentbylocation.php:141
+msgid "Location not selected"
+msgstr ""
+
+#: src/Report.php:151 report/location/location.php:49
+msgid "Location tree"
+msgstr ""
+
+#: report/histohard/histohard.php:59
+msgid "Modification"
+msgstr "Promjena"
+
+#: report/statticketsbyentity/statticketsbyentity.php:107
+msgid "Newer"
+msgstr "Novije"
+
+#: src/Profile.php:133
+msgid "No right on Assistance / Statistics"
+msgstr "Nema prava na pomoć / statistiku"
+
+#: src/Profile.php:134
+msgid "No right on Tools / Reports"
+msgstr "Nema prava na alatima / izvještajima"
+
+#: report/statusertask/statusertask.php:65
+msgid "Number created tasks"
+msgstr ""
+
+#: src/Report.php:141 report/equipmentbylocation/equipmentbylocation.php:46
+msgid "Number of equipments by location"
+msgstr ""
+
+#. TRANS: The name of the report = Number of items by entity
+#: src/Report.php:152 report/pcsbyentity/pcsbyentity.php:241
+#: report/pcsbyentity/pcsbyentity.php:250
+msgid "Number of items by entity"
+msgstr "Broj stavki po entitetu"
+
+#: src/TimeIntervalCriteria.php:75 src/TimeIntervalCriteria.php:84
+msgid "Number pending"
+msgstr "Broj u tijeku"
+
+#: report/statticketsbyentity/statticketsbyentity.php:102
+msgid "Older"
+msgstr "Starije"
+
+#: templates/report_config.html.twig:53
+msgctxt "button"
+msgid "Post"
+msgstr ""
+
+#: src/Report.php:153 report/printers/printers.php:68
+msgid "Printers"
+msgstr ""
+
+#: src/Profile.php:130
+msgid "Profiles rights"
+msgstr ""
+
+#: front/report.form.php:93 front/report.form.php:129 src/AutoReport.php:250
+msgid "Report"
+msgstr ""
+
+#: front/report.form.php:40 front/report.form.php:127
+msgid "Reports plugin configuration"
+msgstr "Postavke dodatka za izvještavanje"
+
+#: front/report.form.php:128
+msgid "Rights management by report"
+msgstr "Upravljanje pravima po izvještaju"
+
+#. TRANS: The name of the report = Rule's catalog
+#: src/Report.php:154 report/rules/rules.php:50 report/rules/rules.php:103
+#: report/rules/rules.php:121
+msgid "Rule's catalog"
+msgstr ""
+
+#: templates/profile.html.twig:37
+msgctxt "button"
+msgid "Save"
+msgstr ""
+
+#: src/AutoReport.php:946
+msgid "Search criteria"
+msgstr "Kriterij pretraživanja"
+
+#: src/Report.php:155 report/searchinfocom/searchinfocom.php:60
+msgid "Search in the financial information"
+msgstr ""
+
+#: report/doublons/doublons.php:498
+msgid "Second computer"
+msgstr "Drugo računalo"
+
+#: report/pcsbyentity/pcsbyentity.php:357
+msgid "Selection of type is mandatory"
+msgstr ""
+
+#: src/Report.php:157
+#: report/softversioninstallations/softversioninstallations.php:57
+msgid "Software version installations"
+msgstr ""
+
+#: report/softversioninstallations/softversioninstallations.php:62
+msgid "Software version status"
+msgstr "Status verzija aplikacija"
+
+#: report/pcsbyentity/pcsbyentity.php:291
+msgid "Sort by count"
+msgstr "Poredaj po broju"
+
+#: report/transferreditems/transferreditems.php:94
+msgid "Source entity"
+msgstr "Izvorni entitet"
+
+#: report/transferreditems/transferreditems.php:95
+msgid "Target entity"
+msgstr "Ciljni entitet"
+
+#: report/statusertask/statusertask.php:51
+msgid "Tasks created"
+msgstr ""
+
+#: src/Report.php:161 report/statusertask/statusertask.php:48
+msgid "Tasks list per user"
+msgstr ""
+
+#: report/histohard/histohard.php:204
+msgid "The list is limited to 100 items and 21 days"
+msgstr "Popis je ograničen na 100 stavaka i 21 dan"
+
+#: report/histoinst/histoinst.php:143
+msgid "The list is limited to 200 items and 21 days"
+msgstr "Popis je ograničen na 200 stavaka i 21 dan"
+
+#: report/statticketsbyentity/statticketsbyentity.php:96
+msgid "Tickets count"
+msgstr "Broj naloga"
+
+#: src/Report.php:160 report/statticketsbypriority/statticketsbypriority.php:54
+msgid "Tickets no closed, sorted by priority"
+msgstr ""
+
+#: src/Report.php:158
+#: report/statnightticketsbypriority/statnightticketsbypriority.php:54
+msgid "Tickets opened at night, sorted by priority"
+msgstr ""
+
+#: src/Report.php:146 report/iteminstall/iteminstall.php:58
+msgid "Time before equipment start-up"
+msgstr ""
+
+#: src/DateIntervalCriteria.php:225 src/TimeIntervalCriteria.php:178
+msgid "Time interval"
+msgstr "Vremenski interval (sati)"
+
+#: report/transferreditems/transferreditems.php:96
+msgid "Transfert date"
+msgstr "Prenešen datum"
+
+#: report/pcsbyentity/pcsbyentity.php:314
+#: report/pcsbyentity/pcsbyentity.php:343
+msgid "Unknown"
+msgstr "Nepoznato"
+
+#: templates/report_rights.html.twig:52
+msgctxt "button"
+msgid "Update"
+msgstr ""
+
+#: report/licenses/licenses.php:75
+msgid "Used version"
+msgstr "Korištena inačica"
+
+#: report/statticketsbyentity/statticketsbyentity.php:90
+msgid "Users count"
+msgstr "Broj trenutnih korisnika"
+
+#: src/Report.php:163 report/zombies/zombies.php:71
+msgid "Users with no right"
+msgstr ""
+
+#: report/licensesexpires/licensesexpires.php:58
+msgid "Valid to"
+msgstr "Važeća do"
+
+#: report/zombies/zombies.php:77
+msgid "With no ticket"
+msgstr "Bez naloga"
+
+#~ msgid "_report_title"
+#~ msgstr "_report_title"
+
+#~ msgid "Rights management by profil"
+#~ msgstr "Upravljanje pravima po profilu"
+
+#~ msgid "Profils rights"
+#~ msgstr "Prava profila"
+
+#~ msgid "applicationsbylocation_report_title"
+#~ msgstr "applicationsbylocation_report_title"
+
+#~ msgid "Applications"
+#~ msgstr "Aplikacije"
+
+#~ msgid "doublons_report_title"
+#~ msgstr "doublons_report_title"
+
+#~ msgid "equipmentbygroups_report_title"
+#~ msgstr "equipmentbygroups_report_title"
+
+#~ msgid "equipmentbylocation_report_title"
+#~ msgstr "equipmentbylocation_report_title"
+
+#~ msgid "globalhisto_report_title"
+#~ msgstr "globalhisto_report_title"
+
+#~ msgid "histohard_report_title"
+#~ msgstr "histohard_report_title"
+
+#~ msgid "histoinst_report_title"
+#~ msgstr "histoinst_report_title"
+
+#~ msgid "infocom_report_title"
+#~ msgstr "infocom_report_title"
+
+#~ msgid "iteminstall_report_title"
+#~ msgstr "iteminstall_report_title"
+
+#~ msgid "licensesexpires_report_title"
+#~ msgstr "licensesexpires_report_title"
+
+#~ msgid "licenses_report_title"
+#~ msgstr "licenses_report_title"
+
+#~ msgid "listequipmentbylocation_report_title"
+#~ msgstr "listequipmentbylocation_report_title"
+
+#~ msgid "listgroups_report_title"
+#~ msgstr "listgroups_report_title"
+
+#~ msgid "location_report_title"
+#~ msgstr "location_report_title"
+
+#~ msgid "pcsbyentity_report_title"
+#~ msgstr "pcsbyentity_report_title"
+
+#~ msgid "printers_report_title"
+#~ msgstr "printers_report_title"
+
+#~ msgid "Computers in the group"
+#~ msgstr "Računala u grupi"
+
+#~ msgid "Users in the group"
+#~ msgstr "Korisnici u grupi"
+
+#~ msgid "Computers in the location"
+#~ msgstr "Računala na lokaciji"
+
+#~ msgid "Users in the location"
+#~ msgstr "Korisnici na lokaciji"
+
+#~ msgid "rules_report_title"
+#~ msgstr "rules_report_title"
+
+#~ msgid "searchinfocom_report_title"
+#~ msgstr "searchinfocom_report_title"
+
+#~ msgid "softnotinstalled_report_title"
+#~ msgstr "softnotinstalled_report_title"
+
+#~ msgid "statnightticketsbypriority_report_title"
+#~ msgstr "statnightticketsbypriority_report_title"
+
+#~ msgid "statticketsbyentity_report_title"
+#~ msgstr "statticketsbyentity_report_title"
+
+#~ msgid "statticketsbypriority_report_title"
+#~ msgstr "statticketsbypriority_report_title"
+
+#~ msgid "transferreditems_report_title"
+#~ msgstr "transferreditems_report_title"
+
+#~ msgid "zombies_report_title"
+#~ msgstr "zombies_report_title"

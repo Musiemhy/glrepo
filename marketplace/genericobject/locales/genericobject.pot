@@ -1,0 +1,227 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-29 02:36+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=CHARSET\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: templates/eol_info.html.twig
+msgid "GenericObject End of Life Notice"
+msgstr ""
+
+#: templates/eol_info.html.twig
+msgid "Migration guidance and information"
+msgstr ""
+
+#: templates/eol_info.html.twig
+msgid "Important Notice"
+msgstr ""
+
+#: templates/eol_info.html.twig
+#, php-format
+msgid ""
+"GenericObject v%s has reached End of Life (EOL). This version only provides "
+"migration assistance to help you switch to GLPI 11's asset definition"
+msgstr ""
+
+#: templates/eol_info.html.twig
+msgid "What changed?"
+msgstr ""
+
+#: templates/eol_info.html.twig
+msgid "GLPI 11 now has native custom asset creation capabilities"
+msgstr ""
+
+#: templates/eol_info.html.twig
+msgid "All Genericobject features are available in GLPI core"
+msgstr ""
+
+#: templates/eol_info.html.twig
+msgid "Better integration with GLPI workflows"
+msgstr ""
+
+#: templates/eol_info.html.twig
+msgid "Improved performance and security"
+msgstr ""
+
+#: templates/eol_info.html.twig
+msgid "Next steps"
+msgstr ""
+
+#: templates/eol_info.html.twig
+msgid "Review your existing genericobject assets"
+msgstr ""
+
+#: templates/eol_info.html.twig
+msgid "Migrate to GLPI 11 native asset definition"
+msgstr ""
+
+#: templates/eol_info.html.twig
+msgid "Test the new asset system"
+msgstr ""
+
+#: templates/eol_info.html.twig
+msgid "Uninstall GenericObject plugin when ready"
+msgstr ""
+
+#: templates/eol_info.html.twig
+msgid "View Migration Status"
+msgstr ""
+
+#: templates/migration_status.html.twig front/migration_status.php:69
+msgid "GenericObject Migration Status"
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid "End of Life migration tool for GLPI 11"
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid "End of Life Notice"
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid ""
+"GenericObject v3.0.0 is an End-of-Life version. All custom asset creation "
+"functionality has been moved to GLPI 11 native asset definition."
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid "Migration Status"
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid "Migrated"
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid "Items Migrated:"
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid "View Items"
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid "View Asset"
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid "Not Migrated"
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid "How to Migrate"
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid "Command Line Migration Required"
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid ""
+"For optimal performance and reliability, the migration must be performed "
+"using the command line:"
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid "Copy command"
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid "Run this command from your GLPI root directory"
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid "Migration Process"
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid "Generic objects will be converted into custom assets"
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid "Types will be retained."
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid "Asset data will not be lost"
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid ""
+"Note: Migration status detection is based on data presence and may not be "
+"100% accurate. Please verify manually after running the migration command."
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid "Next Steps"
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid "After Migration"
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid "Review converted assets in GLPI 11"
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid "Test asset access permissions"
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid "Recommendations"
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid "Train users on GLPI 11 native custom assets"
+msgstr ""
+
+#: templates/migration_status.html.twig
+msgid "Update internal documentation"
+msgstr ""
+
+#: setup.php:132
+msgid "Generic Objects End-of-Life Updater"
+msgstr ""
+
+#: inc/typefamily.class.php:41
+msgid "Family of type of objects"
+msgstr ""
+
+#: inc/eolinfo.class.php:47
+msgid "GenericObject EOL Info"
+msgstr ""
+
+#: inc/eolinfo.class.php:87
+msgid "GenericObject End of Life Information"
+msgstr ""
+
+#: inc/type.class.php:74
+msgid "Type of objects"
+msgstr ""
+
+#: front/eol_info.php:38
+msgid "Genericobject End of Life Information"
+msgstr ""
+
+#: index.php:36
+#, php-format
+msgid ""
+"GenericObject v%s is End-of-Life. All genericobject functionality is now "
+"available in GLPI 11 core. Check migration status or use native custom "
+"assets."
+msgstr ""

@@ -1,0 +1,146 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * resources plugin for GLPI
+ * Copyright (C) 2015-2026 by the resources Development Team.
+ *
+ * https://github.com/InfotelGLPI/resources
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of resources.
+ *
+ * resources is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * resources is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with resources. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use Glpi\Application\View\TemplateRenderer;
+use GlpiPlugin\Badges\Badge;
+use GlpiPlugin\Resources\ResourceBadge;
+use GlpiPlugin\Servicecatalog\Main;
+use GlpiPlugin\Resources\Menu;
+use GlpiPlugin\Resources\Resource;
+
+if (Plugin::isPluginActive("badges")) {
+    if (Session::getCurrentInterface() == 'central') {
+        //from central
+        Html::header(Resource::getTypeName(2), '', "admin", Menu::class);
+    } else {
+        //from helpdesk
+        if (Plugin::isPluginActive('servicecatalog')) {
+            Main::showDefaultHeaderHelpdesk(Menu::getTypeName(2));
+        } else {
+            Html::helpHeader(Resource::getTypeName(2));
+        }
+    }
+
+    if (!isset($_GET["id"])) {
+        $_GET["id"] = "";
+    }
+
+    $badge = new ResourceBadge();
+    $pluginbadge = new Badge();
+    if (isset($_POST['add_metademand'])) {
+        // CREATE, not UPDATE: canCreate() is widened here to
+        // haveRightsOr([CREATE, UPDATE, DELETE]), so no profile loses the form.
+        $badge->check(-1, CREATE, $_POST);
+        $badge->add($_POST);
+
+        Html::back();
+    } elseif (isset($_GET['menu'])) {
+        if ($pluginbadge->canView() || Session::haveRight("config", UPDATE)) {
+            $badge->showMenu();
+        } else {
+            TemplateRenderer::getInstance()->display('@resources/alert_warning.html.twig', [
+                'message' => __('You need rights into badges plugin', 'resources'),
+            ]);
+        }
+    } elseif (isset($_GET['config'])) {
+        if (Plugin::isPluginActive("metademands")) {
+            if ($pluginbadge->canView()) {
+                $badge->showFormBadge();
+            }
+        } else {
+            Html::header(__('Setup'), '', "config", "plugin");
+            TemplateRenderer::getInstance()->display('@resources/alert_warning.html.twig', [
+                'message' => __('Please activate the plugin metademand', 'resources'),
+            ]);
+        }
+    } elseif (isset($_GET['new'])) {
+        if (Plugin::isPluginActive("metademands")) {
+            $data = $badge->find(['entities_id' => $_SESSION['glpiactive_entity']]);
+            $data = array_shift($data);
+
+            if (!empty($data["plugin_metademands_metademands_id"])) {
+                Html::redirect(
+                    PLUGIN_METADEMANDS_WEBDIR . "/front/wizard.form.php?metademands_id=" . $data["plugin_metademands_metademands_id"] . "&tickets_id=0&step=2",
+                );
+            } else {
+                TemplateRenderer::getInstance()->display('@resources/alert_warning.html.twig', [
+                    'message'  => __('No advanced request found', 'resources'),
+                    'centered' => true,
+                ]);
+            }
+        } else {
+            Html::header(__('Setup'), '', "config", "plugin");
+            TemplateRenderer::getInstance()->display('@resources/alert_warning.html.twig', [
+                'message' => __('Please activate the plugin metademand', 'resources'),
+            ]);
+        }
+    } elseif (isset($_POST['plugin_resources_badge_restitution'])) {
+        // The target resource id comes straight from $_POST and createTicket() opens a
+        // ticket in that resource's own entity. Mirror the display guard used by the
+        // other branches and validate the resource's entity scope, otherwise any user
+        // could trigger a badge-restitution ticket for an arbitrary resource, possibly
+        // in another entity.
+        $resources_id = (int) ($_POST['plugin_resources_resources_id'] ?? 0);
+        $resource     = new Resource();
+        // createTicket() is a write: a read right on badges alone must not open tickets, so
+        // the ticket creation right is required too. The entity test honours is_recursive,
+        // Resource being a recursive item.
+        if (($pluginbadge->canView() || Session::haveRight("config", UPDATE))
+            && Ticket::canCreate()
+            && $resources_id > 0
+            && $resource->getFromDB($resources_id)
+            && Session::haveAccessToEntity(
+                $resource->fields['entities_id'],
+                (bool) $resource->fields['is_recursive'],
+            )) {
+            $badge->createTicket($resources_id, $_POST);
+        }
+        Html::back();
+    } else {
+        if ($pluginbadge->canView() || Session::haveRight("config", UPDATE)) {
+            $badge->showWizardForm();
+        }
+    }
+
+    if (Session::getCurrentInterface() != 'central'
+        && Plugin::isPluginActive('servicecatalog')) {
+        Main::showNavBarFooter('resources');
+    }
+
+    if (Session::getCurrentInterface() == 'central') {
+        Html::footer();
+    } else {
+        Html::helpFooter();
+    }
+} else {
+    Html::header(__('Setup'), '', "config", "plugin");
+    TemplateRenderer::getInstance()->display('@resources/alert_warning.html.twig', [
+        'message' => __('Please activate the plugin badge', 'resources'),
+    ]);
+}

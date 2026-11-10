@@ -1,0 +1,210 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * metademands plugin for GLPI
+ * Copyright (C) 2018-2026 by the metademands Development Team.
+ *
+ * https://github.com/InfotelGLPI/metademands
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of metademands.
+ *
+ * metademands is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * metademands is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use GlpiPlugin\Metademands\Field;
+use GlpiPlugin\Metademands\FieldCustomvalue;
+use GlpiPlugin\Metademands\FieldParameter;
+use GlpiPlugin\Metademands\Menu;
+
+if (empty($_GET["id"])) {
+    $_GET["id"] = "";
+}
+
+$fieldcustom = new FieldCustomvalue();
+$fieldparam = new FieldParameter();
+
+if (isset($_POST["add"])) {
+    $params = [];
+    if (isset($_POST["custom_values"])) {
+        $custom_values = $_POST["custom_values"];
+        foreach ($custom_values as $rank => $custom_value) {
+            $params[$rank]['rank'] = $rank;
+            $params[$rank]['name'] = $custom_value;
+        }
+    }
+    if (isset($_POST["comment_values"])) {
+        $comment_values = $_POST["comment_values"];
+        foreach ($comment_values as $rank => $comment_value) {
+            $params[$rank]['comment'] = $comment_value;
+        }
+    }
+    if (isset($_POST["default_values"])) {
+        $default_values = $_POST["default_values"];
+        foreach ($default_values as $rank => $default_value) {
+            $params[$rank]['is_default'] = $default_value;
+        }
+    }
+    if (isset($_POST["icon"])) {
+        $icon_values = $_POST["icon"];
+        foreach ($icon_values as $rank => $icon_value) {
+            $params[$rank]['icon'] = $icon_value;
+        }
+    }
+
+    foreach ($params as $rank => $value) {
+        $input['rank'] = $rank;
+        $input['name'] = $value['name'];
+        if (!isset($value['comment'])) {
+            $value['comment'] = "";
+        }
+        $input['comment'] = $value['comment'];
+        $input['is_default'] = $value['is_default'];
+        $input['icon'] = $value['icon'] ?? "";
+        $input['plugin_metademands_fields_id'] = $_POST['fields_id'];
+        // Check update rights for fields
+        $fieldcustom->check(-1, CREATE, $input);
+        $fieldcustom->add($input);
+    }
+    Html::back();
+} elseif (isset($_POST["update"])) {
+
+    if ($_POST['type'] == "link"
+        || $_POST['type'] == "number"
+        || $_POST['type'] == "range"
+        || $_POST['type'] == "basket"
+        || ($_POST['type'] == "dropdown_multiple" && ($_POST['item'] == "Appliance" || $_POST['item'] == "Group"))) {
+
+        if (!isset($_POST['default'])) {
+            $_POST['default'] = 0;
+        }
+        $input["custom"] = FieldParameter::_serialize($_POST['custom']);
+        $input["default"] = FieldParameter::_serialize($_POST['default']);
+        $input["plugin_metademands_fields_id"] = $_POST['plugin_metademands_fields_id'];
+        if ($fieldparam->getFromDBByCrit(["plugin_metademands_fields_id" => $_POST['plugin_metademands_fields_id']])) {
+            $input["id"] = $fieldparam->getID();
+            // check(-1, ...) falls back to the CREATE branch of CommonDBTM::can() and never
+            // evaluates UPDATE; bind the control to the row that is about to be written.
+            $fieldparam->check((int) $input["id"], UPDATE);
+            $fieldparam->update($input);
+        }
+    } elseif ($_POST['type'] == "yesno") {
+        $input["custom"] = $_POST['custom'];
+        $input["default"] = 0;
+        $input["plugin_metademands_fields_id"] = $_POST['plugin_metademands_fields_id'];
+        if ($fieldparam->getFromDBByCrit(["plugin_metademands_fields_id" => $_POST['plugin_metademands_fields_id']])) {
+            $input["id"] = $fieldparam->getID();
+            // Same as above: bind the control to the row actually written.
+            $fieldparam->check((int) $input["id"], UPDATE);
+            $fieldparam->update($input);
+        }
+    } elseif (isset($_POST["item"]) && in_array($_POST["item"], Field::$field_specificobjects)) {
+        $input["default"] = FieldParameter::_serialize($_POST['default']);
+        $input["plugin_metademands_fields_id"] = $_POST['plugin_metademands_fields_id'];
+        if ($fieldparam->getFromDBByCrit(["plugin_metademands_fields_id" => $_POST['plugin_metademands_fields_id']])) {
+            $input["id"] = $fieldparam->getID();
+            // Same as above: bind the control to the row actually written.
+            $fieldparam->check((int) $input["id"], UPDATE);
+            $fieldparam->update($input);
+        }
+    } else {
+
+        $names = $_POST['name'];
+        $is_defaults = $_POST['is_default'];
+        $comments = $_POST['comment'] ?? "";
+        $icons = $_POST['icon'] ?? "";
+        $blanks = $_POST['_blank_picture'] ?? "";
+        $ids = $_POST['id'];
+        $inputs = [];
+        if (is_array($ids) && count($ids) > 0) {
+            foreach ($ids as $k => $id) {
+                $inputs[$id]['id'] = $id;
+                if (isset($names[$id])) {
+                    $inputs[$id]['name'] = $names[$id];
+                }
+                if (isset($is_defaults[$id])) {
+                    $inputs[$id]['is_default'] = $is_defaults[$id];
+                }
+                if (isset($comments[$id])) {
+                    $inputs[$id]['comment'] = $comments[$id];
+                }
+                if (isset($icons[$id])) {
+                    $inputs[$id]['icon'] = $icons[$id];
+                }
+                if (isset($blanks[$id])) {
+                    $inputs[$id]['_blank_picture'] = $blanks[$id];
+                }
+            }
+        }
+
+        // The control was made on $_POST with a new id: it authorised nothing and did not even look
+        // at the rows being written. Bind it to each identifier of the batch instead.
+        foreach ($inputs as $key => $input) {
+            $input['plugin_metademands_fields_id'] = $_POST['plugin_metademands_fields_id'];
+            $fieldcustom->check((int) $input['id'], UPDATE);
+            $fieldcustom->update($input);
+        }
+    }
+
+    Html::back();
+} elseif (isset($_POST["delete"])) {
+    $input['id'] = $_POST['customvalues_id'];
+    $input['plugin_metademands_fields_id'] = $_POST['plugin_metademands_fields_id'];
+    // The neighbouring ranks used to be decremented before any control, so even a correct check
+    // left a partial corruption behind. Authorise the purge first, on the targeted row itself.
+    $fieldcustom->check((int) $input['id'], PURGE);
+
+    //TODO update ranks
+    $condition_del = ["plugin_metademands_fields_id" => $_POST["plugin_metademands_fields_id"]];
+    $condition_del['rank'] = ['>', $_POST['rank']];
+    $updateRank = $fieldcustom->find($condition_del, "rank");
+    if (count($updateRank) > 0) {
+        foreach ($updateRank as $update) {
+            $fieldcustom->update([
+                'id' => $update['id'],
+                'rank' => $update['rank'] - 1,
+            ]);
+        }
+    }
+    $fieldcustom->delete($input, 1);
+
+    Html::back();
+} elseif (isset($_POST["fixranks"])) {
+
+    // This branch renumbers every custom value of a field at once: there is no single row to bind
+    // the control to, so the parent field is what must be authorised.
+    $field = new Field();
+    $field->check((int) $_POST["plugin_metademands_fields_id"], UPDATE);
+
+    if ($field->getFromDB((int) $_POST["plugin_metademands_fields_id"])) {
+        $params = Field::getAllParamsFromField($field);
+        $custom_values = $params['custom_values'];
+        $newranks = FieldCustomvalue::fixRanks($custom_values);
+        foreach ($newranks as $id => $newrank) {
+            $fieldcustom->update(['id' => $id, 'rank' => $newrank['rank']]);
+        }
+    }
+
+    Html::back();
+} else {
+    $fieldcustom->checkGlobal(READ);
+    Html::header(Field::getTypeName(2), '', "helpdesk", Menu::class);
+    Html::requireJs('tinymce');
+    $fieldcustom->display(['id' => $_GET["id"]]);
+    Html::footer();
+}

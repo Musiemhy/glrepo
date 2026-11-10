@@ -1,0 +1,127 @@
+{#
+ # -------------------------------------------------------------------------
+ # mydashboard plugin for GLPI
+ # Copyright (C) 2016-2026 by the mydashboard Development Team.
+ #
+ # https://github.com/InfotelGLPI/mydashboard
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of mydashboard.
+ #
+ # mydashboard is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # mydashboard is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with mydashboard. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{% extends 'generic_show_form.html.twig' %}
+{% import 'components/form/fields_macros.html.twig' as fields %}
+
+{% block form_fields %}
+    {% set active_entities = session('glpiactiveentities') %}
+
+    {{ fields.dropdownYesNo(
+        'automatic_refresh',
+        item.fields['automatic_refresh'],
+        __('Automatic refreshing of the widgets that can be refreshed', 'mydashboard'),
+        field_options
+    ) }}
+
+    {{ fields.dropdownArrayField(
+        'automatic_refresh_delay',
+        item.fields['automatic_refresh_delay'],
+        {1: 1, 2: 2, 5: 5, 10: 10, 30: 30, 60: 60},
+        __('Refresh every ', 'mydashboard'),
+        field_options|merge({'add_field_html': __('minute(s)', 'mydashboard')})
+    ) }}
+
+    {{ fields.dropdownYesNo(
+        'replace_central',
+        item.fields['replace_central'],
+        __('Replace central interface', 'mydashboard'),
+        field_options
+    ) }}
+
+    {% if is_central %}
+        {{ fields.dropdownArrayField(
+            'prefered_group',
+            null,
+            group_choices,
+            __('My prefered groups for widget', 'mydashboard'),
+            field_options|merge({
+                'multiple': true,
+                'values': prefered_groups,
+                'display_emptychoice': true,
+            })
+        ) }}
+    {% endif %}
+
+    {{ fields.dropdownArrayField(
+        'requester_prefered_group',
+        null,
+        requester_group_choices,
+        __('My requester prefered groups for widget', 'mydashboard'),
+        field_options|merge({
+            'multiple': true,
+            'values': requester_prefered_groups,
+            'display_emptychoice': true,
+        })
+    ) }}
+
+    {{ fields.dropdownField(
+        entity_itemtype,
+        'prefered_entity',
+        item.fields['prefered_entity'],
+        __('My prefered entity for widget', 'mydashboard'),
+        field_options|merge({
+            'entity': active_entities,
+            'toadd': {0: empty_value},
+        })
+    ) }}
+
+    {{ fields.dropdownField(
+        category_itemtype,
+        'prefered_category',
+        item.fields['prefered_category'],
+        __('My favorite category for widgets', 'mydashboard'),
+        field_options|merge({
+            'entity': active_entities,
+            'condition': category_condition,
+        })
+    ) }}
+
+    {{ fields.dropdownArrayField(
+        'prefered_type',
+        item.fields['prefered_type'],
+        ticket_types,
+        __('My prefered type for widget', 'mydashboard'),
+        field_options
+    ) }}
+
+    {{ fields.dropdownArrayField(
+        'prefered_year',
+        item.fields['prefered_year'],
+        {0: __('Current year', 'mydashboard'), 1: __('Previous year', 'mydashboard')},
+        __('My prefered year for widget', 'mydashboard'),
+        field_options
+    ) }}
+
+    {{ fields.dropdownArrayField(
+        'color_palette',
+        item.fields['color_palette'],
+        palettes,
+        __('Palette color', 'mydashboard'),
+        field_options
+    ) }}
+{% endblock %}

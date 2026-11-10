@@ -1,0 +1,102 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * metademands plugin for GLPI
+ * Copyright (C) 2018-2026 by the metademands Development Team.
+ *
+ * https://github.com/InfotelGLPI/metademands
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of metademands.
+ *
+ * metademands is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * metademands is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use Glpi\Application\View\TemplateRenderer;
+use GlpiPlugin\Metademands\Config;
+use GlpiPlugin\Metademands\Field;
+use GlpiPlugin\Metademands\Wizard;
+
+$AJAX_INCLUDE = 1;
+if (strpos($_SERVER['PHP_SELF'], "utooltipUpdate.php")) {
+    header("Content-Type: text/html; charset=UTF-8");
+    Html::header_nocache();
+}
+
+// Page guard. Gate on the same rights as the wizard entry point
+// (front/wizard.form.php), the only way in to this route, exactly as the
+// neighbouring ajax/condition.php does.
+// This tooltip belongs to the wizard form and renders another user's details;
+// the disclosure check below is per-user, not per-profile.
+Session::checkSeveralRightsOr([
+    'plugin_metademands' => READ,
+    'plugin_metademands_createmeta' => READ,
+    'plugin_metademands_fillform' => READ,
+]);
+
+$fieldUser = new Field();
+
+// When users_id is 0 (e.g., initialization select2), calculate the default value
+//// from the field parameters passed by Dropdownobject::showWizardField()
+if (empty($_POST['users_id']) || (int) $_POST['users_id'] === 0) {
+    if (!empty($_POST['default_use_id_requester']) && (int) $_POST['default_use_id_requester'] === 1) {
+        $_POST['users_id'] = Session::getLoginUserID();
+    } elseif (!empty($_POST['default_use_id_requester_supervisor']) && (int) $_POST['default_use_id_requester_supervisor'] === 1) {
+        $supervisorUser = new User();
+        $supervisorUser->getFromDB(Session::getLoginUserID());
+        $_POST['users_id'] = $supervisorUser->fields['users_id_supervisor'] ?? 0;
+    }
+}
+
+$content = " ";
+$user = new User();
+if (isset($_POST['users_id']) && (int) $_POST["users_id"] > 0) {
+
+    $user_id = (int) $_POST['users_id'];
+    $field_id = $_POST['id_fielduser'];
+
+    // Determine whether the caller may view this user's information: their own supervisor
+    // (legitimate wizard default, even across entities), or anyone the requester lookup
+    // legitimately allows (self, User READ, or same entity scope — see Config helper).
+    // Prevents PII disclosure via an arbitrary users_id.
+    $me = new User();
+    $my_supervisor = 0;
+    if ($me->getFromDB(Session::getLoginUserID())) {
+        $my_supervisor = (int) ($me->fields['users_id_supervisor'] ?? 0);
+    }
+
+    $user_tooltip = new User();
+    if (
+        ($user_id === $my_supervisor
+            || Config::canCurrentUserViewRequester($user_id))
+        && $user_tooltip->getFromDB($user_id)
+    ) {
+        // showUserInformations() writes to the standard output.
+        ob_start();
+        Wizard::showUserInformations($user_tooltip);
+        $user_informations_html = ob_get_clean();
+
+        TemplateRenderer::getInstance()->display('@metademands/ajax/user_tooltip.html.twig', [
+            'user_informations_html' => $user_informations_html,
+        ]);
+    }
+}
+
+$_POST['name'] = "tooltip_user" . $_POST["id_fielduser"];
+$_POST['rand'] = "";
+Ajax::commonDropdownUpdateItem($_POST);

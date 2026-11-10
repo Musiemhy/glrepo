@@ -1,0 +1,502 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * resources plugin for GLPI
+ * Copyright (C) 2015-2026 by the resources Development Team.
+ *
+ * https://github.com/InfotelGLPI/resources
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of resources.
+ *
+ * resources is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * resources is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with resources. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Resources;
+
+use CommonDBTM;
+use CommonGLPI;
+use Glpi\Application\View\TemplateRenderer;
+use Plugin;
+use Session;
+use Toolbox;
+
+class Menu extends CommonGLPI
+{
+    public static $rightname = 'plugin_resources';
+
+    private const RESOURCES_TAB = 1;
+    private const SSII_TAB = 2;
+
+    private const PUBLIC_TAB = 3;
+
+    private const IMPORT_TAB = 4;
+
+    public function defineTabs($options = []): array
+    {
+        $tabs = [];
+        $this->addStandardTab(self::class, $tabs, $options);
+        $tabs['no_all_tab'] = true;
+
+        return $tabs;
+    }
+
+    public function getTabNameForItem(
+        CommonGLPI $item,
+        $withtemplate = 0
+    ): array|string {
+        // Only available on self
+        if (!($item instanceof self)) {
+            return '';
+        }
+
+        if ($item->canCreate() || $item->canView()) {
+            $name = self::getTypeName(2);
+            $tabs[self::RESOURCES_TAB] = self::createTabEntry(
+                text: $name,
+                icon: Resource::getIcon(),
+            );
+        }
+
+        $canresting = Session::haveright('plugin_resources_resting', UPDATE);
+        $canholiday = Session::haveright('plugin_resources_holiday', UPDATE);
+        $canhabilitation = Session::haveright('plugin_resources_habilitation', UPDATE);
+        $canbadges = Session::haveright('plugin_badges', READ) && Plugin::isPluginActive("badges");
+
+        $confighab = new ConfigHabilitation();
+        if (!$confighab->getFromDBByCrit(['entities_id' => $_SESSION['glpiactive_entity'], 'action' => ConfigHabilitation::ACTION_ADD])) {
+            $canhabilitation = false;
+        }
+
+        $configbadge = new ResourceBadge();
+        if (!$configbadge->getFromDBByCrit(['entities_id' => $_SESSION['glpiactive_entity']])) {
+            $canbadges = false;
+        }
+        $canemployment = Session::haveright('plugin_resources_employment', UPDATE);
+        $canseeemployment = Session::haveright('plugin_resources_employment', READ);
+        $canseebudget = Session::haveright('plugin_resources_budget', READ);
+        $canImport = Session::haveright('plugin_resources_import', READ);
+
+        if ($canresting || $canholiday || $canbadges || $canhabilitation) {
+            $name = __('Others declarations', 'resources');
+            $tabs[self::SSII_TAB] = self::createTabEntry(
+                text: $name,
+                icon: 'ti ti-writing',
+            );
+        }
+
+        if ($canemployment || $canseeemployment || $canseebudget) {
+            $name = __('Employments / budgets management', 'resources');
+            $tabs[self::PUBLIC_TAB] = self::createTabEntry(
+                text: $name,
+                icon: 'ti ti-buildings',
+            );
+        }
+
+        if ($canImport) {
+            $name = __('Import resources', 'resources');
+            $tabs[self::IMPORT_TAB] = self::createTabEntry(
+                text: $name,
+                icon: 'ti ti-settings',
+            );
+        }
+
+        return $tabs;
+    }
+
+    public static function displayTabContentForItem(
+        CommonGLPI $item,
+        $tabnum = 1,
+        $withtemplate = 0
+    ): bool {
+        if (!($item instanceof self)) {
+            return false;
+        }
+
+        $canresting = Session::haveright('plugin_resources_resting', UPDATE);
+        $canholiday = Session::haveright('plugin_resources_holiday', UPDATE);
+        $canhabilitation = Session::haveright('plugin_resources_habilitation', UPDATE);
+        $canbadges = Session::haveright('plugin_badges', READ) && Plugin::isPluginActive("badges");
+
+        $confighab = new ConfigHabilitation();
+        if (!$confighab->getFromDBByCrit(['entities_id' => $_SESSION['glpiactive_entity'], 'action' => ConfigHabilitation::ACTION_ADD])) {
+            $canhabilitation = false;
+        }
+
+        $configbadge = new ResourceBadge();
+        if (!$configbadge->getFromDBByCrit(['entities_id' => $_SESSION['glpiactive_entity']])) {
+            $canbadges = false;
+        }
+        $canemployment = Session::haveright('plugin_resources_employment', UPDATE);
+        $canseeemployment = Session::haveright('plugin_resources_employment', READ);
+        $canseebudget = Session::haveright('plugin_resources_budget', READ);
+        $canImport = Session::haveright('plugin_resources_import', READ);
+        $canAnnuaire     = Session::haveright('plugin_resources_annuary', READ);
+
+        if ($tabnum == self::RESOURCES_TAB) {
+
+            if ($item->canCreate()) {
+                $config = new Config();
+                if (!empty($config->fields["use_meta_for_changes"])
+                    && Plugin::isPluginActive('metademands')) {
+                    $url_change = PLUGIN_METADEMANDS_WEBDIR . "/front/wizard.form.php?step=2&metademands_id=" . $config->fields["use_meta_for_changes"];
+                } else {
+                    $url_change = PLUGIN_RESOURCES_WEBDIR . '/front/resource.change.php';
+                }
+                if (!empty($config->fields["use_meta_for_leave"])
+                    && Plugin::isPluginActive('metademands')) {
+                    $url_remove = PLUGIN_METADEMANDS_WEBDIR . "/front/wizard.form.php?step=2&metademands_id=" . $config->fields["use_meta_for_leave"];
+                } else {
+                    $url_remove = PLUGIN_RESOURCES_WEBDIR . '/front/resource.remove.php';
+                }
+
+                $actions = [
+                    'new' => [
+                        'pics' => PLUGIN_RESOURCES_WEBDIR . '/pics/newresource.png',
+                        'title' => __('Declare an arrival', 'resources'),
+                        'url' => PLUGIN_RESOURCES_WEBDIR . '/front/wizard.form.php',
+                    ],
+                    'change' => [
+                        'pics' => PLUGIN_RESOURCES_WEBDIR . '/pics/newresource.png',
+                        'title' => __('Declare a change', 'resources'),
+                        'url' => $url_change,
+                    ],
+                    'remove' => [
+                        'pics' => PLUGIN_RESOURCES_WEBDIR . '/pics/removeresource.png',
+                        'title' => __('Declare a departure', 'resources'),
+                        'url' => $url_remove,
+                    ],
+                ];
+
+                self::showMenuBlock("", "ti ti-user", $actions);
+            }
+            if ($item->canView()) {
+
+                $actions_others = ['search' => ['pics' => PLUGIN_RESOURCES_WEBDIR . '/pics/resourcelist.png',
+                    'title' => __('Search resources', 'resources'),
+                    'url' => PLUGIN_RESOURCES_WEBDIR . '/front/resource.php?reset=reset',
+                ]];
+
+                if ($canAnnuaire) {
+                    $actions_others['directory'] = ['pics' => PLUGIN_RESOURCES_WEBDIR . '/pics/directory.png',
+                        'title' => Directory::getTypeName(1),
+                        'url' => PLUGIN_RESOURCES_WEBDIR . '/front/directory.php',
+                    ];
+                }
+
+                $config = new Config();
+                if (!$config->fields["hide_view_commercial_resource"]) {
+
+                    $opt = [];
+                    $opt['reset'] = 'reset';
+                    $opt['criteria'][0]['field'] = 27;
+                    if (!$config->fields["search_default_my_resources"]) {
+                        $opt['criteria'][0]['field']      = 4;
+                    }
+                    $opt['criteria'][0]['searchtype'] = 'equals';
+                    $opt['criteria'][0]['value'] = Session::getLoginUserID();
+                    $opt['criteria'][0]['link'] = 'AND';
+
+                    $url_commercial = PLUGIN_RESOURCES_WEBDIR . "/front/resource.php?" . Toolbox::append_params($opt, '&amp;');
+
+                    $actions_others['commercial'] =  ['pics' => '',
+                        'icon' => 'ti ti-tie',
+                        'title' => __('View my resources as a commercial', 'resources'),
+                        'url' => $url_commercial,
+                    ];
+                }
+
+                if (!empty($actions_others)) {
+                    $title = __('Others actions', 'resources');
+                    self::showMenuBlock($title, "ti ti-list", $actions_others);
+                }
+
+            }
+            return true;
+
+        } elseif ($tabnum == self::SSII_TAB && ($canresting || $canholiday || $canbadges || $canhabilitation)) {
+
+            $actions_declare = [];
+
+            if ($canresting) {
+                $actions_declare['resting'] = ['pics' => PLUGIN_RESOURCES_WEBDIR . "/pics/deleteresting.png",
+                    'title' =>  _n(
+                        'Non contract period management',
+                        'Non contract periods management',
+                        2,
+                        'resources',
+                    ),
+                    'url' => PLUGIN_RESOURCES_WEBDIR . '/front/resourceresting.form.php?menu',
+                ];
+            }
+
+            if ($canholiday) {
+                $actions_declare['holiday'] = ['pics' => PLUGIN_RESOURCES_WEBDIR . "/pics/holidayresource.png",
+                    'title' =>  __(
+                        'Forced holiday management',
+                        'resources',
+                    ),
+                    'url' => PLUGIN_RESOURCES_WEBDIR . '/front/resourceholiday.form.php?menu',
+                ];
+            }
+
+            if ($canhabilitation && Plugin::isPluginActive("metademands")) {
+                //Management of a super habilitation
+                $actions_declare['habilitation'] = ['pics' => PLUGIN_RESOURCES_WEBDIR . "/pics/habilitation.png",
+                    'title' =>  ConfigHabilitation::getTypeName(
+                        1,
+                    ),
+                    'url' => PLUGIN_RESOURCES_WEBDIR . '/front/confighabilitation.form.php?menu',
+                ];
+            }
+
+            if ($canbadges && Plugin::isPluginActive("badges")) {
+                $actions_declare['badge'] = ['pics' => PLUGIN_BADGES_WEBDIR . "/badges.png",
+                    'title' =>  _n(
+                        'Badge management',
+                        'Badges management',
+                        2,
+                        'resources',
+                    ),
+                    'url' => PLUGIN_RESOURCES_WEBDIR . '/front/resourcebadge.form.php?menu',
+                ];
+            }
+
+            $title_declare = __('Others declarations', 'resources');
+            self::showMenuBlock($title_declare, "ti ti-writing", $actions_declare);
+        } elseif ($tabnum == self::PUBLIC_TAB && ($canseeemployment || $canseebudget)) {
+
+            $actions_employment = [];
+
+            if ($canemployment) {
+                //Add an employment
+                $actions_employment['new'] = ['pics' => PLUGIN_RESOURCES_WEBDIR . "/pics/employment.png",
+                    'title' =>  __('Declare an employment', 'resources'),
+                    'url' => PLUGIN_RESOURCES_WEBDIR . '/front/employment.form.php',
+                ];
+            }
+            if ($canseeemployment) {
+                $actions_employment['listemployment'] = ['pics' => PLUGIN_RESOURCES_WEBDIR . "/pics/employmentlist.png",
+                    'title' =>  __('Employment management', 'resources'),
+                    'url' => PLUGIN_RESOURCES_WEBDIR . '/front/employment.php',
+                ];
+            }
+
+            if ($canseebudget) {
+                $actions_employment['listbudget'] = ['pics' => PLUGIN_RESOURCES_WEBDIR . "/pics/budgetlist.png",
+                    'title' =>  __('Budget management', 'resources'),
+                    'url' => PLUGIN_RESOURCES_WEBDIR . '/front/budget.php',
+                ];
+            }
+
+            if ($canseeemployment) {
+                $actions_employment['recap'] = ['pics' => PLUGIN_RESOURCES_WEBDIR . "/pics/recap.png",
+                    'title' =>  __('List Employments / Resources', 'resources'),
+                    'url' => PLUGIN_RESOURCES_WEBDIR . '/front/recap.php',
+                ];
+            }
+
+            $title_employment = __('Employments / budgets management', 'resources');
+            self::showMenuBlock($title_employment, "ti ti-buildings", $actions_employment);
+
+        } elseif ($tabnum == self::IMPORT_TAB && $canImport) {
+            $actions_import = ['update' => ['pics' => '',
+                'icon' => 'ti ti-user-edit',
+                'title' =>  __('Update GLPI Resources', 'resources'),
+                'url' => ImportResource::getIndexUrl() . "?type=" . ImportResource::UPDATE_RESOURCES,
+            ],
+                'csv' => ['pics' => PLUGIN_RESOURCES_WEBDIR . "/pics/csv_check.png",
+                    'title' => __('Verify CSV file', 'resources'),
+                    'url' => ImportResource::getIndexUrl() . "?type=" . ImportResource::VERIFY_FILE,
+                ],
+                'glpi' => ['pics' => PLUGIN_RESOURCES_WEBDIR . "/pics/resource_check.png",
+                    'title' => __('Verify GLPI resources', 'resources'),
+                    'url' => ImportResource::getIndexUrl() . "?type=" . ImportResource::VERIFY_GLPI,
+                ],
+                'config' => ['pics' => '',
+                    'icon' => 'ti ti-settings',
+                    'title' => __('Configure Imports', 'resources'),
+                    'url' => Import::getIndexUrl(),
+                ],
+                'trash' => ['pics' => '',
+                    'icon' => 'ti ti-trash',
+                    'title' => __('Purge imported resources', 'resources'),
+                    // POST-only + CSRF token: a destructive purge must not be a GET link.
+                    'url' => ImportResource::getFormURL(),
+                    'post' => ['reset-imports' => 1],
+                    'confirm' => __('Confirm the purge of all imported resources?', 'resources'),
+                ],
+            ];
+
+            $title_import = __('Import resources', 'resources');
+            self::showMenuBlock($title_import, "ti ti-settings", $actions_import);
+        }
+
+        return false;
+    }
+
+    /**
+     * Return the localized name of the current Type
+     * Should be overloaded in each new class
+     *
+     * @return string
+     **/
+    public static function getTypeName($nb = 0)
+    {
+        return _n('Human resource', 'Human resources', $nb, 'resources');
+    }
+
+    public static function canView(): bool
+    {
+        if (static::$rightname) {
+            return Session::haveRight(static::$rightname, READ);
+        }
+        return false;
+    }
+
+    public static function showMenuBlock($title, $icon, $actions)
+    {
+        ob_start();
+        Wizard::WizardHeader($title, "", $icon);
+        $wizard_header = (string) ob_get_clean();
+
+        TemplateRenderer::getInstance()->display('@resources/menu_block.html.twig', [
+            'wizard_header' => $wizard_header,
+            'actions'       => $actions,
+        ]);
+    }
+
+    /**
+     * get menu content
+     *
+     * @return array array for menu
+     **/
+    public static function getMenuContent()
+    {
+        $plugin_page = PLUGIN_RESOURCES_WEBDIR . "/front/menu.php";
+
+        $menu = [];
+        //Menu entry in admin
+        $menu['title'] = Resource::getTypeName(2);
+        $menu['page'] = $plugin_page;
+        $menu['links']['search'] = PLUGIN_RESOURCES_WEBDIR . "/front/resource.php";
+        $menu['links']['lists'] = "";
+        $menu['lists_itemtype'] = Resource::getType();
+
+        if (Session::haveright("plugin_resources", CREATE)) {
+            $menu['links']['add'] = PLUGIN_RESOURCES_WEBDIR . '/front/wizard.form.php';
+            $menu['links']['template'] = PLUGIN_RESOURCES_WEBDIR . '/front/setup.templates.php?add=0';
+        }
+
+        // Resource directory
+        $menu['links']["<i class='far fa-address-book fa-1x' title='" . __(
+            'Directory',
+            'resources',
+        ) . "'></i>"] = PLUGIN_RESOURCES_WEBDIR . '/front/directory.php';
+
+        // Resting
+        if (Session::haveright("plugin_resources_resting", UPDATE)) {
+            $menu['links']["<i class='ti ti-writing fa-1x' title='" . __(
+                'List of non contract periods',
+                'resources',
+            ) . "'></i>"] = PLUGIN_RESOURCES_WEBDIR . '/front/resourceresting.php';
+        }
+
+        // Holiday
+        if (Session::haveright("plugin_resources_holiday", UPDATE)) {
+            $menu['links']["<i class='ti ti-device-imac-pause fa-1x' title='" . __(
+                'List of forced holidays',
+                'resources',
+            ) . "'></i>"] = PLUGIN_RESOURCES_WEBDIR . '/front/resourceholiday.php';
+        }
+
+        // Employment
+        if (Session::haveright("plugin_resources_employment", READ)) {
+            $menu['links']["<i class='ti ti-list fa-1x' title='" . __(
+                'Employment management',
+                'resources',
+            ) . "'></i>"] = PLUGIN_RESOURCES_WEBDIR . '/front/employment.php';
+            $menu['links']["<i class='ti ti-buildings fa-1x' title='" . __(
+                'List Employments / Resources',
+                'resources',
+            ) . "'></i>"] = PLUGIN_RESOURCES_WEBDIR . '/front/recap.php';
+        }
+
+        // Budget
+        if (Session::haveright("plugin_resources_budget", READ)) {
+            $menu['links']["<i class='ti ti-coins fa-1x' title='" . __(
+                'Budget management',
+                'resources',
+            ) . "'></i>"] = PLUGIN_RESOURCES_WEBDIR . '/front/budget.php';
+        }
+
+        // Task
+        if (Session::haveright("plugin_resources_task", READ)) {
+            $menu['links']["<i class='ti ti-list-details fa-1x' title='" . __(
+                'Tasks list',
+                'resources',
+            ) . "'></i>"] = PLUGIN_RESOURCES_WEBDIR . '/front/task.php';
+        }
+
+        // Checklist
+        if (Session::haveright("plugin_resources_checklist", READ)) {
+            $menu['links']["<i class='far fa-calendar-check fa-1x' title='" . _n(
+                'Checklist',
+                'Checklists',
+                2,
+                'resources',
+            ) . "'></i>"] = PLUGIN_RESOURCES_WEBDIR . '/front/checklistconfig.php';
+        }
+
+        $opt = [];
+        $opt['reset'] = 'reset';
+        $opt['criteria'][0]['field'] = 27; // validation status
+        $opt['criteria'][0]['searchtype'] = 'equals';
+        $opt['criteria'][0]['value'] = Session::getLoginUserID();
+        $opt['criteria'][0]['link'] = 'AND';
+
+        $url = PLUGIN_RESOURCES_WEBDIR . "/front/resource.php?" . Toolbox::append_params($opt, '&amp;');
+
+        $menu['links']["<i class='ti ti-tie fa-1x' title='" . __(
+            'View my resources as a commercial',
+            'resources',
+        ) . "'></i>"] = $url;
+
+        // Import page
+        if (Session::haveRight('plugin_resources_import', READ)) {
+            $menu['links']["<i class='ti ti-settings fa-1x' title='" . __('Import configuration', 'resources') . "'></i>"]
+                = PLUGIN_RESOURCES_WEBDIR . '/front/import.php';
+        }
+
+        // Config page
+        if (Session::haveRight("config", UPDATE)) {
+            $menu['links']['config'] = PLUGIN_RESOURCES_WEBDIR . '/front/config.form.php';
+        }
+
+        // Add menu to class
+        $menu = ResourceHoliday::getMenuOptions($menu);
+        $menu = ResourceResting::getMenuOptions($menu);
+        $menu = Budget::getMenuOptions($menu);
+        $menu = Checklist::getMenuOptions($menu);
+        $menu = Employment::getMenuOptions($menu);
+
+        $menu['icon'] = Resource::getIcon();
+
+        return $menu;
+    }
+}

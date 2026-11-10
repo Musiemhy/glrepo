@@ -1,0 +1,649 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * cmdb plugin for GLPI
+ * Copyright (C) 2020-2026 by the cmdb Development Team.
+ *
+ * https://github.com/InfotelGLPI/cmdb
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of cmdb.
+ *
+ * cmdb is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * cmdb is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with cmdb. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use GlpiPlugin\Cmdb\CI;
+use GlpiPlugin\Cmdb\CI_Cmdb;
+use GlpiPlugin\Cmdb\CIType;
+use GlpiPlugin\Cmdb\CIType_Document;
+use GlpiPlugin\Cmdb\Criticity;
+use GlpiPlugin\Cmdb\Criticity_Item;
+use GlpiPlugin\Cmdb\ImpactIcon;
+use GlpiPlugin\Cmdb\ImpactInfo;
+use GlpiPlugin\Cmdb\ImpactInfoField;
+use GlpiPlugin\Cmdb\OperationProcess;
+use GlpiPlugin\Cmdb\OperationProcess_Item;
+use GlpiPlugin\Cmdb\OperationProcessState;
+use GlpiPlugin\Cmdb\Profile;
+
+use function Safe\mkdir;
+
+/**
+ * @return bool
+ */
+function plugin_cmdb_install()
+{
+    global $DB;
+
+    if (!$DB->tableExists("glpi_plugin_cmdb_operationprocesses")) {
+        $DB->runFile(PLUGIN_CMDB_DIR . "/install/sql/empty-3.1.0.sql");
+    }
+
+    if (!$DB->tableExists("glpi_plugin_cmdb_criticities_items")) {
+        $DB->runFile(PLUGIN_CMDB_DIR . "/install/sql/update-1.1.0.sql");
+    }
+
+    if (!$DB->tableExists("glpi_plugin_cmdb_criticities")) {
+        include_once(PLUGIN_CMDB_DIR . "/install/update_110_111.php");
+        update110to111();
+    }
+
+    if ($DB->tableExists("glpi_plugin_cmdb_links_items")
+        && !$DB->fieldExists("glpi_plugin_cmdb_links_items", "plugin_cmdb_citypes_id")) {
+        $DB->runFile(PLUGIN_CMDB_DIR . "/install/sql/update-1.1.2.sql");
+    }
+
+    if (!$DB->fieldExists("glpi_plugin_cmdb_criticities", "businesscriticities_id")) {
+        include_once(PLUGIN_CMDB_DIR . "/install/update_120.php");
+        update120();
+    }
+
+    if (!$DB->fieldExists("glpi_plugin_cmdb_criticities_items", "plugin_cmdb_criticities_id")) {
+        $DB->runFile(PLUGIN_CMDB_DIR . "/install/sql/update-2.2.0.sql");
+    }
+
+    if (!$DB->fieldExists("glpi_plugin_cmdb_civalues", "itemtype")) {
+        $DB->runFile(PLUGIN_CMDB_DIR . "/install/sql/update-2.2.1.sql");
+    }
+
+    if (!$DB->fieldExists("glpi_plugin_cmdb_operationprocesses", "users_id")) {
+        $DB->runFile(PLUGIN_CMDB_DIR . "/install/sql/update-3.0.0.sql");
+    }
+
+    if (!$DB->tableExists("glpi_plugin_cmdb_impactinfos")) {
+        $DB->runFile(PLUGIN_CMDB_DIR . "/install/sql/update-3.1.0.sql");
+    }
+
+    $olddir = GLPI_ROOT . "/files/_plugins/cmdb/inc/";
+    $newdir = GLPI_ROOT . "/files/_plugins/cmdb/src/";
+    if (is_dir($olddir)) {
+        $objects = scandir($olddir);
+        foreach ($objects as $object) {
+            if ($object != "." && $object != "..") {
+                copy($olddir . "/" . $object, $newdir . "/" . str_replace(".class", "", $object));
+            }
+        }
+    }
+    cmdb_rmdir($olddir);
+
+    plugin_cmdb_rewriteGeneratedClasses();
+
+    //DisplayPreferences Migration
+    $classes = [
+        'PluginCmdbOperationprocess' => OperationProcess::class,
+        'PluginCmdbBaseline' => 'GlpiPlugin\\Cmdb\\Baseline',
+        'PluginCmdbCIType' => CIType::class,
+        'PluginCmdbCriticity' => Criticity::class,
+    ];
+
+    foreach ($classes as $old => $new) {
+        $displayusers = $DB->request([
+            'SELECT' => [
+                'users_id',
+            ],
+            'DISTINCT' => true,
+            'FROM' => 'glpi_displaypreferences',
+            'WHERE' => [
+                'itemtype' => $old,
+            ],
+        ]);
+
+        if (count($displayusers) > 0) {
+            foreach ($displayusers as $displayuser) {
+                $iterator = $DB->request([
+                    'SELECT' => [
+                        'num',
+                        'id',
+                    ],
+                    'FROM' => 'glpi_displaypreferences',
+                    'WHERE' => [
+                        'itemtype' => $old,
+                        'users_id' => $displayuser['users_id'],
+                    ],
+                ]);
+
+                if (count($iterator) > 0) {
+                    foreach ($iterator as $data) {
+                        $iterator2 = $DB->request([
+                            'SELECT' => [
+                                'id',
+                            ],
+                            'FROM' => 'glpi_displaypreferences',
+                            'WHERE' => [
+                                'itemtype' => $new,
+                                'users_id' => $displayuser['users_id'],
+                                'num' => $data['num'],
+                                'interface' => 'central',
+                            ],
+                        ]);
+                        if (count($iterator2) > 0) {
+                            foreach ($iterator2 as $dataid) {
+                                $DB->delete('glpi_displaypreferences', ['id' => $dataid['id']]);
+                            }
+                        } else {
+                            $DB->update('glpi_displaypreferences', ['itemtype' => $new], ['id' => $data['id']]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    $DB->runFile(PLUGIN_CMDB_DIR . "/install/sql/update-3.1.4.sql");
+
+    // Data directories the plugin reads from at runtime, created here rather than at
+    // setup.php load time.
+    foreach ([PLUGINCMDB_DOC_DIR, PLUGINCMDB_CLASS_PATH] as $directory) {
+        if (!file_exists($directory)) {
+            mkdir($directory);
+        }
+    }
+
+    // update-2.2.1.sql renamed glpi_plugin_cmdb_civalues.plugin_cmdb_cis_id to items_id and
+    // added itemtype beside it, but CI::postAddCi() kept writing the old name: every row
+    // created since carries items_id = 0 and an empty itemtype, which the readers — they all
+    // query on the (items_id, itemtype) pair — never match, and which the purge cleanup never
+    // collected. The rows can only belong to a CI, that is the one writer.
+    $DB->update('glpi_plugin_cmdb_civalues', ['itemtype' => CI::class], ['itemtype' => '']);
+
+    Profile::initProfile();
+    Profile::createFirstAccess($_SESSION['glpiactiveprofile']['id']);
+
+    return true;
+}
+
+/**
+ * @return bool
+ */
+function plugin_cmdb_uninstall()
+{
+    global $DB;
+
+    $citype = new CIType();
+    $citypes = $citype->find(["is_imported" => 0]);
+    foreach ($citypes as $type) {
+        $impactitem = new ImpactItem();
+        $impactitem->deleteByCriteria(["itemtype" => $type["name"]]);
+        $impactrelation = new ImpactRelation();
+        $impactrelation->deleteByCriteria(["itemtype_source" => $type["name"]]);
+        $impactrelation->deleteByCriteria(["itemtype_impacted" => $type["name"]]);
+        $item = $type["name"];
+        $dir = GLPI_ROOT . "/files/_plugins/cmdb/src/";
+
+        // Guard against path traversal / arbitrary file inclusion via a tampered CIType name
+        if (preg_match('/^[A-Za-z0-9_\\\\]+$/', (string) $item) && strpos($item, '..') === false) {
+            $class_file = $dir . basename(str_replace('\\', '/', $item)) . ".php";
+            if (file_exists($class_file)) {
+                include_once($class_file);
+                if (class_exists($item)) {
+                    $item::uninstall();
+                }
+            }
+        }
+    }
+    $tables = [
+        "glpi_plugin_cmdb_criticities_items",
+        "glpi_plugin_cmdb_operationprocesses",
+        "glpi_plugin_cmdb_operationprocesses_items",
+        "glpi_plugin_cmdb_operationprocessstates",
+        "glpi_plugin_cmdb_typelinks",
+        "glpi_plugin_cmdb_typelinkrights",
+        "glpi_plugin_cmdb_links_items",
+        "glpi_plugin_cmdb_baselines",
+        "glpi_plugin_cmdb_baselines_cis",
+        "glpi_plugin_cmdb_baselinetypes",
+        "glpi_plugin_cmdb_baselines_items_items",
+        "glpi_plugin_cmdb_baselines_typelinks",
+        "glpi_plugin_cmdb_baselinestates",
+        "glpi_plugin_cmdb_citypes",
+        "glpi_plugin_cmdb_cis",
+        "glpi_plugin_cmdb_cifields",
+        "glpi_plugin_cmdb_civalues",
+        "glpi_plugin_cmdb_preferences",
+        "glpi_plugin_cmdb_cis_positions",
+        "glpi_plugin_cmdb_baselines_positions",
+        "glpi_plugin_cmdb_citypes_documents",
+        "glpi_plugin_cmdb_criticities",
+        "glpi_plugin_cmdb_impacticons",
+        "glpi_plugin_cmdb_impactinfos",
+        // Real table name has no underscore before "fields" (see install SQL and
+        // ImpactInfoField::getTable()); the previous "impactinfo_fields" spelling
+        // never matched, leaving glpi_plugin_cmdb_impactinfofields behind on uninstall.
+        "glpi_plugin_cmdb_impactinfofields",
+    ];
+
+    // Purge the icons one by one before their table goes. Dropping it takes the rows away
+    // without ever running ImpactIcon::cleanDBonPurge(), which is what removes the
+    // Document_Item link and, when the icon was its only holder, the Document itself: the
+    // uploaded files stayed on disk and the documents stayed listed in the interface,
+    // attached to an itemtype that no longer exists.
+    if ($DB->tableExists('glpi_plugin_cmdb_impacticons')) {
+        $impact_icon = new ImpactIcon();
+        foreach ($DB->request(['SELECT' => 'id', 'FROM' => 'glpi_plugin_cmdb_impacticons']) as $row) {
+            if ($impact_icon->getFromDB($row['id'])) {
+                $impact_icon->delete(['id' => $row['id']], true);
+            }
+        }
+    }
+
+    // Runs before the sweep below: that loop deletes the Document_Item rows of
+    // ImpactIcon by criteria, and cleanDBonPurge() needs them to find the documents to
+    // free.
+    $itemtypes = [
+        'Alert',
+        'DisplayPreference',
+        'Document_Item',
+        'ImpactItem',
+        'Item_Ticket',
+        'Link_Itemtype',
+        'Notepad',
+        'SavedSearch',
+        'DropdownTranslation',
+        'NotificationTemplate',
+        'Notification',
+    ];
+    foreach ($itemtypes as $itemtype) {
+        foreach (
+            [
+                OperationProcess::class,
+                CI::class,
+                CIType::class,
+                CIType_Document::class,
+                ImpactIcon::class,
+                ImpactInfo::class,
+            ] as $deletedType
+        ) {
+            if ($item = getItemForItemtype($itemtype)) {
+                $item->deleteByCriteria(['itemtype' => $deletedType]);
+            }
+        }
+    }
+
+    // Remove every plugin profile right. getAllRights() is not a reliable
+    // source here: it omits plugin_cmdb_operationprocesses_open_ticket unless
+    // called with true, and the base plugin_cmdb_operationprocesses right is
+    // commented out of it entirely while still being granted by
+    // createFirstAccess(). A LIKE delete guarantees no residual right is left
+    // in glpi_profilerights after uninstall.
+    $DB->delete('glpi_profilerights', ['name' => ['LIKE', 'plugin_cmdb%']]);
+
+    // Purge leftover display preferences. The loop above only removes rows whose
+    // itemtype matches the namespaced classes (GlpiPlugin\Cmdb\*), but the install
+    // SQL seeds them with legacy "PluginCmdb*" itemtype strings (e.g.
+    // PluginCmdbImpactinfo, PluginCmdbImpacticon), which never matched and were
+    // left behind. A LIKE delete on the legacy prefix guarantees none remain.
+    $DB->delete('glpi_displaypreferences', ['itemtype' => ['LIKE', 'PluginCmdb%']]);
+
+    foreach ($tables as $table) {
+        $DB->dropTable($table, true);
+    }
+
+    //remove files
+    if (is_dir(PLUGINCMDB_DOC_DIR . '/front')) {
+        cmdb_rmdir(PLUGINCMDB_DOC_DIR . '/front');
+    }
+    if (is_dir(PLUGINCMDB_DOC_DIR . '/src')) {
+        cmdb_rmdir(PLUGINCMDB_DOC_DIR . '/src');
+    }
+
+    Profile::removeRightsFromSession();
+
+    return true;
+}
+
+
+//Define dropdown relations
+/**
+ * @return array
+ */
+function plugin_cmdb_getDatabaseRelations()
+{
+    if (Plugin::isPluginActive("cmdb")) {
+        return [
+            "glpi_entities" => [
+                "glpi_plugin_cmdb_operationprocesses" => "entities_id",
+                "glpi_plugin_cmdb_citypes" => "entities_id",
+                //            "glpi_plugin_cmdb_cis"  => "entities_id"
+            ],
+            //              "glpi_plugin_cmdb_operationprocessstates" => ["glpi_plugin_cmdb_operationprocesses"
+            //                                                            => "plugin_cmdb_operationprocessstates_id"],
+            "glpi_plugin_cmdb_criticities" => [
+                "glpi_plugin_cmdb_criticities_items"
+                => "plugin_cmdb_criticities_id",
+            ],
+            // Underscore prefix: the cleanup is handled by the application, in
+            // OperationProcess::cleanDBonPurge() for this side and by the pre_item_purge hook
+            // registered in plugin_cmdb_postinit() for the polymorphic one. Declaring it here
+            // still lets the core account for the relation when it checks whether recursivity
+            // can be turned off on a process.
+            "glpi_plugin_cmdb_operationprocesses" => [
+                "_glpi_plugin_cmdb_operationprocesses_items"
+                => "plugin_cmdb_operationprocesses_id",
+            ],
+            "glpi_users" => [
+                "glpi_plugin_cmdb_operationprocesses"
+                => "users_id_tech",
+            ],
+            "glpi_groups" => [
+                "glpi_plugin_cmdb_operationprocesses"
+                => "groups_id_tech",
+            ],
+        ];
+    }
+    return [];
+}
+
+// Define Dropdown tables to be manage in GLPI :
+/**
+ * @return array
+ */
+function plugin_cmdb_getDropdown()
+{
+    // Define Dropdown tables to be manage in GLPI :
+    if (Plugin::isPluginActive("cmdb")) {
+        $dropdowns = [];
+
+        $field_obj = new CIType();
+        $fields = $field_obj->find(['is_imported' => 0]);
+        foreach ($fields as $field) {
+            $classname = $field["name"];
+            if (!getItemForItemtype($classname)) {
+                continue;
+            }
+            $dropdowns[$field['name']] = $classname::getTypeName();
+        }
+
+        asort($dropdowns);
+
+        $array = [
+            OperationProcessState::class
+            => OperationProcessState::getTypeName(2),
+            CIType::class
+            => CIType::getTypeName(2),
+        ];
+        $result = array_merge($array, $dropdowns);
+        return $result;
+    }
+    return [];
+}
+
+/**
+ * @param $types
+ *
+ * @return mixed
+ */
+function plugin_cmdb_AssignToTicket($types)
+{
+    if (Session::haveRight("plugin_cmdb_operationprocesses_open_ticket", "1")) {
+        $types[OperationProcess::class] = OperationProcess::getTypeName(2);
+    }
+
+    return $types;
+}
+
+//Search function
+function plugin_cmdb_postinit()
+{
+    global $PLUGIN_HOOKS;
+
+    foreach (OperationProcess::getTypes(true) as $type) {
+        CommonGLPI::registerStandardTab($type, OperationProcess_Item::class);
+        // OperationProcess_Item::cleanForItem() existed but nothing ever called it: purging a
+        // linked asset left its associations behind, pointing at an id the core is free to
+        // reassign. Hooks are dispatched by itemtype, never by the method name, so the
+        // registration has to be made here for every type the tab is offered on. 'item_purge'
+        // rather than 'pre_item_purge' because the latter holds a single callable per itemtype
+        // and is already taken below by Criticity_Item, on a list that can overlap this one --
+        // a CIType is named in free text, so nothing stops one from being called User or Group.
+        $PLUGIN_HOOKS['item_purge']['cmdb'][$type] = [OperationProcess_Item::class, 'cleanForItem'];
+    }
+
+    foreach (Criticity_Item::getCIType() as $value) {
+        $PLUGIN_HOOKS['item_add']['cmdb'][$value] = [Criticity_Item::class, 'addItemCriticity'];
+        $PLUGIN_HOOKS['pre_item_update']['cmdb'][$value] = [Criticity_Item::class, 'preUpdateItemCriticity'];
+        $PLUGIN_HOOKS['pre_item_purge']['cmdb'][$value] = [Criticity_Item::class, 'purgeItemCriticity'];
+        CommonGLPI::registerStandardTab($value, CI_Cmdb::class);
+    }
+}
+
+/**
+ * @param $itemtype
+ *
+ * @return array
+ */
+function plugin_cmdb_getAddSearchOptions($itemtype)
+{
+    global $CFG_GLPI;
+
+    $sopt = [];
+
+    if (in_array($itemtype, Criticity_Item::getCIType())) {
+        if (!in_array($itemtype, $CFG_GLPI['infocom_types'])) {
+            if (Session::haveRight("plugin_cmdb_cis", READ)) {
+                $sopt[8010]['table'] = 'glpi_plugin_cmdb_criticities_items';
+                $sopt[8010]['field'] = 'plugin_cmdb_criticities_id';
+                $sopt[8010]['name'] = Criticity_Item::getTypeName(1);
+                $sopt[8010]['datatype'] = 'specific';
+                $sopt[8010]['massiveaction'] = true;
+                //$sopt[8010]['searchtype']     = 'equals';
+                $sopt[8010]['nosearch'] = true;
+                $sopt[8010]['joinparams'] = ['jointype' => 'itemtype_item'];
+            }
+        }
+    }
+    if ($itemtype == BusinessCriticity::getType()) {
+        $sopt[200]['table'] = 'glpi_plugin_cmdb_criticities';
+        $sopt[200]['field'] = 'color';
+        $sopt[200]['name'] = __('Color');
+        $sopt[200]['datatype'] = 'color';
+        $sopt[200]['massiveaction'] = false;
+        $sopt[200]['joinparams'] = ['jointype' => 'child'];
+
+        $sopt[201]['table'] = 'glpi_plugin_cmdb_criticities';
+        $sopt[201]['field'] = 'level';
+        $sopt[201]['name'] = __('Level');
+        $sopt[201]['massiveaction'] = false;
+        $sopt[201]['datatype'] = 'int';
+        $sopt[201]['joinparams'] = ['jointype' => 'child'];
+    }
+    return $sopt;
+}
+
+//display custom fields in the search
+/**
+ * @param $type
+ * @param $ID
+ * @param $data
+ * @param $num
+ *
+ * @return string
+ */
+function plugin_cmdb_giveItem($type, $ID, $data, $num)
+{
+    if ($type == CIType::class) {
+        $options = Search::getOptions($type);
+        $searchopt = &$options;
+        $table = $searchopt[$ID]["table"];
+        $field = $searchopt[$ID]["field"];
+
+        switch ($table . '.' . $field) {
+            //display associated items with webapplications
+            case "glpi_plugin_cmdb_citypes.name":
+                $type = new CIType();
+                if ($type->getFromDB($data["id"])) {
+                    if ($type->fields['is_imported']) {
+                        $link = Toolbox::getItemTypeFormURL(CIType::class) . "?id=" . $data['id'];
+                        $dbu = new DbUtils();
+                        if ($item = $dbu->getItemForItemtype($type->fields['name'])) {
+                            // Since GLPI 11 an itemtype label is not necessarily a constant of
+                            // the code: a custom asset returns the name its definition stored,
+                            // i.e. free text, and this formatter feeds an HTML search cell.
+                            // Every other formatter of the plugin escapes at the sink (see
+                            // src/Cmdb_Ticket.php:197 and :216); this branch was the omission.
+                            $display = $item::getTypeName(1);
+                            return "<a href='" . htmlescape($link) . "'>" . htmlescape($display) . "</a>";
+                        } else {
+                            return __('item not found or disabled', 'cmdb');
+                        }
+                    }
+                }
+                break;
+        }
+    }
+    return "";
+}
+
+/**
+ * Clean the impact information fields that reference a purged foreign row.
+ *
+ * ImpactInfoField holds a polymorphic reference: when type is "fields", field_id is the id of
+ * a PluginFieldsField row — a class this plugin does not own, so the cleanup cannot live in a
+ * cleanDBonPurge() of ours. Every class the plugin does own cleans its own children there.
+ *
+ * @param CommonDBTM $item
+ *
+ * @return bool
+ */
+function plugin_cmdb_item_purge(CommonDBTM $item)
+{
+    global $DB;
+
+    if ($item instanceof PluginFieldsField) {
+        $DB->delete(
+            ImpactInfoField::getTable(),
+            ['type'     => 'fields',
+                'field_id' => (string) $item->getID()],
+        );
+    }
+
+    return true;
+}
+
+/**
+ * Rewrite from the current template the CI type classes already generated on disk.
+ *
+ * templates/Citype.tpl carried the very write IDOR that was closed in CI::post_updateItem() and
+ * CI::postAddCi(): a posted civalues id used as the primary key of an update() with no ownership
+ * check, on a table that has no entities_id and therefore no checkEntity() fallback. Fixing the
+ * template alone protects nobody — the generator is gone, nothing calls generateTemplate() any
+ * more — while Autoloader still includes the classes earlier versions deposited under
+ * PLUGINCMDB_CLASS_PATH, flaw included. Rewrite those files in place.
+ *
+ * Only files that already exist are touched, so this never generates a new class, and the class
+ * name each file declares is kept: the autoloader resolves it from the file name, renaming it
+ * would make the type unloadable.
+ *
+ * @return void
+ */
+function plugin_cmdb_rewriteGeneratedClasses()
+{
+    global $DB;
+
+    $template_path = PLUGIN_CMDB_DIR . "/templates/Citype.tpl";
+
+    if (!is_dir(PLUGINCMDB_CLASS_PATH)
+        || !$DB->tableExists('glpi_plugin_cmdb_citypes')
+        || !file_exists($template_path)) {
+        return;
+    }
+
+    $template = file_get_contents($template_path);
+    if ($template === false) {
+        return;
+    }
+
+    $iterator = $DB->request(['SELECT' => ['id', 'name'],
+        'FROM'  => 'glpi_plugin_cmdb_citypes',
+        'WHERE' => ['is_imported' => 0],
+    ]);
+
+    foreach ($iterator as $citype) {
+        // Same transformation as Autoloader::isAllowedClass(): the file name is the only thing
+        // that ties a row of the table to a class on disk.
+        $system_name = CIType::getSystemName((string) $citype['name']);
+        if ($system_name === '') {
+            continue;
+        }
+
+        $path = PLUGINCMDB_CLASS_PATH . "/" . ucfirst($system_name) . ".php";
+        if (!file_exists($path)) {
+            continue;
+        }
+
+        $current = file_get_contents($path);
+        if ($current === false
+            || str_contains($current, 'getOwnerCriteria')
+            || preg_match('/^\s*class\s+(\w+)\s+extends/m', $current, $matches) !== 1) {
+            // Already rewritten from the fixed template, or not a file this plugin wrote.
+            continue;
+        }
+
+        // The label lands in a double quoted literal of the generated file, so it has to be
+        // escaped: the original generator substituted it raw and a quote in the name of a CI
+        // type produced a class file that could not even be parsed.
+        $label = addcslashes(substr((string) $citype['name'], strlen('GlpiPlugin\\Cmdb\\')), '"\\$');
+
+        $class = str_replace(
+            ["%%CLASSNAME%%", "%%TYPE%%", "%%ITEMRIGHT%%", "%%NAME%%"],
+            [$matches[1], (string) (int) $citype['id'], "plugin_cmdb_cis", $label],
+            $template,
+        );
+
+        if (file_put_contents($path, $class) === false) {
+            Toolbox::logDebug("Error : class file rewrite - $path");
+        }
+    }
+}
+
+function cmdb_rmdir($dir)
+{
+    if (is_dir($dir)) {
+        $objects = scandir($dir);
+        foreach ($objects as $object) {
+            if ($object != "." && $object != "..") {
+                if (filetype($dir . "/" . $object) == "dir") {
+                    cmdb_rmdir($dir . "/" . $object);
+                } else {
+                    unlink($dir . "/" . $object);
+                }
+            }
+        }
+        reset($objects);
+        rmdir($dir);
+    }
+}

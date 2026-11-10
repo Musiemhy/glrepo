@@ -1,0 +1,308 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * metademands plugin for GLPI
+ * Copyright (C) 2018-2026 by the metademands Development Team.
+ *
+ * https://github.com/InfotelGLPI/metademands
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of metademands.
+ *
+ * metademands is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * metademands is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use Glpi\Application\View\TemplateRenderer;
+use Glpi\Exception\Http\BadRequestHttpException;
+use Glpi\Exception\Http\NotFoundHttpException;
+use GlpiPlugin\Metademands\Fields\Time;
+
+header("Content-Type: text/html; charset=UTF-8");
+Html::header_nocache();
+
+global $CFG_GLPI;
+
+$dbu = new DbUtils();
+if (!isset($_POST["itemtype"]) || !($item = $dbu->getItemForItemtype($_POST['itemtype']))) {
+    throw new NotFoundHttpException();
+}
+
+if (in_array($_POST["itemtype"], $CFG_GLPI["infocom_types"])) {
+    Session::checkSeveralRightsOr([$_POST["itemtype"] => UPDATE,
+        "infocom"          => UPDATE]);
+} else {
+    $item->checkGlobal(UPDATE);
+}
+
+if (isset($_POST["itemtype"]) && isset($_POST["id_field"]) && $_POST["id_field"]) {
+    $search = Search::getOptions($_POST["itemtype"]);
+    if (!isset($search[$_POST["id_field"]])) {
+        throw new NotFoundHttpException();
+    }
+    $search    = $search[$_POST["id_field"]];
+    $USE_TABLE = false;
+
+    // Every branch below writes its widget straight to the standard output. Capture it:
+    // the branches used to open a `<table><tr><td>` each and leave the tail of the file
+    // to close it, and the template now owns that wrapper.
+    ob_start();
+
+
+    if ($search["table"] == $dbu->getTableForItemType($_POST["itemtype"])) { // field type
+        switch ($search["table"] . "." . $search["linkfield"]) {
+            case "glpi_tickets.status":
+                \Ticket::dropdownStatus(['name'  => $search["linkfield"],
+                    'value' => $_POST["value"]]);
+                break;
+
+            case "glpi_tickets.items_id":
+                if (isset($_POST['itemtype_used']) && !empty($_POST['itemtype_used'])) {
+                    // Only the itemtypes that can actually be linked to a ticket are offered here:
+                    // the value comes from the browser and would otherwise let any dropdown be listed.
+                    if (!in_array($_POST['itemtype_used'], $CFG_GLPI['ticket_types'], true)) {
+                        throw new BadRequestHttpException();
+                    }
+                    if (!($linked_item = $dbu->getItemForItemtype($_POST['itemtype_used']))) {
+                        throw new BadRequestHttpException();
+                    }
+                    $linked_item->checkGlobal(READ);
+
+                    Dropdown::show($_POST['itemtype_used'], ['name' => $search["linkfield"], 'value' => $_POST["value"]]);
+                }
+                break;
+
+            case "glpi_tickets.type":
+                \Ticket::dropdownType($search["linkfield"], ['value' => $_POST["value"]]);
+                break;
+
+            case "glpi_tickets.priority":
+                \Ticket::dropdownPriority(['name' => $search["linkfield"], 'value' => $_POST["value"]]);
+                break;
+
+            case "glpi_tickets.impact":
+                \Ticket::dropdownImpact(['name' => $search["linkfield"], 'value' => $_POST["value"]]);
+                break;
+
+            case "glpi_tickets.urgency":
+                \Ticket::dropdownUrgency(['name' => $search["linkfield"], 'value' => $_POST["value"]]);
+                break;
+
+            case "glpi_tickets.global_validation":
+                \TicketValidation::dropdownStatus($search["linkfield"], ['value' => $_POST["value"]]);
+                break;
+            default:
+                // Specific plugin Type case
+                $plugdisplay = false;
+                if ($plug = isPluginItemType($_POST["itemtype"])) {
+                    $plugdisplay = Plugin::doOneHook(
+                        $plug['plugin'],
+                        'MassiveActionsFieldsDisplay',
+                        ['itemtype' => $_POST["itemtype"],
+                            'options'  => $search],
+                    );
+                }
+                $already_display = false;
+
+                if (isset($search['datatype'])) {
+                    switch ($search['datatype']) {
+                        case "date":
+                            Html::showDateField($search["linkfield"], ['value' => $_POST['value']]);
+                            $USE_TABLE       = true;
+                            $already_display = true;
+                            break;
+                        case "time":
+                            Time::showTimeField($search["linkfield"], ['value' => $_POST['value']]);
+                            $USE_TABLE       = true;
+                            $already_display = true;
+                            break;
+                        case "datetime":
+                            if (!isset($_POST['relative_dates']) || !$_POST['relative_dates']) {
+                                Html::showDateTimeField($search["linkfield"], ['value' => $_POST['value']]);
+                                $already_display = true;
+                                $USE_TABLE       = true;
+                            } else { // For ticket template
+                                Html::showGenericDateTimeSearch(
+                                    $search["linkfield"],
+                                    $_POST['value'],
+                                    ['with_time'          => true,
+                                        'with_future'
+                                                             => (isset($search['maybefuture'])
+                                                                 && $search['maybefuture']),
+                                        'with_days'          => false,
+                                        'with_specific_date' => false],
+                                );
+
+                                $already_display = true;
+                            }
+                            break;
+
+                            //                  case "itemtypename" :
+                            //                     if (isset($search['itemtype_list'])) {
+                            //                        \Dropdown::dropdownTypes($search["linkfield"], $_POST['value'], $CFG_GLPI[$search['itemtype_list']]);
+                            //                        $already_display = true;
+                            //                     }
+                            //                     break;
+
+                        case "bool":
+                            \Dropdown::showYesNo($search["linkfield"], $_POST['value']);
+                            $already_display = true;
+                            break;
+
+                        case "timestamp":
+                            \Dropdown::showTimeStamp($search["linkfield"], ['value' => $_POST['value']]);
+                            $already_display = true;
+                            break;
+
+                        case "text":
+                            Html::textarea(['name'              => $search["linkfield"],
+                                'cols'              => '45',
+                                'rows'              => '5',
+                                'value'             => stripslashes($_POST['value']),
+                                'enable_richtext'   => true,
+                                'enable_fileupload' => false]);
+                            $already_display = true;
+                            break;
+                    }
+                }
+
+                if (!$plugdisplay && !$already_display) {
+                    $newtype = $dbu->getItemTypeForTable($search["table"]);
+                    if ($newtype != $_POST["itemtype"]) {
+                        $item = new $newtype();
+                    }
+                    echo Html::input($search["linkfield"], ['value' => stripslashes($_POST['value']), 'size' => 40]);
+                }
+        }
+    } else {
+        switch ($search["table"]) {
+            case "glpi_users": // users
+                switch ($search["linkfield"]) {
+                    //                case "users_id_assign" :
+                    //                   User::dropdown(array('name'   => $search["linkfield"],
+                    //                                        'right'  => 'own_ticket',
+                    //                                        'entity' => $_SESSION["glpiactive_entity"]));
+                    //                   break;
+
+                    case "users_id_tech":
+                        User::dropdown(['name'   => $search["linkfield"],
+                            'value'  => $_POST["value"],
+                            'right'  => 'own_ticket',
+                            'entity' => $_SESSION["glpiactive_entity"]]);
+                        break;
+
+                    default:
+                        User::dropdown(['name'   => $search["linkfield"],
+                            'value'  => $_POST["value"],
+                            'entity' => $_SESSION["glpiactive_entity"],
+                            'right'  => 'all']);
+                }
+                break;
+
+                break;
+
+            case "glpi_softwareversions":
+                switch ($search["linkfield"]) {
+                    case "softwareversions_id_use":
+                    case "softwareversions_id_buy":
+                        $_POST['softwares_id'] = $_POST['extra_softwares_id'];
+                        $_POST['myname']       = $search['linkfield'];
+                        $inc = $CFG_GLPI["root_doc"] . '/ajax/dropdownInstallVersion.php';
+                        if (file_exists($inc)) {
+                            include($inc);
+                        }
+                        break;
+                }
+                break;
+
+            default: // dropdown case
+                $plugdisplay = false;
+                // Specific plugin Type case
+                if (($plug = isPluginItemType($_POST["itemtype"]))
+                // Specific for plugin which add link to core object
+                || ($plug = isPluginItemType($dbu->getItemTypeForTable($search['table'])))) {
+                    $plugdisplay = Plugin::doOneHook(
+                        $plug['plugin'],
+                        'MassiveActionsFieldsDisplay',
+                        ['itemtype' => $_POST["itemtype"],
+                            'options'  => $search],
+                    );
+                }
+                $already_display = false;
+
+                if (isset($search['datatype'])) {
+                    switch ($search['datatype']) {
+                        case "date":
+                            Html::showDateField($search["linkfield"], $_POST["value"]);
+                            $USE_TABLE       = true;
+                            $already_display = true;
+                            break;
+                        case "time":
+                            Time::showTimeField($search["linkfield"], $_POST["value"]);
+                            $USE_TABLE       = true;
+                            $already_display = true;
+                            break;
+                        case "datetime":
+                            Html::showDateTimeField($search["linkfield"], ['value' => $_POST["value"]]);
+                            $already_display = true;
+                            $USE_TABLE       = true;
+                            break;
+
+                        case "bool":
+                            Dropdown::showYesNo($search["linkfield"], $_POST["value"]);
+                            $already_display = true;
+                            break;
+
+                        case "text":
+                            Html::textarea(['name'             => $search["linkfield"],
+                                'value'           => htmlspecialchars($_POST["value"] ?? '', ENT_QUOTES, 'UTF-8'),
+                                'cols'            => 45,
+                                'rows'            => 5,
+                                'enable_richtext' => true]);
+                            $already_display = true;
+                            break;
+                    }
+                }
+
+                if (!$plugdisplay && !$already_display) {
+                    $cond = (isset($search['condition']) ? $search['condition'] : []);
+                    \Dropdown::show(
+                        $dbu->getItemTypeForTable($search["table"]),
+                        ['name'      => $search["linkfield"],
+                            'value'     => $_POST["value"],
+                            'entity'    => $_SESSION['glpiactiveentities'],
+                            'condition' => $cond],
+                    );
+                }
+        }
+    }
+
+    $widget_html = ob_get_clean();
+
+    // $FIELDNAME_PRINTED was declared next to $USE_TABLE and never set: no branch of the
+    // switch printed the field name, so the hidden input was always emitted.
+    $hidden_html = Html::hidden(
+        'field',
+        ['value' => empty($search["linkfield"]) ? $search["field"] : $search["linkfield"]],
+    );
+
+    TemplateRenderer::getInstance()->display('@metademands/ajax/massiveaction_field.html.twig', [
+        'use_table'   => $USE_TABLE,
+        'widget_html' => $widget_html,
+        'hidden_html' => $hidden_html,
+    ]);
+}

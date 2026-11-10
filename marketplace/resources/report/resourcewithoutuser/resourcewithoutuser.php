@@ -1,0 +1,170 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * resources plugin for GLPI
+ * Copyright (C) 2015-2026 by the resources Development Team.
+ *
+ * https://github.com/InfotelGLPI/resources
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of resources.
+ *
+ * resources is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * resources is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with resources. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use Glpi\DBAL\QuerySubQuery;
+use GlpiPlugin\Reports\AutoReport;
+use GlpiPlugin\Reports\Column;
+use GlpiPlugin\Reports\ColumnDate;
+use GlpiPlugin\Reports\ColumnLink;
+use GlpiPlugin\Resources\Rank;
+use GlpiPlugin\Resources\Resource;
+use GlpiPlugin\Resources\ResourceSituation;
+use GlpiPlugin\Resources\ResourceState;
+
+//Options for GLPI 0.71 and newer : need slave db to access the report
+$USEDBREPLICATE = 1;
+$DBCONNECTION_REQUIRED = 0;
+
+global $HEADER_LOADED, $DB;
+//"Rapport listant les ressources sans utilisateurs";
+//"Report listing resource without user";
+// Instantiate Report with Name
+// Authorization guard: this report script is directly addressable and bypasses the
+// reports plugin dispatcher, so enforce the plugin business right — like every other
+// resources endpoint — before running any query or emitting output.
+Session::checkRight('plugin_resources', READ);
+
+$report = new AutoReport(__("Report listing resources without users", "resources"));
+
+// Columns title (optional)
+$report->setColumns([
+    new ColumnLink(
+        'resource_id',
+        __('Surname'),
+        Resource::class,
+        ['sorton' => 'resource_name'],
+    ),
+    new Column(
+        'firstname',
+        __('First name'),
+        ['sorton' => 'firstname'],
+    ),
+    new Column(
+        'rank',
+        Rank::getTypeName(1),
+        ['sorton' => 'rank'],
+    ),
+    new Column(
+        'situation',
+        ResourceSituation::getTypeName(1),
+        ['sorton' => 'situation'],
+    ),
+    new Column(
+        'state',
+        ResourceState::getTypeName(1),
+        ['sorton' => 'state'],
+    ),
+    new ColumnDate(
+        'date_begin',
+        __('Arrival date', 'resources'),
+        ['sorton' => 'date_begin'],
+    ),
+    new ColumnDate(
+        'date_end',
+        __('Departure date', 'resources'),
+        ['sorton' => 'date_end'],
+    ),
+]);
+
+// SQL statement
+$dbu = new DbUtils();
+$date = date("Y-m-d");
+
+//display only resource without user linked
+$criteria = [
+    'SELECT'    => [
+        'glpi_plugin_resources_resources.id AS resource_id',
+        'glpi_plugin_resources_resources.name AS resource_name',
+        'glpi_plugin_resources_resources.firstname',
+        'glpi_plugin_resources_ranks.name AS rank',
+        'glpi_plugin_resources_resourcesituations.name AS situation',
+        'glpi_plugin_resources_resourcestates.name AS state',
+        'glpi_plugin_resources_resources.date_begin',
+        'glpi_plugin_resources_resources.date_end',
+    ],
+    'FROM'      => 'glpi_plugin_resources_resources',
+    'LEFT JOIN' => [
+        'glpi_plugin_resources_ranks'              => [
+            'ON' => [
+                'glpi_plugin_resources_resources' => 'plugin_resources_ranks_id',
+                'glpi_plugin_resources_ranks'     => 'id',
+            ],
+        ],
+        'glpi_plugin_resources_resourcesituations' => [
+            'ON' => [
+                'glpi_plugin_resources_resources'          => 'plugin_resources_resourcesituations_id',
+                'glpi_plugin_resources_resourcesituations' => 'id',
+            ],
+        ],
+        'glpi_plugin_resources_resourcestates'     => [
+            'ON' => [
+                'glpi_plugin_resources_resources'      => 'plugin_resources_resourcestates_id',
+                'glpi_plugin_resources_resourcestates' => 'id',
+            ],
+        ],
+    ],
+    'WHERE'     => [
+        'glpi_plugin_resources_resources.is_leaving'  => 0,
+        'glpi_plugin_resources_resources.is_deleted'  => 0,
+        'glpi_plugin_resources_resources.is_template' => 0,
+        'NOT'                                         => [
+            'glpi_plugin_resources_resources.id' => new QuerySubQuery([
+                'SELECT' => 'plugin_resources_resources_id',
+                'FROM'   => 'glpi_plugin_resources_resources_items',
+                'WHERE'  => ['glpi_plugin_resources_resources_items.itemtype' => 'User'],
+            ]),
+        ],
+        [
+            'OR' => [
+                ['glpi_plugin_resources_resources.date_end' => null],
+                ['glpi_plugin_resources_resources.date_end' => ['>', $date]],
+            ],
+        ],
+        [
+            'OR' => [
+                ['glpi_plugin_resources_resources.date_begin' => null],
+                ['glpi_plugin_resources_resources.date_begin' => ['<', $date]],
+            ],
+        ],
+    ],
+];
+// Nested rather than merged with "+": getEntitiesRestrictCriteria() can return an "OR" key
+// (recursive entities) or a bare QueryExpression under key 0, which a union would drop.
+$criteria['WHERE'] = [
+    $criteria['WHERE'],
+    $dbu->getEntitiesRestrictCriteria('glpi_plugin_resources_resources'),
+];
+
+$criteria = $criteria + $report->getNewOrderBy('resource_id');
+
+$report->setSqlRequest($criteria);
+
+$report->execute();
+
+$report->footer();

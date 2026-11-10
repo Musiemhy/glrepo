@@ -1,0 +1,87 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * metademands plugin for GLPI
+ * Copyright (C) 2018-2026 by the metademands Development Team.
+ *
+ * https://github.com/InfotelGLPI/metademands
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of metademands.
+ *
+ * metademands is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * metademands is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Metademands;
+
+use CommonDBTM;
+use DBConnection;
+use Migration;
+
+/**
+ * Class Stepform_Actor
+ */
+class Stepform_Actor extends CommonDBTM
+{
+    public static $rightname = "plugin_metademands";
+
+    public static function install(Migration $migration)
+    {
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+        $table  = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $query = "CREATE TABLE `$table` (
+                        `id` int {$default_key_sign} NOT NULL auto_increment,
+                        `plugin_metademands_stepforms_id` int {$default_key_sign} NOT NULL DEFAULT '0',
+                        `users_id`                        int {$default_key_sign} NOT NULL DEFAULT '0',
+                        PRIMARY KEY (`id`),
+                        KEY `plugin_metademands_stepforms_id` (`plugin_metademands_stepforms_id`),
+                        KEY `users_id` (`users_id`)
+               ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
+
+            $DB->doQuery($query);
+        }
+    }
+
+    public static function uninstall()
+    {
+        global $DB;
+
+        $DB->dropTable(self::getTable(), true);
+    }
+
+
+    public function prepareInputForAdd($input)
+    {
+        $res = $this->getFromDBByCrit([
+            'plugin_metademands_stepforms_id' => $input['plugin_metademands_stepforms_id'],
+            'users_id' => $input['users_id'],
+        ]);
+        if ($res) {
+            $input = [];
+        }
+        return $input;
+    }
+
+
+}

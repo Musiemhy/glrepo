@@ -1,0 +1,736 @@
+<?php
+include('../../../inc/includes.php');
+Session::checkLoginUser();
+if (!Session::haveRight('ticket', READ)) {
+    Html::displayErrorAndDie(__('You do not have permission to view ticket data.'));
+}
+require_once __DIR__ . '/../inc/menu.class.php';
+global $DB;
+
+function up_h($v) {
+    return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+}
+function up_dur($s) {
+    $s = max(0, (int)$s);
+    if ($s < 60) return $s . 's';
+    $m = intdiv($s, 60);
+    if ($m < 60) return $m . 'm';
+    $h = intdiv($m, 60);
+    $m %= 60;
+    if ($h < 24) return $h . 'h ' . $m . 'm';
+    return intdiv($h, 24) . 'd ' . ($h % 24) . 'h';
+}
+function up_rate($n, $d) {
+    return $d > 0 ? ($n / $d) * 100 : 0;
+}
+function up_status($s) {
+    return [1 => __('New'), 2 => __('Processing (assigned)'), 3 => __('Processing (planned)'), 4 => __('Pending'), 5 => __('Solved'), 6 => __('Closed')][(int)$s] ?? __('Unknown');
+}
+function up_priority($p) {
+    return [1 => __('Very low'), 2 => __('Low'), 3 => __('Medium'), 4 => __('High'), 5 => __('Very high'), 6 => __('Major')][(int)$p] ?? __('Unknown');
+}
+function up_op($t, $waiting, $near) {
+    if (isset($waiting[(int)$t['id']])) return 'waiting';
+    $deadline = !empty($t['time_to_resolve']) ? strtotime($t['time_to_resolve']) : false;
+    $resolved = in_array((int)$t['status'], [5, 6], true);
+    if ($deadline) {
+        if ($resolved) {
+            $r = !empty($t['solvedate']) ? strtotime($t['solvedate']) : (!empty($t['closedate']) ? strtotime($t['closedate']) : false);
+            if ($r && $r > $deadline) return 'breached';
+        } elseif (time() > $deadline) {
+            return 'breached';
+        } elseif (($deadline - time()) <= ($near * 60)) {
+            return 'near';
+        }
+    }
+    if ((int)($t['slalevels_id_ttr'] ?? 0) > 0) return 'escalated';
+    if ($deadline) return 'ok';
+    return 'none';
+}
+function up_oplabel($s) {
+    return [
+        'all' => __('All operational statuses'),
+        'ok' => __('SLA OK'),
+        'near' => __('Near SLA Breach'),
+        'breached' => __('SLA Breached'),
+        'escalated' => __('Escalated'),
+        'waiting' => __('Waiting for Approval'),
+        'none' => __('No SLA')
+    ][$s] ?? __('Unknown');
+}
+function up_eff($values, $v) {
+    $p = array_values(array_filter($values, fn($x) => (float)$x > 0));
+    if (!$p || $v <= 0) return 100;
+    $min = min($p);
+    $max = max($p);
+    return $max == $min ? 100 : max(0, min(100, (($max - $v) / ($max - $min)) * 100));
+}
+function up_perf($s) {
+    return round(
+        up_rate($s['sla_met'], $s['sla_applicable']) * .35 +
+        up_rate($s['solved'] + $s['closed'], $s['assigned']) * .30 +
+        min(100, $s['followups'] / max(1, $s['assigned']) * 100) * .10 +
+        max(0, 100 - $s['pending'] / max(1, $s['assigned']) * 100) * .10 +
+        $s['tto_eff'] * .075 +
+        $s['ttr_eff'] * .075,
+        2
+    );
+}
+
+$date_from = $_GET['date_from'] ?? date('Y-m-01');
+$date_to = $_GET['date_to'] ?? date('Y-m-d');
+if (!DateTime::createFromFormat('Y-m-d', $date_from)) $date_from = date('Y-m-01');
+if (!DateTime::createFromFormat('Y-m-d', $date_to)) $date_to = date('Y-m-d');
+if ($date_from > $date_to) [$date_from, $date_to] = [$date_to, $date_from];
+$to_ex = (new DateTime($date_to))->modify('+1 day')->format('Y-m-d');
+
+$technician_id = (int)($_GET['technician_id'] ?? 0);
+$group_id = (int)($_GET['group_id'] ?? 0);
+$category_id = (int)($_GET['category_id'] ?? 0);
+$status_id = (int)($_GET['status_id'] ?? 0);
+$priority_id = (int)($_GET['priority_id'] ?? 0);
+$op_filter = $_GET['operational_status'] ?? 'all';
+if (!in_array($op_filter, ['all', 'ok', 'near', 'breached', 'escalated', 'waiting', 'none'], true)) $op_filter = 'all';
+$near = max(1, min(1440, (int)($_GET['near_breach_minutes'] ?? 60)));
+$sort = $_GET['sort_by'] ?? 'performance';
+$valid = ['performance', 'sla', 'resolution', 'tto', 'ttr', 'breaches', 'pending', 'assigned', 'followups', 'written'];
+if (!in_array($sort, $valid, true)) $sort = 'performance';
+$dir = strtolower($_GET['sort_dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
+
+$q = [
+    'SELECT' => [
+        'glpi_tickets_users.users_id',
+        'glpi_tickets_users.tickets_id',
+        'glpi_tickets.id',
+        'glpi_tickets.name',
+        'glpi_tickets.status',
+        'glpi_tickets.priority',
+        'glpi_tickets.itilcategories_id',
+        'glpi_tickets.date',
+        'glpi_tickets.solvedate',
+        'glpi_tickets.closedate',
+        'glpi_tickets.time_to_resolve',
+        'glpi_tickets.time_to_own',
+        'glpi_tickets.slalevels_id_ttr',
+        'glpi_tickets.slas_id_ttr'
+    ],
+    'FROM' => 'glpi_tickets_users',
+    'INNER JOIN' => [
+        'glpi_tickets' => [
+            'ON' => [
+                'glpi_tickets_users' => 'tickets_id',
+                'glpi_tickets' => 'id'
+            ]
+        ]
+    ],
+    'WHERE' => [
+        'glpi_tickets_users.type' => 2,
+        'glpi_tickets.is_deleted' => 0,
+        ['glpi_tickets.date' => ['>=', $date_from . ' 00:00:00']],
+        ['glpi_tickets.date' => ['<', $to_ex . ' 00:00:00']]
+    ],
+    'ORDER' => ['glpi_tickets.date ASC']
+];
+if ($technician_id) $q['WHERE']['glpi_tickets_users.users_id'] = $technician_id;
+if ($category_id) $q['WHERE']['glpi_tickets.itilcategories_id'] = $category_id;
+if ($status_id) $q['WHERE']['glpi_tickets.status'] = $status_id;
+if ($priority_id) $q['WHERE']['glpi_tickets.priority'] = $priority_id;
+
+$tickets = [];
+$ids = [];
+$uids = [];
+foreach ($DB->request($q) as $r) {
+    $tickets[] = $r;
+    $ids[(int)$r['id']] = (int)$r['id'];
+    $uids[(int)$r['users_id']] = (int)$r['users_id'];
+}
+if ($group_id && $ids) {
+    $gi = $DB->request([
+        'SELECT' => ['tickets_id'],
+        'FROM' => 'glpi_groups_tickets',
+        'WHERE' => ['groups_id' => $group_id, 'type' => 2, 'tickets_id' => array_values($ids)]
+    ]);
+    $ok = [];
+    foreach ($gi as $r) $ok[(int)$r['tickets_id']] = 1;
+    $tickets = array_values(array_filter($tickets, fn($r) => isset($ok[(int)$r['id']])));
+    $ids = [];
+    foreach ($tickets as $r) $ids[(int)$r['id']] = (int)$r['id'];
+}
+
+$names = [];
+$ui = $DB->request([
+    'SELECT' => ['id', 'name', 'realname', 'firstname'],
+    'FROM' => 'glpi_users',
+    'WHERE' => ['is_deleted' => 0],
+    'ORDER' => ['realname ASC', 'firstname ASC', 'name ASC']
+]);
+foreach ($ui as $u) {
+    $n = trim($u['realname'] . ' ' . $u['firstname']);
+    $names[(int)$u['id']] = $n !== '' ? $n : $u['name'];
+}
+$waiting = [];
+if ($ids) {
+    $vi = $DB->request([
+        'SELECT' => ['tickets_id', 'status'],
+        'FROM' => 'glpi_ticketvalidations',
+        'WHERE' => ['tickets_id' => array_values($ids), 'status' => 2]
+    ]);
+    foreach ($vi as $v) $waiting[(int)$v['tickets_id']] = 1;
+}
+$fu = [];
+if ($ids) {
+    $fi = $DB->request([
+        'SELECT' => ['items_id', 'users_id', 'date'],
+        'FROM' => 'glpi_itilfollowups',
+        'WHERE' => ['itemtype' => 'Ticket', 'items_id' => array_values($ids), 'is_private' => 0],
+        'ORDER' => ['date ASC']
+    ]);
+    foreach ($fi as $f) $fu[(int)$f['items_id']][] = $f;
+}
+
+$stats = [];
+$ticket_op = [];
+$filtered = [];
+foreach ($tickets as $t) {
+    $id = (int)$t['id'];
+    $uid = (int)$t['users_id'];
+    if (!isset($stats[$uid])) {
+        $stats[$uid] = [
+            'name' => $names[$uid] ?? __('Unknown technician'),
+            'assigned' => 0,
+            'written' => 0,
+            'followups' => 0,
+            'new' => 0,
+            'processing' => 0,
+            'pending' => 0,
+            'solved' => 0,
+            'closed' => 0,
+            'sla_applicable' => 0,
+            'sla_met' => 0,
+            'sla_breaches' => 0,
+            'tto' => 0,
+            'tto_n' => 0,
+            'ttr' => 0,
+            'ttr_n' => 0,
+            'near' => 0,
+            'waiting' => 0,
+            'escalated' => 0,
+            'ok' => 0,
+            'none' => 0
+        ];
+    }
+    $s = &$stats[$uid];
+    $s['assigned']++;
+    switch ((int)$t['status']) {
+        case 1: $s['new']++; break;
+        case 2: case 3: $s['processing']++; break;
+        case 4: $s['pending']++; break;
+        case 5: $s['solved']++; break;
+        case 6: $s['closed']++; break;
+    }
+    $op = up_op($t, $waiting, $near);
+    $ticket_op[$id] = $op;
+    if ($op === 'waiting') $s['waiting']++;
+    elseif ($op === 'near') $s['near']++;
+    elseif ($op === 'breached') $s['sla_breaches']++;
+    elseif ($op === 'escalated') $s['escalated']++;
+    elseif ($op === 'ok') $s['ok']++;
+    else $s['none']++;
+    if ($op_filter === 'all' || $op_filter === $op) $filtered[$id] = 1;
+    $deadline = !empty($t['time_to_resolve']) ? strtotime($t['time_to_resolve']) : false;
+    if ($deadline) {
+        $s['sla_applicable']++;
+        $r = false;
+        if (in_array((int)$t['status'], [5, 6], true)) {
+            $rd = !empty($t['solvedate']) ? $t['solvedate'] : $t['closedate'];
+            $r = $rd ? strtotime($rd) : false;
+            if ($r && $r <= $deadline) $s['sla_met']++;
+        } elseif (time() <= $deadline) {
+            $s['sla_met']++;
+        }
+    }
+    $open = strtotime($t['date']);
+    $rd = !empty($t['solvedate']) ? $t['solvedate'] : $t['closedate'];
+    if ($open && $rd) {
+        $rt = strtotime($rd);
+        if ($rt >= $open) {
+            $s['ttr'] += $rt - $open;
+            $s['ttr_n']++;
+        }
+    }
+    $wrote = false;
+    $first = false;
+    foreach ($fu[$id] ?? [] as $f) {
+        if ((int)$f['users_id'] === $uid) {
+            $wrote = true;
+            $s['followups']++;
+            if ($first === false) $first = strtotime($f['date']);
+        }
+    }
+    if ($wrote) $s['written']++;
+    if ($open && $first && $first >= $open) {
+        $s['tto'] += $first - $open;
+        $s['tto_n']++;
+    }
+    unset($s);
+}
+foreach ($stats as &$s) {
+    $s['avg_tto'] = $s['tto_n'] ? round($s['tto'] / $s['tto_n']) : 0;
+    $s['avg_ttr'] = $s['ttr_n'] ? round($s['ttr'] / $s['ttr_n']) : 0;
+}
+$tto = [];
+$ttr = [];
+foreach ($stats as $s) {
+    if ($s['avg_tto']) $tto[] = $s['avg_tto'];
+    if ($s['avg_ttr']) $ttr[] = $s['avg_ttr'];
+}
+foreach ($stats as &$s) {
+    $s['tto_eff'] = up_eff($tto, $s['avg_tto']);
+    $s['ttr_eff'] = up_eff($ttr, $s['avg_ttr']);
+    $s['performance'] = up_perf($s);
+}
+$display = $stats;
+if ($op_filter !== 'all') {
+    foreach ($display as $uid => $s) {
+        $has = false;
+        foreach ($tickets as $t) {
+            if ((int)$t['users_id'] === $uid && isset($filtered[(int)$t['id']])) {
+                $has = true;
+                break;
+            }
+        }
+        if (!$has) unset($display[$uid]);
+    }
+}
+unset($s);
+
+$sortval = function($s) use ($sort) {
+    return match($sort) {
+        'sla' => up_rate($s['sla_met'], $s['sla_applicable']),
+        'resolution' => up_rate($s['solved'] + $s['closed'], $s['assigned']),
+        'tto' => $s['avg_tto'],
+        'ttr' => $s['avg_ttr'],
+        'breaches' => $s['sla_breaches'],
+        'pending' => $s['pending'],
+        'assigned' => $s['assigned'],
+        'followups' => $s['followups'],
+        'written' => $s['written'],
+        default => $s['performance']
+    };
+};
+uasort($display, function($a, $b) use ($sortval, $dir) {
+    $c = $sortval($a) <=> $sortval($b);
+    if (!$c) $c = strcasecmp($a['name'], $b['name']);
+    return $dir === 'asc' ? $c : -$c;
+});
+
+$overall = [
+    'assigned' => 0,
+    'written' => 0,
+    'followups' => 0,
+    'new' => 0,
+    'processing' => 0,
+    'pending' => 0,
+    'solved' => 0,
+    'closed' => 0,
+    'sla_applicable' => 0,
+    'sla_met' => 0,
+    'sla_breaches' => 0,
+    'near' => 0,
+    'waiting' => 0,
+    'escalated' => 0,
+    'ok' => 0
+];
+foreach ($display as $s) {
+    foreach ($overall as $k => &$v) {
+        $v += (int)($s[$k] ?? 0);
+    }
+}
+unset($v);
+$avg_tto = 0;
+$avg_ttr = 0;
+$tn = 0;
+$rn = 0;
+foreach ($display as $s) {
+    $avg_tto += $s['tto'];
+    $tn += $s['tto_n'];
+    $avg_ttr += $s['ttr'];
+    $rn += $s['ttr_n'];
+}
+$avg_tto = $tn ? round($avg_tto / $tn) : 0;
+$avg_ttr = $rn ? round($avg_ttr / $rn) : 0;
+
+$techs = [];
+foreach ($DB->request([
+    'SELECT' => ['id', 'name', 'realname', 'firstname'],
+    'FROM' => 'glpi_users',
+    'WHERE' => ['is_deleted' => 0],
+    'ORDER' => ['realname ASC', 'firstname ASC', 'name ASC']
+]) as $u) {
+    $n = trim($u['realname'] . ' ' . $u['firstname']);
+    $techs[(int)$u['id']] = $n !== '' ? $n : $u['name'];
+}
+$groups = [];
+foreach ($DB->request(['SELECT' => ['id', 'name'], 'FROM' => 'glpi_groups', 'ORDER' => ['name ASC']]) as $g) {
+    $groups[(int)$g['id']] = $g['name'];
+}
+$cats = [];
+foreach ($DB->request([
+    'SELECT' => ['id', 'name', 'completename'],
+    'FROM' => 'glpi_itilcategories',
+    'ORDER' => ['completename ASC']
+]) as $c) {
+    $cats[(int)$c['id']] = $c['completename'] ?: $c['name'];
+}
+
+$params = [
+    'date_from' => $date_from,
+    'date_to' => $date_to,
+    'technician_id' => $technician_id,
+    'group_id' => $group_id,
+    'category_id' => $category_id,
+    'status_id' => $status_id,
+    'priority_id' => $priority_id,
+    'operational_status' => $op_filter,
+    'near_breach_minutes' => $near,
+    'sort_by' => $sort,
+    'sort_dir' => $dir
+];
+$base = $_SERVER['PHP_SELF'] . '?' . http_build_query($params);
+$csv = $base . '&export=csv';
+$xlsx = $base . '&export=xlsx';
+
+if (isset($_GET['export'])) {
+    while (ob_get_level()) ob_end_clean();
+    $rows = [[
+        'Rank', 'Technician', 'Performance Index', 'Assigned', 'Written', 'Follow-ups',
+        'New', 'Processing', 'Pending', 'Solved', 'Closed', 'Resolution Rate',
+        'SLA Compliance', 'SLA Breaches', 'Near Breach', 'Escalated', 'Waiting Approval',
+        'Avg TTO', 'Avg TTR'
+    ]];
+    $rank = 1;
+    foreach ($display as $s) {
+        $rows[] = [
+            $rank++,
+            $s['name'],
+            $s['performance'],
+            $s['assigned'],
+            $s['written'],
+            $s['followups'],
+            $s['new'],
+            $s['processing'],
+            $s['pending'],
+            $s['solved'],
+            $s['closed'],
+            number_format(up_rate($s['solved'] + $s['closed'], $s['assigned']), 2) . '%',
+            number_format(up_rate($s['sla_met'], $s['sla_applicable']), 2) . '%',
+            $s['sla_breaches'],
+            $s['near'],
+            $s['escalated'],
+            $s['waiting'],
+            up_dur($s['avg_tto']),
+            up_dur($s['avg_ttr'])
+        ];
+    }
+    if ($_GET['export'] === 'csv') {
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="user-performance-' . date('Ymd-His') . '.csv"');
+        $fp = fopen('php://output', 'w');
+        fprintf($fp, "\xEF\xBB\xBF");
+        foreach ($rows as $r) fputcsv($fp, $r);
+        fclose($fp);
+        exit;
+    }
+    if ($_GET['export'] === 'xlsx') {
+        require_once GLPI_ROOT . '/vendor/autoload.php';
+        $ss = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sh = $ss->getActiveSheet();
+        foreach ($rows as $ri => $r) {
+            foreach ($r as $ci => $v) {
+                $sh->setCellValueByColumnAndRow($ci + 1, $ri + 1, $v);
+            }
+        }
+        foreach (range(1, count($rows[0])) as $c) {
+            $sh->getColumnDimensionByColumn($c)->setAutoSize(true);
+        }
+        $sh->freezePane('A2');
+        $sh->getAutoFilter()->setRange('A1:S' . count($rows));
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment; filename="user-performance-' . date('Ymd-His') . '.xlsx"');
+        $w = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($ss);
+        $w->save('php://output');
+        exit;
+    }
+}
+
+Html::header(__('User Performance & KPI'), $_SERVER['PHP_SELF'], 'tools', 'PluginUserperformanceMenu');
+?>
+<style>
+.up { padding: 10px; }
+.up-title { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 15px; }
+.up-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.up-filter { border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+.up-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; align-items: end; }
+.up-field label { display: block; font-weight: 600; margin-bottom: 4px; }
+.up-field input, .up-field select { width: 100%; min-height: 36px; }
+.up-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 15px; }
+.up-card { border: 1px solid #ddd; border-radius: 8px; padding: 12px; }
+.up-label { font-size: 12px; opacity: .7; }
+.up-value { font-size: 24px; font-weight: 700; }
+.up-table-wrap { overflow: auto; }
+.up-table { width: 100%; min-width: 1450px; border-collapse: collapse; }
+.up-table th, .up-table td { padding: 8px; border-bottom: 1px solid #ddd; white-space: nowrap; }
+.up-table th { background: #f5f5f5; }
+.badge { display: inline-block; padding: 3px 7px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+.ok { background: #dcfce7; color: #166534; }
+.warn { background: #fef3c7; color: #92400e; }
+.danger { background: #fee2e2; color: #991b1b; }
+.info { background: #dbeafe; color: #1e40af; }
+.purple { background: #ede9fe; color: #5b21b6; }
+.muted { background: #e5e7eb; color: #374151; }
+@media print {
+    .no-print { display: none !important; }
+    .up-table { min-width: 0; }
+}
+</style>
+<div class="up">
+    <div class="up-title">
+        <div>
+            <h2><?php echo __('User Performance & KPI'); ?></h2>
+            <div class="text-muted"><?php echo up_h($date_from) . ' → ' . up_h($date_to); ?></div>
+        </div>
+        <div class="up-actions no-print">
+            <a class="btn btn-outline-primary" href="<?php echo up_h($xlsx); ?>"><?php echo __('Export XLSX'); ?></a>
+            <a class="btn btn-outline-secondary" href="<?php echo up_h($csv); ?>"><?php echo __('Export CSV'); ?></a>
+            <button class="btn btn-outline-secondary" onclick="window.print()"><?php echo __('Print / PDF'); ?></button>
+        </div>
+    </div>
+    <form method="get" class="up-filter no-print">
+        <div class="up-grid">
+            <div class="up-field">
+                <label><?php echo __('Date from'); ?></label>
+                <input type="date" name="date_from" value="<?php echo up_h($date_from); ?>">
+            </div>
+            <div class="up-field">
+                <label><?php echo __('Date to'); ?></label>
+                <input type="date" name="date_to" value="<?php echo up_h($date_to); ?>">
+            </div>
+            <div class="up-field">
+                <label><?php echo __('Technician'); ?></label>
+                <select name="technician_id">
+                    <option value="0"><?php echo __('All technicians'); ?></option>
+                    <?php foreach ($techs as $id => $n): ?>
+                        <option value="<?php echo $id; ?>" <?php echo $technician_id === $id ? 'selected' : ''; ?>>
+                            <?php echo up_h($n); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="up-field">
+                <label><?php echo __('Technical group'); ?></label>
+                <select name="group_id">
+                    <option value="0"><?php echo __('All groups'); ?></option>
+                    <?php foreach ($groups as $id => $n): ?>
+                        <option value="<?php echo $id; ?>" <?php echo $group_id === $id ? 'selected' : ''; ?>>
+                            <?php echo up_h($n); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="up-field">
+                <label><?php echo __('Category'); ?></label>
+                <select name="category_id">
+                    <option value="0"><?php echo __('All categories'); ?></option>
+                    <?php foreach ($cats as $id => $n): ?>
+                        <option value="<?php echo $id; ?>" <?php echo $category_id === $id ? 'selected' : ''; ?>>
+                            <?php echo up_h($n); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="up-field">
+                <label><?php echo __('Ticket status'); ?></label>
+                <select name="status_id">
+                    <option value="0"><?php echo __('All statuses'); ?></option>
+                    <?php foreach ([1, 2, 3, 4, 5, 6] as $s): ?>
+                        <option value="<?php echo $s; ?>" <?php echo $status_id === $s ? 'selected' : ''; ?>>
+                            <?php echo up_h(up_status($s)); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="up-field">
+                <label><?php echo __('Priority'); ?></label>
+                <select name="priority_id">
+                    <option value="0"><?php echo __('All priorities'); ?></option>
+                    <?php foreach ([1, 2, 3, 4, 5, 6] as $p): ?>
+                        <option value="<?php echo $p; ?>" <?php echo $priority_id === $p ? 'selected' : ''; ?>>
+                            <?php echo up_h(up_priority($p)); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="up-field">
+                <label><?php echo __('Operational status'); ?></label>
+                <select name="operational_status">
+                    <?php foreach (['all', 'ok', 'near', 'breached', 'escalated', 'waiting', 'none'] as $o): ?>
+                        <option value="<?php echo $o; ?>" <?php echo $op_filter === $o ? 'selected' : ''; ?>>
+                            <?php echo up_h(up_oplabel($o)); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="up-field">
+                <label><?php echo __('Near-breach threshold'); ?></label>
+                <select name="near_breach_minutes">
+                    <?php foreach ([15, 30, 60, 120, 240, 480] as $m): ?>
+                        <option value="<?php echo $m; ?>" <?php echo $near === $m ? 'selected' : ''; ?>>
+                            <?php echo $m < 60 ? $m . ' minutes' : ($m / 60) . ' hours'; ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="up-field">
+                <label><?php echo __('Sort by'); ?></label>
+                <select name="sort_by">
+                    <?php foreach ([
+                        'performance' => 'Performance Index',
+                        'sla' => 'SLA Compliance',
+                        'resolution' => 'Resolution Rate',
+                        'tto' => 'Average TTO',
+                        'ttr' => 'Average TTR',
+                        'breaches' => 'SLA Breaches',
+                        'pending' => 'Pending Tickets',
+                        'assigned' => 'Assigned Tickets',
+                        'followups' => 'Follow-ups',
+                        'written' => 'Tickets Written'
+                    ] as $v => $n): ?>
+                        <option value="<?php echo $v; ?>" <?php echo $sort === $v ? 'selected' : ''; ?>>
+                            <?php echo __($n); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="up-field">
+                <label><?php echo __('Direction'); ?></label>
+                <select name="sort_dir">
+                    <option value="desc" <?php echo $dir === 'desc' ? 'selected' : ''; ?>><?php echo __('Descending'); ?></option>
+                    <option value="asc" <?php echo $dir === 'asc' ? 'selected' : ''; ?>><?php echo __('Ascending'); ?></option>
+                </select>
+            </div>
+            <div class="up-field">
+                <button class="btn btn-primary w-100"><?php echo __('Apply filters'); ?></button>
+            </div>
+            <div class="up-field">
+                <a class="btn btn-secondary w-100" href="<?php echo up_h($_SERVER['PHP_SELF']); ?>"><?php echo __('Reset'); ?></a>
+            </div>
+        </div>
+    </form>
+    <div class="up-kpis">
+        <?php foreach ([
+            ['Assigned Tickets', $overall['assigned']],
+            ['Tickets Written', $overall['written']],
+            ['Follow-ups', $overall['followups']],
+            ['Resolution Rate', number_format(up_rate($overall['solved'] + $overall['closed'], $overall['assigned']), 1) . '%'],
+            ['SLA Compliance', number_format(up_rate($overall['sla_met'], $overall['sla_applicable']), 1) . '%'],
+            ['SLA Breaches', $overall['sla_breaches']],
+            ['Average TTO', up_dur($avg_tto)],
+            ['Average TTR', up_dur($avg_ttr)],
+            ['Pending', $overall['pending']]
+        ] as $k => $v): ?>
+            <div class="up-card">
+                <div class="up-label"><?php echo __($k); ?></div>
+                <div class="up-value"><?php echo up_h($v); ?></div>
+            </div>
+        <?php endforeach; ?>
+    </div>
+    <div class="up-card" style="margin-bottom:15px">
+        <strong><?php echo __('Operational Status'); ?></strong>
+        <div class="up-grid" style="margin-top:10px">
+            <div><span class="badge ok">SLA OK</span> <?php echo $overall['ok']; ?></div>
+            <div><span class="badge warn">Near Breach</span> <?php echo $overall['near']; ?></div>
+            <div><span class="badge danger">SLA Breached</span> <?php echo $overall['sla_breaches']; ?></div>
+            <div><span class="badge purple">Escalated</span> <?php echo $overall['escalated']; ?></div>
+            <div><span class="badge info">Waiting Approval</span> <?php echo $overall['waiting']; ?></div>
+        </div>
+    </div>
+    <div class="up-card">
+        <h3><?php echo __('Technician Performance Ranking'); ?></h3>
+        <div class="up-table-wrap">
+            <table class="up-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th><?php echo __('Technician'); ?></th>
+                        <th><?php echo __('Performance'); ?></th>
+                        <th><?php echo __('Assigned'); ?></th>
+                        <th><?php echo __('Written'); ?></th>
+                        <th><?php echo __('Follow-ups'); ?></th>
+                        <th><?php echo __('New'); ?></th>
+                        <th><?php echo __('Processing'); ?></th>
+                        <th><?php echo __('Pending'); ?></th>
+                        <th><?php echo __('Solved'); ?></th>
+                        <th><?php echo __('Closed'); ?></th>
+                        <th><?php echo __('Resolution'); ?></th>
+                        <th><?php echo __('SLA'); ?></th>
+                        <th><?php echo __('Breaches'); ?></th>
+                        <th><?php echo __('Near Breach'); ?></th>
+                        <th><?php echo __('Escalated'); ?></th>
+                        <th><?php echo __('Approval'); ?></th>
+                        <th><?php echo __('Avg TTO'); ?></th>
+                        <th><?php echo __('Avg TTR'); ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php $rank = 1; foreach ($display as $s): ?>
+                        <?php
+                        $perf = $s['performance'];
+                        $cls = $perf >= 90 ? 'ok' : ($perf >= 75 ? 'info' : ($perf >= 60 ? 'warn' : 'danger'));
+                        $res = up_rate($s['solved'] + $s['closed'], $s['assigned']);
+                        $sla = up_rate($s['sla_met'], $s['sla_applicable']);
+                        ?>
+                        <tr>
+                            <td><strong>#<?php echo $rank++; ?></strong></td>
+                            <td><strong><?php echo up_h($s['name']); ?></strong></td>
+                            <td><span class="badge <?php echo $cls; ?>"><?php echo number_format($perf, 1); ?>%</span></td>
+                            <td><?php echo $s['assigned']; ?></td>
+                            <td><?php echo $s['written']; ?></td>
+                            <td><?php echo $s['followups']; ?></td>
+                            <td><?php echo $s['new']; ?></td>
+                            <td><?php echo $s['processing']; ?></td>
+                            <td><?php echo $s['pending']; ?></td>
+                            <td><?php echo $s['solved']; ?></td>
+                            <td><?php echo $s['closed']; ?></td>
+                            <td><?php echo number_format($res, 1); ?>%</td>
+                            <td><?php echo number_format($sla, 1); ?>%</td>
+                            <td><?php echo $s['sla_breaches']; ?></td>
+                            <td><?php echo $s['near']; ?></td>
+                            <td><?php echo $s['escalated']; ?></td>
+                            <td><?php echo $s['waiting']; ?></td>
+                            <td><?php echo up_dur($s['avg_tto']); ?></td>
+                            <td><?php echo up_dur($s['avg_ttr']); ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    <?php if (!$display): ?>
+                        <tr>
+                            <td colspan="19" style="text-align:center"><?php echo __('No data matches the selected filters.'); ?></td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="up-card" style="margin-top:15px">
+        <strong><?php echo __('KPI definitions'); ?></strong>
+        <ul>
+            <li><?php echo __('Performance Index = 35% SLA compliance + 30% resolution rate + 10% follow-up activity + 10% pending-workload score + 7.5% relative TTO efficiency + 7.5% relative TTR efficiency.'); ?></li>
+            <li><?php echo __('Near SLA Breach = unresolved ticket with the SLA deadline inside the configured threshold.'); ?></li>
+            <li><?php echo __('SLA Breached = unresolved ticket past deadline, or resolved/closed after its deadline.'); ?></li>
+            <li><?php echo __('Waiting for Approval = ticket validation in GLPI WAITING state.'); ?></li>
+            <li><?php echo __('Escalated = ticket with a non-zero TTR SLA level (slalevels_id_ttr).'); ?></li>
+            <li><?php echo __('TTO = opening time to first public follow-up by the assigned technician.'); ?></li>
+            <li><?php echo __('TTR = opening time to solve/close.'); ?></li>
+        </ul>
+    </div>
+</div>
+<?php Html::footer(); ?>

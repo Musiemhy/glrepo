@@ -1,0 +1,67 @@
+# Change Log
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](http://keepachangelog.com/)
+and this project adheres to [Semantic Versioning](http://semver.org/).
+
+## [3.0.3] - 2026-08-11
+
+- Add type renaming
+
+## [3.0.2 End-of-Life Updater] - 2025-11-20
+
+- Secured, fixed, and enhanced the uninstall process
+
+## [3.0.1 End-of-Life Updater] - 2025-11-13
+
+- Fix Twig error on migration_status page
+- Check method existence before calling uninstall on custom assets
+
+## [3.0.0 End-of-Life Updater] - 2025-30-09
+
+- End-of-Life Support and Compatibility with GLPI 11
+
+## [2.14.14] - 2025-04-23
+
+### Fixed
+
+- Prevent PHP warning about unknown option `itemdevicedrive_types` and `itemdevicecontrol_types` when registering type
+
+## [2.14.13] - 2025-04-22
+
+### Fixed
+
+- Reverted performance optimization for GenericObject (#417) due to issues with object registration and broken options.
+
+## [2.14.12] - 2024-04-11
+
+### Fixed
+
+- Improve global performance when using many genericobject
+- The `TCO` (Total Cost of Ownership) is now correctly updated based on the costs associated with an item.
+
+## [2.14.11] - 2024-12-27
+
+### Fixed
+
+- Fix `Use Components` to display all components
+- Hide `items` without proper user access rights in the family list.
+
+## [2.14.10] - 2024-09-06
+
+### Fixed
+
+- Fix ```rightname``` computation
+- Fix local override management
+
+## [2.14.9] - 2024-04-02
+
+### Added
+
+- PHP 8.3 compatibilty (```get_parent_class()```).
+
+### Fixed
+
+- Fix input alignment to match GLPI style.
+- Fix ```impact``` icon for generic object.

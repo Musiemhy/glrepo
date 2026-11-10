@@ -1,0 +1,70 @@
+{#
+ # -------------------------------------------------------------------------
+ # mydashboard plugin for GLPI
+ # Copyright (C) 2016-2026 by the mydashboard Development Team.
+ #
+ # https://github.com/InfotelGLPI/mydashboard
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of mydashboard.
+ #
+ # mydashboard is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # mydashboard is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with mydashboard. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{% import 'components/form/fields_macros.html.twig' as fields %}
+{% import 'components/form/basic_inputs_macros.html.twig' as inputs %}
+
+{% if canedit %}
+    <form method="post" action="{{ profile.getFormURL() }}">
+        {{ fields.hiddenField('id', profile.getID()) }}
+        {{ fields.csrfField() }}
+{% endif %}
+
+<table class="tab_cadre_fixehov">
+    <tr class="tab_bg_2">
+        <th colspan="4" class="center b">{{ title }}</th>
+    </tr>
+    <tr class="tab_bg_1">
+        <td></td>
+        <td>{{ __('Full', 'mydashboard') }}</td>
+        <td>{{ __('Custom', 'mydashboard') }}</td>
+    </tr>
+    {% for row in rows %}
+        <tr class="tab_bg_2">
+            <td>{{ row.label }}</td>
+            <td>{{ inputs.checkbox(row.full.name, row.full.checked ? 1 : 0) }}</td>
+            <td>
+                {%- if row.custom is not null %}{{ inputs.checkbox(row.custom.name, row.custom.checked ? 1 : 0) }}{% endif -%}
+            </td>
+        </tr>
+    {% endfor %}
+</table>
+
+{% do profile.displayRightsChoiceMatrix(rights, {
+    'canedit': canedit,
+    'default_class': 'tab_bg_2',
+    'title': __('Setup stock widget', 'mydashboard'),
+}) %}
+
+{% if canedit %}
+    {% if closeform %}
+        <div class="text-center">
+            {{ inputs.submit('update', _x('button', 'Save'), 1, {'class': 'btn btn-primary'}) }}
+        </div>
+    {% endif %}
+    </form>
+{% endif %}

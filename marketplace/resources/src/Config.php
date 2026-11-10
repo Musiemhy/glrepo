@@ -1,0 +1,861 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * resources plugin for GLPI
+ * Copyright (C) 2015-2026 by the resources Development Team.
+ *
+ * https://github.com/InfotelGLPI/resources
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of resources.
+ *
+ * resources is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * resources is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with resources. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Resources;
+
+use Ajax;
+use CommonDBTM;
+use CommonGLPI;
+use DBConnection;
+use Dropdown;
+use Glpi\Application\View\TemplateRenderer;
+use GlpiPlugin\Metademands\Metademand;
+use Group;
+use Html;
+use ITILCategory;
+use Migration;
+use Plugin;
+use Session;
+
+/**
+ * Class Config
+ */
+class Config extends CommonDBTM
+{
+    public static $rightname = 'plugin_resources';
+
+    /**
+     * functions mandatory
+     * getTypeName(), canCreate(), canView()
+     * */
+    public static function getTypeName($nb = 0)
+    {
+        return __('Setup');
+    }
+
+    /**
+     * Have I the global right to "view" the Object
+     *
+     * Default is true and check entity if the objet is entity assign
+     *
+     * May be overloaded if needed
+     *
+     * @return
+     **/
+    public static function canView(): bool
+    {
+        return Session::haveRight(self::$rightname, READ);
+    }
+
+    /**
+     * Have I the global right to "create" the Object
+     * May be overloaded if needed (ex KnowbaseItem)
+     *
+     * @return
+     **/
+    public static function canCreate(): bool
+    {
+        return Session::haveRightsOr(self::$rightname, [CREATE, UPDATE, DELETE]);
+    }
+
+    /**
+     * Config constructor.
+     */
+    public function __construct()
+    {
+        global $DB;
+
+        if ($DB->tableExists($this->getTable())) {
+            $this->getFromDB(1);
+        }
+    }
+
+    public static function getIcon()
+    {
+        return "ti ti-settings";
+    }
+
+    public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0)
+    {
+        if (!$withtemplate) {
+            switch ($item->getType()) {
+                case __CLASS__:
+                    $ong[1] = self::createTabEntry(__('Wizard', 'resources'));
+                    $ong[2] = self::createTabEntry(__('Arrival / Departure workflow', 'resources'));
+                    $ong[3] = self::createTabEntry(__('Other', 'resources'));
+                    if (Plugin::isPluginActive('metademands')) {
+                        $ong[4] = self::createTabEntry(__('Link with metademand', 'resources'));
+                    }
+
+                    return $ong;
+            }
+        }
+    }
+
+    public static function getAvailablevariable()
+    {
+        return [
+            '##resource_gender##' => __('Gender', 'resources'),
+            '##resource_name##' => __('Surname'),
+            '##resource_firstname##' => __('First name'),
+            '##resource_phone##' => __('Phone'),
+            '##resource_cellphone##' => __('Mobile phone'),
+            '##resource_locations_id##' => __('Location'),
+            '##resource_users_id##' => __('Resource manager', 'resources'),
+            '##resource_users_id_sales##' => __('Sales manager', 'resources'),
+            '##resource_plugin_resources_departments_id##' => Department::getTypeName(1),
+            '##resource_plugin_resources_services_id##' => Service::getTypeName(1),
+            '##resource_plugin_resources_functions_id##' => ResourceFunction::getTypeName(1),
+            '##resource_plugin_resources_teams_id##' => Team::getTypeName(1),
+            '##resource_date_begin##' => __('Arrival date', 'resources'),
+            '##resource_date_end##' => __('Departure date', 'resources'),
+            '##resource_comment##' => __('Description', 'resources'),
+            '##resource_quota##' => __('Quota', 'resources'),
+            '##resource_plugin_resources_resourcesituations_id##' => ResourceSituation::getTypeName(1),
+            '##resource_plugin_resources_contractnatures_id##' => ContractNature::getTypeName(1),
+            '##resource_plugin_resources_ranks_id##' => Rank::getTypeName(1),
+            '##resource_plugin_resources_resourcespecialities_id##' => ResourceSpeciality::getTypeName(1),
+            '##resource_sensitize_security##' => __('Sensitized to security', 'resources'),
+            '##resource_read_chart##' => __('Reading the security charter', 'resources'),
+            '##resource_plugin_resources_roles_id##' => Role::getTypeName(1),
+            '##resource_matricule##' => __('Matricule', 'resources'),
+            '##resource_matricule_second##' => __('Second matricule', 'resources'),
+            '##computer_phone_equipment##' => __('Computer and telephone equipment needs', 'resources'),
+            '##softwares_requirements##' => __('Softwares requirements', 'resources'),
+            '##furnitures_needs##' => __('Furnitures needs', 'resources'),
+            '##other_needs##' => __('Others needs', 'resources'),
+        ];
+    }
+
+    public function getVariableToHide()
+    {
+        return [
+            'gender' => __('Gender', 'resources'),
+            'name' => __('Surname'),
+            'firstname' => __('First name'),
+            'matricule' => __('Matricule', 'resources'),
+            'phone' => __('Phone'),
+            'matricule_second' => __('Second matricule', 'resources'),
+            'cellphone' => __('Mobile phone'),
+            'locations_id' => __('Location'),
+            'quota' => __('Quota', 'resources'),
+        ];
+    }
+    /**
+     * @param CommonGLPI $item
+     * @param int $tabnum
+     * @param int $withtemplate
+     *
+     * @return bool
+     */
+    public static function displayTabContentForItem(CommonGLPI $item, $tabnum = 1, $withtemplate = 0)
+    {
+
+        if ($item->getType() == __CLASS__) {
+            switch ($tabnum) {
+                case 1:
+                    $item->showWizardForm();
+                    break;
+
+                case 2:
+                    $item->showWorkflowForm();
+                    break;
+
+                case 3:
+                    $item->showOtherForm();
+                    break;
+
+                case 4:
+                    $item->showMetademandsForm();
+                    break;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @param array $options
+     *
+     * @return array
+     * @see CommonGLPI::defineTabs()
+     */
+    public function defineTabs($options = [])
+    {
+        $ong = [];
+
+        $this->addStandardTab(__CLASS__, $ong, $options);
+        $this->addStandardTab(Resource_Change::class, $ong, $options);
+        $this->addStandardTab(Adconfig::class, $ong, $options);
+        $this->addStandardTab(TicketCategory::class, $ong, $options);
+        $this->addStandardTab(TransferEntity::class, $ong, $options);
+        //badges
+        if (Plugin::isPluginActive("badges")
+            && Plugin::isPluginActive("metademands")) {
+            $this->addStandardTab(ResourceBadge::class, $ong, $options);
+        }
+        if (Plugin::isPluginActive("metademands")) {
+            $this->addStandardTab(ConfigHabilitation::class, $ong, $options);
+        }
+        $this->addStandardTab(CheckSchema::class, $ong, $options);
+
+        return $ong;
+    }
+
+    public function showWizardForm()
+    {
+        if (!$this->canView()) {
+            return false;
+        }
+        if (!$this->canCreate()) {
+            return false;
+        }
+
+        $canedit = true;
+
+        if ($canedit) {
+            $this->getFromDB(1);
+
+            $capture = static function (callable $renderer): string {
+                ob_start();
+                $renderer();
+                return (string) ob_get_clean();
+            };
+
+            $possible_values = [];
+            $profileITIL = new \Profile();
+            $profiles = $profileITIL->find([]);
+            if (!empty($profiles)) {
+                foreach ($profiles as $profile) {
+                    $possible_values[$profile['id']] = $profile['name'];
+                }
+            }
+
+            $rows = [];
+
+            $rows[] = [
+                'label'  => __("If other contract are available don't display without contract", 'resources'),
+                'widget' => $capture(fn() => Dropdown::showYesNo("allow_without_contract", $this->fields["allow_without_contract"])),
+            ];
+            $rows[] = [
+                'label'  => __('Hidden first form when you have only one template', 'resources'),
+                'widget' => $capture(fn() => Dropdown::showYesNo('hidden_first_form', $this->fields['hidden_first_form'])),
+            ];
+            $rows[] = [
+                'label'  => __('Default contract template selected', 'resources'),
+                'widget' => $capture(fn() => Resource::dropdownTemplate(
+                    "plugin_resources_resourcetemplates_id",
+                    $this->fields["plugin_resources_resourcetemplates_id"],
+                    false,
+                )),
+            ];
+            $rows[] = [
+                'label'   => __('Displaying the security block on the resource', 'resources'),
+                'widget'  => $capture(fn() => Dropdown::showYesNo('security_display', $this->fields['security_display'])),
+                'warning' => __('Display of two additional security fields on a resource', 'resources'),
+            ];
+            $rows[] = [
+                'label'   => __('Security compliance management', 'resources'),
+                'widget'  => $capture(fn() => Dropdown::showYesNo('security_compliance', $this->fields['security_compliance'])),
+                'warning' => sprintf(
+                    __('%1$s <br> %2$s'),
+                    __('Display of four additional security fields in the clients', 'resources'),
+                    __('(If all four fields are enabled, the client is compliant with security)', 'resources'),
+                ),
+            ];
+
+            $resource_manager_values = json_decode($this->fields['resource_manager']);
+            if (!is_array($resource_manager_values)) {
+                $resource_manager_values = [];
+            }
+            $rows[] = [
+                'label'  => __('Resource managers selection : only these users with these profiles', 'resources'),
+                'widget' => Html::hidden("resource_manager") . $capture(fn() => Dropdown::showFromArray(
+                    "resource_manager",
+                    $possible_values,
+                    ['values' => $resource_manager_values, 'multiple' => 'multiples'],
+                )),
+            ];
+
+            $sales_manager_values = json_decode($this->fields['sales_manager']);
+            if (!is_array($sales_manager_values)) {
+                $sales_manager_values = [];
+            }
+            $rows[] = [
+                'label'  => __('Sales managers selection : only these users with these profiles', 'resources'),
+                'widget' => Html::hidden("sales_manager") . $capture(fn() => Dropdown::showFromArray(
+                    "sales_manager",
+                    $possible_values,
+                    ['values' => $sales_manager_values, 'multiple' => 'multiples'],
+                )),
+            ];
+
+            $rows[] = [
+                'label'  => __('Use service and departement from AD', 'resources'),
+                'widget' => $capture(fn() => Dropdown::showYesNo('use_service_department_ad', $this->fields['use_service_department_ad'])),
+            ];
+
+            if ($this->useServiceDepartmentAD()) {
+                $rows[] = [
+                    'label'  => __('Use secondaries services', 'resources'),
+                    'widget' => $capture(fn() => Dropdown::showYesNo('use_secondary_service', $this->fields['use_secondary_service'])),
+                ];
+            }
+
+            $rows[] = [
+                'label'  => __('Access the needs tab', 'resources'),
+                'widget' => $capture(fn() => Dropdown::showYesNo('needs_tab_access', $this->fields['needs_tab_access'])),
+            ];
+            $rows[] = [
+                'label'  => __('Can view notification tab', 'resources'),
+                'widget' => $capture(fn() => Dropdown::showYesNo('view_notification_tab', $this->fields['view_notification_tab'])),
+            ];
+
+            $possible_values_choice = [];
+            foreach (Choice::TYPE_CHOICE as $id => $name) {
+                $possible_values_choice[$id] = __($name, 'resources');
+            }
+            $view_needs_values = json_decode($this->fields['view_needs_parts']);
+            if (!is_array($view_needs_values)) {
+                $view_needs_values = [];
+            }
+            $rows[] = [
+                'label'  => __('On needs tab, view parts', 'resources'),
+                'widget' => $capture(fn() => Dropdown::showFromArray(
+                    "view_needs_parts",
+                    $possible_values_choice,
+                    ['values' => $view_needs_values, 'multiple' => 'multiples'],
+                )),
+            ];
+
+            if ((new Adconfig())->fields['auth_id'] > 0 && $this->fields['use_module_validation']) {
+                $synchro_values = json_decode($this->fields['can_view_synchronisationAD']);
+                if (!is_array($synchro_values)) {
+                    $synchro_values = [];
+                }
+                $rows[] = [
+                    'label'  => __('Can view SynchronisationAD tab', 'resources'),
+                    'widget' => $capture(fn() => Dropdown::showFromArray(
+                        "can_view_synchronisationAD",
+                        $possible_values,
+                        ['values' => $synchro_values, 'multiple' => 'multiples'],
+                    )),
+                ];
+            }
+
+            TemplateRenderer::getInstance()->display('@resources/config_setup_form.html.twig', [
+                'form_action' => $this->getFormURL(),
+                'title'       => __('Wizard', 'resources'),
+                'rows'        => $rows,
+            ]);
+        }
+    }
+
+    /**
+     * @return bool
+     */
+    public function showWorkflowForm()
+    {
+        if (!$this->canView()) {
+            return false;
+        }
+        if (!$this->canCreate()) {
+            return false;
+        }
+
+        $canedit = true;
+
+        if ($canedit) {
+            $this->getFromDB(1);
+
+            $capture = static function (callable $renderer): string {
+                ob_start();
+                $renderer();
+                return (string) ob_get_clean();
+            };
+
+            $rows = [];
+
+            $rows[] = [
+                'label'  => __('Create a ticket with departure', 'resources'),
+                'widget' => $capture(fn() => Dropdown::showYesNo("create_ticket_departure", $this->fields["create_ticket_departure"])),
+            ];
+            $rows[] = [
+                'label'  => __('Category of departure ticket', 'resources'),
+                'widget' => $capture(fn() => ITILCategory::dropdown(["name" => "categories_id", "value" => $this->fields["categories_id"]])),
+            ];
+            $rows[] = [
+                'label'  => __('All checklist done is mandatory for arrival and departure to close ticket', 'resources'),
+                'widget' => $capture(fn() => Dropdown::showYesNo("mandatory_checklist", $this->fields["mandatory_checklist"])),
+            ];
+            $rows[] = [
+                'label'  => __('Create or delete user in ldap is mandatory to close ticket', 'resources'),
+                'widget' => $capture(fn() => Dropdown::showYesNo("mandatory_adcreation", $this->fields["mandatory_adcreation"])),
+            ];
+            $rows[] = [
+                'label'  => __('Resource state for working people', 'resources'),
+                'widget' => $capture(fn() => ResourceState::dropdown([
+                    'name' => 'plugin_resources_resourcestates_id_arrival',
+                    'value' => $this->fields['plugin_resources_resourcestates_id_arrival'],
+                ])),
+            ];
+            $rows[] = [
+                'label'  => __('Resource state for left people', 'resources'),
+                'widget' => $capture(fn() => ResourceState::dropdown([
+                    'name' => 'plugin_resources_resourcestates_id_departure',
+                    'value' => $this->fields['plugin_resources_resourcestates_id_departure'],
+                ])),
+            ];
+            $rows[] = [
+                'label'  => __('Change checklists for resources during a contract change', 'resources'),
+                'widget' => $capture(fn() => Dropdown::showYesNo('reaffect_checklist_change', $this->fields['reaffect_checklist_change'])),
+            ];
+            $rows[] = [
+                'label'  => __('Send an automatic notification on the "declare an arrival" form', 'resources'),
+                'widget' => $capture(fn() => Dropdown::showYesNo('automatic_notification_declare_arrival_form', $this->fields['automatic_notification_declare_arrival_form'])),
+            ];
+
+            $values_used = [];
+            if (!empty($this->fields['hide_fieds_arrival_form'])) {
+                $values_used = json_decode($this->fields['hide_fieds_arrival_form']);
+            }
+            $rows[] = [
+                'label'  => __('Hide the following fields in the "Report an Arrival" form', 'resources'),
+                'widget' => $capture(fn() => Dropdown::showFromArray('hide_fieds_arrival_form', $this->getVariableToHide(), [
+                    'values' => $values_used,
+                    'width' => '250px',
+                    'multiple' => true,
+                    'entity' => $_SESSION['glpiactiveentities'],
+                ])),
+            ];
+
+            TemplateRenderer::getInstance()->display('@resources/config_setup_form.html.twig', [
+                'form_action' => $this->getFormURL(),
+                'title'       => __('Arrival / Departure workflow', 'resources'),
+                'rows'        => $rows,
+            ]);
+        }
+    }
+
+    /**
+     * @return bool
+     */
+    public function showOtherForm()
+    {
+        if (!$this->canView()) {
+            return false;
+        }
+        if (!$this->canCreate()) {
+            return false;
+        }
+
+        $canedit = true;
+
+        if ($canedit) {
+            $this->getFromDB(1);
+
+            $capture = static function (callable $renderer): string {
+                ob_start();
+                $renderer();
+                return (string) ob_get_clean();
+            };
+
+            $extra_html = '';
+            $rows = [];
+
+            $rows[] = [
+                'label'  => __('Hide/Show elements', 'resources') . " : " . __('View my resources as a commercial', 'resources'),
+                'widget' => $capture(fn() => Dropdown::showYesNo('hide_view_commercial_resource', $this->fields['hide_view_commercial_resource'])),
+            ];
+            $rows[] = [
+                'label'  => __('Default assignment group', 'resources'),
+                'widget' => $capture(fn() => Group::dropdown(['name' => 'default_assignment_group', 'value' => $this->fields['default_assignment_group']])),
+            ];
+
+            $optionSearch = [
+                1 => __('Sales manager', 'resources'),
+                0 => __('Resource manager', 'resources'),
+            ];
+            $rows[] = [
+                'label'  => __('In element', 'resources') . ' "' . __('View my resources as a commercial', 'resources') . '" : ' . __('Search by default', 'resources'),
+                'widget' => $capture(fn() => Dropdown::showFromArray('search_default_my_resources', $optionSearch, ['value' => $this->fields['search_default_my_resources']])),
+            ];
+
+            $removeTimeChoice = ['0' => '23:59:59', '1' => '00:00:00'];
+            $rows[] = [
+                'label'  => __('Time to remove ressource', 'resources'),
+                'widget' => $capture(fn() => Dropdown::showFromArray('remove_at_midnight', $removeTimeChoice, ['values' => [$this->fields['remove_at_midnight']]])),
+            ];
+
+            $orderColumn = [1 => __('Name'), 5 => __('Arrival date', 'resources'), 16 => __('Last update'), 31 => __('ID')];
+            $orderOrder = ['ASC' => __('Ascending', 'resources'), 'DESC' => __('Descending', 'resources')];
+            $rows[] = [
+                'label'  => __('Order resources by', 'resources'),
+                'widget' => $capture(fn() => Dropdown::showFromArray('order_column', $orderColumn, ['values' => [$this->fields['order_column']]]))
+                    . " "
+                    . $capture(fn() => Dropdown::showFromArray('order_order', $orderOrder, ['values' => [$this->fields['order_order']]])),
+            ];
+
+            $rows[] = [
+                'label'  => __('Use validation module', 'resources'),
+                'widget' => $capture(fn() => Dropdown::showYesNo('use_module_validation', $this->fields['use_module_validation'])),
+            ];
+
+            if ($this->fields['use_module_validation']) {
+                $extra_html = Ajax::createModalWindow(
+                    'popupAvailablevariable',
+                    PLUGIN_RESOURCES_WEBDIR . '/front/modalavailablevariable.php',
+                    [
+                        'title' => __('Are you sure?', 'resources'),
+                        'reloadonclose' => false,
+                        'width' => 1180,
+                        'height' => 500,
+                    ],
+                );
+                Html::requireJs('tinymce');
+                $rows[] = [
+                    'label'  => __('Text in the resource creation ticket after validation', 'resources') . '<br>'
+                        . "<a class='' href='#' onclick='popupAvailablevariable.show()' title='" . htmlescape(__("See variable available", "resources")) . "'>" . htmlescape(__("See variable available", "resources")) . "</a>",
+                    'widget' => $capture(fn() => Html::textarea(['name' => 'text_ticket_validation', 'value' => $this->fields['text_ticket_validation']])),
+                ];
+                $rows[] = [
+                    'label'  => __('Freeze the resource and special needs tabs after validation', 'resources'),
+                    'widget' => $capture(fn() => Dropdown::showYesNo('freeze_form_after_validation', $this->fields['freeze_form_after_validation'])),
+                ];
+            }
+
+            $rows[] = [
+                'label'  => __('Use ticket duplication module', 'resources'),
+                'widget' => $capture(fn() => Dropdown::showYesNo('use_module_duplicata_ticket', $this->fields['use_module_duplicata_ticket'])),
+            ];
+
+            if ($this->fields['use_module_duplicata_ticket']
+                && ($this->fields['use_module_validation'] || $this->fields['use_module_departure_instruction'])) {
+                $rows[] = [
+                    'label'  => __('Assignment group for the second ticket', 'resources'),
+                    'widget' => $capture(fn() => Group::dropdown(['name' => 'assignment_group_second_ticket', 'value' => $this->fields['assignment_group_second_ticket']])),
+                ];
+
+                if ($this->fields['use_module_validation']) {
+                    $rows[] = [
+                        'label'  => __('Send a second ticket after validating informations', 'resources'),
+                        'widget' => $capture(fn() => Dropdown::showYesNo('send_second_ticket_validation', $this->fields['send_second_ticket_validation'])),
+                    ];
+                }
+
+                if ($this->fields['use_module_departure_instruction']) {
+                    $rows[] = [
+                        'label'  => __('Send a second ticket for a departure after instruction', 'resources'),
+                        'widget' => $capture(fn() => Dropdown::showYesNo('send_second_ticket_remove', $this->fields['send_second_ticket_remove'])),
+                    ];
+                }
+            }
+
+            $rows[] = [
+                'label'  => __('Use departure instruction module', 'resources'),
+                'widget' => $capture(fn() => Dropdown::showYesNo('use_module_departure_instruction', $this->fields['use_module_departure_instruction'])),
+            ];
+
+            if ($this->fields['use_module_departure_instruction']) {
+                $rows[] = [
+                    'label'  => __('Create a ticket with departure and instructions', 'resources'),
+                    'widget' => $capture(fn() => Dropdown::showYesNo("create_ticket_departure_instructions", $this->fields["create_ticket_departure_instructions"])),
+                ];
+            }
+
+            TemplateRenderer::getInstance()->display('@resources/config_setup_form.html.twig', [
+                'form_action' => $this->getFormURL(),
+                'title'       => __('Other', 'resources'),
+                'rows'        => $rows,
+                'extra_html'  => $extra_html,
+            ]);
+        }
+    }
+
+    /**
+     * @return bool
+     */
+    public function showMetademandsForm()
+    {
+        if (!$this->canView()) {
+            return false;
+        }
+        if (!$this->canCreate()) {
+            return false;
+        }
+
+        $canedit = true;
+
+        if ($canedit) {
+            $this->getFromDB(1);
+
+            $capture = static function (callable $renderer): string {
+                ob_start();
+                $renderer();
+                return (string) ob_get_clean();
+            };
+
+            $rows = [];
+
+            $meta = new Metademand();
+            $options = ['empty_value' => true];
+            $data = $meta->listMetademands(true, $options);
+            $rows[] = [
+                'label'   => __('Use metademand for resources changes', 'resources'),
+                'widget'  => Dropdown::showFromArray(
+                    'use_meta_for_changes',
+                    $data,
+                    ['width' => 250, 'display' => false, 'value' => $this->fields['use_meta_for_changes']],
+                ),
+                'warning' => __('Replace change actions management', 'resources'),
+            ];
+
+            $meta = new Metademand();
+            $options = ['empty_value' => true];
+            $data = $meta->listMetademands(true, $options);
+            $rows[] = [
+                'label'   => __('Use metademand for leaving resources', 'resources'),
+                'widget'  => Dropdown::showFromArray(
+                    'use_meta_for_leave',
+                    $data,
+                    ['width' => 250, 'display' => false, 'value' => $this->fields['use_meta_for_leave']],
+                ),
+                'warning' => __('Replace default form for departure', 'resources'),
+            ];
+
+            $rows[] = [
+                'label'  => __('Remove habilitation when update resource', 'resources'),
+                'widget' => $capture(fn() => Dropdown::showYesNo("remove_habilitation_on_update", $this->fields["remove_habilitation_on_update"])),
+            ];
+            $rows[] = [
+                'label'  => __('Display habilitation resource with dropdown', 'resources'),
+                'widget' => $capture(fn() => Dropdown::showYesNo("display_habilitations_txt", $this->fields["display_habilitations_txt"])),
+            ];
+
+            TemplateRenderer::getInstance()->display('@resources/config_setup_form.html.twig', [
+                'form_action' => $this->getFormURL(),
+                'title'       => __('Link with metademand', 'resources'),
+                'rows'        => $rows,
+            ]);
+        }
+    }
+
+    /**
+     * @return mixed
+     */
+    public function useSecurity()
+    {
+        return $this->fields['security_display'];
+    }
+
+    /**
+     * @return mixed
+     */
+    public function useSecurityCompliance()
+    {
+        return $this->fields['security_compliance'];
+    }
+
+    /**
+     * @param $input
+     *
+     * @return
+     */
+    public function prepareInputForAdd($input)
+    {
+        return $this->encodeSubtypes($input);
+    }
+
+    /**
+     * @param $input
+     *
+     * @return
+     */
+    public function prepareInputForUpdate($input)
+    {
+        return $this->encodeSubtypes($input);
+    }
+
+    /**
+     * Encode sub types
+     *
+     * @param  $input
+     *
+     * @return
+     */
+    public function encodeSubtypes($input)
+    {
+        if (!empty($input['resource_manager'])) {
+            $input['resource_manager'] = json_encode(array_values($input['resource_manager']));
+        }
+        if (!empty($input['sales_manager'])) {
+            $input['sales_manager'] = json_encode(array_values($input['sales_manager']));
+        }
+        if (!empty($input['view_needs_parts'])) {
+            $input['view_needs_parts'] = json_encode(array_values($input['view_needs_parts']));
+        }
+        if (!empty($input['can_view_synchronisationAD'])) {
+            $input['can_view_synchronisationAD'] = json_encode(array_values($input['can_view_synchronisationAD']));
+        }
+
+        // The "Default contract template" dropdown offers a -1 "Without contract" sentinel
+        // (Resource::dropdownTemplate), but the configs column is INT UNSIGNED (see
+        // install/sql/update-4.0.3.sql): writing -1 raises MySQL error 1264 (out of range).
+        // Normalize the sentinel to 0, which the dropdown renders as the same "Without
+        // contract" choice — mirroring the -1 => 0 handling already used in ImportResource.
+        if (isset($input['plugin_resources_resourcetemplates_id'])
+            && (int) $input['plugin_resources_resourcetemplates_id'] < 0) {
+            $input['plugin_resources_resourcetemplates_id'] = 0;
+        }
+
+        return $input;
+    }
+
+    /**
+     * @return mixed
+     */
+    public function useServiceDepartmentAD()
+    {
+        return $this->fields['use_service_department_ad'];
+    }
+
+    /**
+     * @return mixed
+     */
+    public function useSecondaryService()
+    {
+        return $this->fields['use_secondary_service'];
+    }
+
+    public static function install(Migration $migration)
+    {
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+        $table  = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $query = "CREATE TABLE `$table` (
+                        `id`           int {$default_key_sign} NOT NULL auto_increment,
+                        `security_display`                             tinyint      NOT NULL DEFAULT '0',
+                        `security_compliance`                          tinyint      NOT NULL DEFAULT '0',
+                        `resource_manager`                             varchar(255) NOT NULL DEFAULT '',
+                        `sales_manager`                                varchar(255) NOT NULL DEFAULT '',
+                        `create_ticket_departure`                      tinyint      NOT NULL DEFAULT '0',
+                        `categories_id`                                int {$default_key_sign} NOT NULL DEFAULT '0',
+                        `mandatory_checklist`                          tinyint      NOT NULL DEFAULT '0',
+                        `mandatory_adcreation`                         tinyint      NOT NULL DEFAULT '0',
+                        `plugin_resources_resourcetemplates_id`        int {$default_key_sign} NULL     DEFAULT '0',
+                        `plugin_resources_resourcestates_id_arrival`   int {$default_key_sign} NULL     DEFAULT '0',
+                        `plugin_resources_resourcestates_id_departure` int {$default_key_sign} NULL     DEFAULT '0',
+                        `reaffect_checklist_change`                    tinyint      NOT NULL DEFAULT '1',
+                        `allow_without_contract`                       int {$default_key_sign} NOT NULL DEFAULT '0',
+                        `use_service_department_ad`                    tinyint      NOT NULL DEFAULT '0',
+                        `use_secondary_service`                        tinyint      NOT NULL DEFAULT '0',
+                        `use_meta_for_changes`                         int {$default_key_sign} NOT NULL DEFAULT '0',
+                        `use_meta_for_leave`                           int {$default_key_sign} NOT NULL DEFAULT '0',
+                        `remove_habilitation_on_update`                int {$default_key_sign} NOT NULL DEFAULT '0',
+                        `display_habilitations_txt`                    int {$default_key_sign} NOT NULL DEFAULT '0',
+                        `hide_view_commercial_resource`                tinyint      NOT NULL DEFAULT '0',
+                        `automatic_notification_declare_arrival_form`  tinyint NOT NULL DEFAULT '0',
+                        `create_ticket_departure_instructions`         tinyint NOT NULL DEFAULT '0',
+                        `default_assignment_group`                     int {$default_key_sign} NOT NULL DEFAULT '0',
+                        `text_ticket_validation`                       TEXT COLLATE utf8mb4_unicode_ci,
+                        `hide_fieds_arrival_form`                      TEXT COLLATE utf8mb4_unicode_ci,
+                        `search_default_my_resources`                  int {$default_key_sign} NOT NULL DEFAULT '1',
+                        `hidden_first_form`                            tinyint      NOT NULL DEFAULT '0',
+                        `needs_tab_access`                             tinyint      NOT NULL DEFAULT '0',
+                        `assignment_group_second_ticket`               int {$default_key_sign} NOT NULL DEFAULT '0',
+                        `send_second_ticket_validation`                tinyint      NOT NULL DEFAULT '0',
+                        `view_notification_tab`                        tinyint      NOT NULL DEFAULT '0',
+                        `view_needs_parts`                             varchar(255) NOT NULL DEFAULT '',
+                        `freeze_form_after_validation`                 tinyint      NOT NULL DEFAULT '0',
+                        `can_view_synchronisationAD`                   varchar(255) NOT NULL DEFAULT '',
+                        `order_order`                                  varchar(4)   NOT NULL DEFAULT 'ASC',
+                        `order_column`                                 int {$default_key_sign} NOT NULL DEFAULT '1',
+                        `send_second_ticket_remove`                    tinyint      NOT NULL DEFAULT '0',
+                        `remove_at_midnight`                           tinyint      NOT NULL DEFAULT '1',
+                        `use_module_validation`                        tinyint      NOT NULL DEFAULT '0',
+                        `use_module_duplicata_ticket`                  tinyint      NOT NULL DEFAULT '0',
+                        `use_module_departure_instruction`             tinyint      NOT NULL DEFAULT '0',
+                        PRIMARY KEY (`id`)
+               ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
+
+            $DB->doQuery($query);
+
+            $DB->insert(
+                $table,
+                ['id' => 1,
+                    'security_display' => 0,
+                    'security_compliance' => 0,
+                    'resource_manager' => '',
+                    'sales_manager' => '',
+                    'create_ticket_departure' => 0,
+                    'categories_id' => 0,
+                    'mandatory_checklist' => 0,
+                    'mandatory_adcreation' => 0,
+                    'plugin_resources_resourcetemplates_id' => 0,
+                    'plugin_resources_resourcestates_id_arrival' => 0,
+                    'plugin_resources_resourcestates_id_departure' => 0,
+                    'reaffect_checklist_change' => 0,
+                    'allow_without_contract' => 0,
+                    'use_service_department_ad' => 0,
+                    'use_secondary_service' => 0,
+                    'use_meta_for_changes' => 0,
+                    'use_meta_for_leave' => 0,
+                    'remove_habilitation_on_update' => 0,
+                    'display_habilitations_txt' => 0,
+                    'hide_view_commercial_resource' => 0,
+                    'automatic_notification_declare_arrival_form' => 0,
+                    'create_ticket_departure_instructions' => 0,
+                    'default_assignment_group' => 0,
+                    'text_ticket_validation' => '',
+                    'hide_fieds_arrival_form' => '',
+                    'search_default_my_resources' => 1,
+                    'hidden_first_form' => 0,
+                    'needs_tab_access' => 0,
+                    'assignment_group_second_ticket' => 0,
+                    'send_second_ticket_validation' => 0,
+                    'view_notification_tab' => 0,
+                    'view_needs_parts' => '',
+                    'freeze_form_after_validation' => 0,
+                    'can_view_synchronisationAD' => '',
+                    'order_order' => 'ASC',
+                    'order_column' => 1,
+                    'send_second_ticket_remove' => 0,
+                    'remove_at_midnight' => 1,
+                    'use_module_validation' => 0,
+                    'use_module_duplicata_ticket' => 0,
+                    'use_module_departure_instruction' => 0],
+            );
+
+        }
+    }
+}

@@ -1,0 +1,1749 @@
+{
+    "action": "inventory",
+    "content": {
+        "accesslog": {
+            "logdate": "2026-11-04 04:56:00"
+        },
+        "antivirus": [
+            {
+                "base_version": "1.227.2583.0",
+                "company": "Microsoft Corporation",
+                "enabled": true,
+                "guid": "{D68DDC3A-831F-4fae-9E44-DA132C1ACF46}",
+                "name": "Windows Defender",
+                "uptodate": true,
+                "version": "4.10.14393.0"
+            }
+        ],
+        "bios": {
+            "assettag": "CZC0459447",
+            "bdate": "2009-10-22",
+            "bmanufacturer": "Hewlett-Packard",
+            "bversion": "786G7 v01.02",
+            "mmanufacturer": "Hewlett-Packard",
+            "mmodel": "3646h",
+            "msn": "CZC0459447",
+            "skunumber": "AZ887AW#B13",
+            "smanufacturer": "Hewlett-Packard",
+            "smodel": "HP Compaq 8000 Elite SFF PC",
+            "ssn": "CZC0459447"
+        },
+        "controllers": [
+            {
+                "caption": "82801JD\/DO (ICH10 Family) SATA AHCI Controller",
+                "manufacturer": "Intel Corporation",
+                "name": "82801JD\/DO (ICH10 Family) SATA AHCI Controller",
+                "pcisubsystemid": "103c:3646",
+                "productid": "3a02",
+                "type": "Standard SATA AHCI Controller",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "4 Series Chipset PT IDER Controller",
+                "manufacturer": "Intel Corporation",
+                "name": "4 Series Chipset PT IDER Controller",
+                "pcisubsystemid": "103c:3646",
+                "productid": "2e16",
+                "type": "Standard Dual Channel PCI IDE Controller",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "82801JD\/DO (ICH10 Family) USB UHCI Controller #3",
+                "manufacturer": "Intel Corporation",
+                "name": "82801JD\/DO (ICH10 Family) USB UHCI Controller #3",
+                "pcisubsystemid": "103c:3646",
+                "productid": "3a66",
+                "type": "Intel(R) ICH10 Family USB Universal Host Controller - 3A66",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "82801JD\/DO (ICH10 Family) USB2 EHCI Controller #2",
+                "manufacturer": "Intel Corporation",
+                "name": "82801JD\/DO (ICH10 Family) USB2 EHCI Controller #2",
+                "pcisubsystemid": "103c:3646",
+                "productid": "3a6c",
+                "type": "Intel(R) ICH10 Family USB Enhanced Host Controller - 3A6C",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "82801JD\/DO (ICH10 Family) USB UHCI Controller #5",
+                "manufacturer": "Intel Corporation",
+                "name": "82801JD\/DO (ICH10 Family) USB UHCI Controller #5",
+                "pcisubsystemid": "103c:3646",
+                "productid": "3a68",
+                "type": "Intel(R) ICH10 Family USB Universal Host Controller - 3A68",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "82801JD\/DO (ICH10 Family) USB UHCI Controller #2",
+                "manufacturer": "Intel Corporation",
+                "name": "82801JD\/DO (ICH10 Family) USB UHCI Controller #2",
+                "pcisubsystemid": "103c:3646",
+                "productid": "3a65",
+                "type": "Intel(R) ICH10 Family USB Universal Host Controller - 3A65",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "82801JD\/DO (ICH10 Family) USB UHCI Controller #4",
+                "manufacturer": "Intel Corporation",
+                "name": "82801JD\/DO (ICH10 Family) USB UHCI Controller #4",
+                "pcisubsystemid": "103c:3646",
+                "productid": "3a67",
+                "type": "Intel(R) ICH10 Family USB Universal Host Controller - 3A67",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "82801JD\/DO (ICH10 Family) USB UHCI Controller #1",
+                "manufacturer": "Intel Corporation",
+                "name": "82801JD\/DO (ICH10 Family) USB UHCI Controller #1",
+                "pcisubsystemid": "103c:3646",
+                "productid": "3a64",
+                "type": "Intel(R) ICH10 Family USB Universal Host Controller - 3A64",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "82801JD\/DO (ICH10 Family) USB UHCI Controller #6",
+                "manufacturer": "Intel Corporation",
+                "name": "82801JD\/DO (ICH10 Family) USB UHCI Controller #6",
+                "pcisubsystemid": "103c:3646",
+                "productid": "3a69",
+                "type": "Intel(R) ICH10 Family USB Universal Host Controller - 3A69",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "82801JD\/DO (ICH10 Family) USB2 EHCI Controller #1",
+                "manufacturer": "Intel Corporation",
+                "name": "82801JD\/DO (ICH10 Family) USB2 EHCI Controller #1",
+                "pcisubsystemid": "103c:3646",
+                "productid": "3a6a",
+                "type": "Intel(R) ICH10 Family USB Enhanced Host Controller - 3A6A",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "4 Series Chipset Serial KT Controller",
+                "manufacturer": "Intel Corporation",
+                "name": "4 Series Chipset Serial KT Controller",
+                "pcisubsystemid": "103c:3646",
+                "productid": "2e17",
+                "type": "PCI Serial Port",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "4 Series Chipset HECI Controller",
+                "manufacturer": "Intel Corporation",
+                "name": "4 Series Chipset HECI Controller",
+                "pcisubsystemid": "103c:3646",
+                "productid": "2e14",
+                "type": "PCI Simple Communications Controller",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "82801 PCI Bridge",
+                "manufacturer": "Intel Corporation",
+                "name": "82801 PCI Bridge",
+                "pcisubsystemid": "103c:3646",
+                "productid": "244e",
+                "type": "PCI-to-PCI Bridge",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "82801JD\/DO (ICH10 Family) HD Audio Controller",
+                "manufacturer": "Intel Corporation",
+                "name": "82801JD\/DO (ICH10 Family) HD Audio Controller",
+                "pcisubsystemid": "103c:3646",
+                "productid": "3a6e",
+                "type": "High Definition Audio Controller",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "LM-I56N",
+                "manufacturer": "Smart Link Ltd.",
+                "name": "LM-I56N",
+                "pcisubsystemid": "16ef:2800",
+                "productid": "8800",
+                "type": "PCI Modem",
+                "vendorid": "2003"
+            },
+            {
+                "caption": "4 Series Chipset Integrated Graphics Controller",
+                "manufacturer": "Intel Corporation",
+                "name": "4 Series Chipset Integrated Graphics Controller",
+                "pcisubsystemid": "103c:3646",
+                "productid": "2e13",
+                "type": "Video Controller",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "4 Series Chipset DRAM Controller",
+                "manufacturer": "Intel Corporation",
+                "name": "4 Series Chipset DRAM Controller",
+                "pcisubsystemid": "103c:3646",
+                "productid": "2e10",
+                "type": "CPU to IO Controller",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "82801JD\/DO (ICH10 Family) PCI Express Port 1",
+                "manufacturer": "Intel Corporation",
+                "name": "82801JD\/DO (ICH10 Family) PCI Express Port 1",
+                "pcisubsystemid": "103c:3646",
+                "productid": "3a70",
+                "type": "PCI-to-PCI Bridge",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "82801JDO (ICH10DO) LPC Interface Controller",
+                "manufacturer": "Intel Corporation",
+                "name": "82801JDO (ICH10DO) LPC Interface Controller",
+                "pcisubsystemid": "103c:3646",
+                "productid": "3a14",
+                "type": "LPC Controller",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "82567LM-3 Gigabit Network Connection",
+                "manufacturer": "Intel Corporation",
+                "name": "82567LM-3 Gigabit Network Connection",
+                "pcisubsystemid": "103c:3646",
+                "productid": "10de",
+                "type": "Intel(R) 82567LM-3 Gigabit Network Connection",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "4 Series Chipset Integrated Graphics Controller",
+                "manufacturer": "Intel Corporation",
+                "name": "4 Series Chipset Integrated Graphics Controller",
+                "pcisubsystemid": "103c:3646",
+                "productid": "2e12",
+                "type": "Microsoft Basic Display Adapter",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "82801JD\/DO (ICH10 Family) PCI Express Port 2",
+                "manufacturer": "Intel Corporation",
+                "name": "82801JD\/DO (ICH10 Family) PCI Express Port 2",
+                "pcisubsystemid": "103c:3646",
+                "productid": "3a72",
+                "type": "PCI-to-PCI Bridge",
+                "vendorid": "8086"
+            }
+        ],
+        "cpus": [
+            {
+                "core": 2,
+                "description": "Intel64 Family 6 Model 23 Stepping 10",
+                "familynumber": "6",
+                "id": "BFEBFBFF0001067A",
+                "manufacturer": "Intel",
+                "model": "23",
+                "name": "Intel Core2 Duo CPU E8400 @ 3.00GHz",
+                "serial": "",
+                "speed": 3000,
+                "stepping": 10,
+                "thread": 1
+            }
+        ],
+        "drives": [
+            {
+                "description": "Local Fixed Disk",
+                "encrypt_algo": "None",
+                "encrypt_name": "BitLocker",
+                "encrypt_status": "No",
+                "filesystem": "NTFS",
+                "free": 61827,
+                "label": "",
+                "letter": "C:",
+                "serial": "EAEE1B89",
+                "systemdrive": true,
+                "total": 75126,
+                "type": "Local Disk",
+                "volumn": ""
+            },
+            {
+                "description": "Local Fixed Disk",
+                "encrypt_algo": "None",
+                "encrypt_name": "BitLocker",
+                "encrypt_status": "No",
+                "filesystem": "NTFS",
+                "free": 72607,
+                "label": "Backups",
+                "letter": "E:",
+                "serial": "8E842AB5",
+                "systemdrive": false,
+                "total": 76996,
+                "type": "Local Disk",
+                "volumn": "Backups"
+            },
+            {
+                "filesystem": "NTFS",
+                "free": 139,
+                "label": "System Reserved",
+                "letter": "System Reserved",
+                "serial": "98EC8A0E",
+                "systemdrive": false,
+                "total": 499,
+                "type": "Local Disk",
+                "volumn": "System Reserved"
+            }
+        ],
+        "envs": [
+            {
+                "key": "ComSpec",
+                "val": "%SystemRoot%\\system32\\cmd.exe"
+            },
+            {
+                "key": "OS",
+                "val": "Windows_NT"
+            },
+            {
+                "key": "Path",
+                "val": "%SystemRoot%\\system32;%SystemRoot%;%SystemRoot%\\System32\\Wbem;%SYSTEMROOT%\\System32\\WindowsPowerShell\\v1.0\\"
+            },
+            {
+                "key": "PATHEXT",
+                "val": ".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC"
+            },
+            {
+                "key": "PROCESSOR_ARCHITECTURE",
+                "val": "AMD64"
+            },
+            {
+                "key": "PSModulePath",
+                "val": "%ProgramFiles%\\WindowsPowerShell\\Modules;%SystemRoot%\\system32\\WindowsPowerShell\\v1.0\\Modules"
+            },
+            {
+                "key": "TEMP",
+                "val": "%SystemRoot%\\TEMP"
+            },
+            {
+                "key": "TMP",
+                "val": "%SystemRoot%\\TEMP"
+            },
+            {
+                "key": "USERNAME",
+                "val": "SYSTEM"
+            },
+            {
+                "key": "windir",
+                "val": "%SystemRoot%"
+            },
+            {
+                "key": "NUMBER_OF_PROCESSORS",
+                "val": "2"
+            },
+            {
+                "key": "PROCESSOR_LEVEL",
+                "val": "6"
+            },
+            {
+                "key": "PROCESSOR_IDENTIFIER",
+                "val": "Intel64 Family 6 Model 23 Stepping 10, GenuineIntel"
+            },
+            {
+                "key": "PROCESSOR_REVISION",
+                "val": "170a"
+            }
+        ],
+        "firewalls": [
+            {
+                "description": "Intel(R) 82567LM-3 Gigabit Network Connection",
+                "ipaddress": "172.23.250.38",
+                "profile": "DomainProfile",
+                "status": "off"
+            },
+            {
+                "description": "Intel(R) 82567LM-3 Gigabit Network Connection",
+                "ipaddress6": "fe80::d560:e2ba:99af:d0bd",
+                "profile": "DomainProfile",
+                "status": "off"
+            },
+            {
+                "profile": "PublicProfile",
+                "status": "off"
+            },
+            {
+                "profile": "StandardProfile",
+                "status": "off"
+            }
+        ],
+        "hardware": {
+            "chassis_type": "Low Profile Desktop",
+            "defaultgateway": "172.23.250.2",
+            "dns": "172.25.20.100",
+            "lastloggeduser": "Administrator",
+            "memory": 1993,
+            "name": "4KILO-11-2026",
+            "uuid": "28BCB6DD-5907-11DF-BBDA-DE59B4881CC1",
+            "vmsystem": "Physical",
+            "winlang": "1033",
+            "winowner": "Windows User",
+            "winprodid": "00331-10000-00001-AA021",
+            "winprodkey": "W269N-WFGWX-YVC9B-4J6C9-T83GX",
+            "workgroup": "ITMOD.local"
+        },
+        "inputs": [
+            {
+                "caption": "Enhanced (101- or 102-key)",
+                "description": "USB Input Device",
+                "layout": "00000409",
+                "name": "Enhanced (101- or 102-key)"
+            },
+            {
+                "caption": "USB Input Device",
+                "description": "USB Input Device",
+                "interface": "USB",
+                "manufacturer": "(Standard system devices)",
+                "name": "USB Input Device",
+                "pointingtype": "2"
+            }
+        ],
+        "local_groups": [
+            {
+                "id": "S-1-5-32-579",
+                "name": "Access Control Assistance Operators"
+            },
+            {
+                "id": "S-1-5-32-544",
+                "name": "Administrators"
+            },
+            {
+                "id": "S-1-5-32-551",
+                "name": "Backup Operators"
+            },
+            {
+                "id": "S-1-5-32-569",
+                "name": "Cryptographic Operators"
+            },
+            {
+                "id": "S-1-5-32-562",
+                "name": "Distributed COM Users"
+            },
+            {
+                "id": "S-1-5-32-573",
+                "name": "Event Log Readers"
+            },
+            {
+                "id": "S-1-5-32-546",
+                "name": "Guests"
+            },
+            {
+                "id": "S-1-5-32-578",
+                "name": "Hyper-V Administrators"
+            },
+            {
+                "id": "S-1-5-32-568",
+                "name": "IIS_IUSRS"
+            },
+            {
+                "id": "S-1-5-32-556",
+                "name": "Network Configuration Operators"
+            },
+            {
+                "id": "S-1-5-32-559",
+                "name": "Performance Log Users"
+            },
+            {
+                "id": "S-1-5-32-558",
+                "name": "Performance Monitor Users"
+            },
+            {
+                "id": "S-1-5-32-547",
+                "name": "Power Users"
+            },
+            {
+                "id": "S-1-5-32-555",
+                "name": "Remote Desktop Users"
+            },
+            {
+                "id": "S-1-5-32-580",
+                "name": "Remote Management Users"
+            },
+            {
+                "id": "S-1-5-32-552",
+                "name": "Replicator"
+            },
+            {
+                "id": "S-1-5-32-581",
+                "name": "System Managed Accounts Group"
+            },
+            {
+                "id": "S-1-5-32-545",
+                "name": "Users"
+            }
+        ],
+        "local_users": [
+            {
+                "id": "S-1-5-21-984855000-3078689624-3377279527-500",
+                "name": "Administrator"
+            },
+            {
+                "id": "S-1-5-21-984855000-3078689624-3377279527-1002",
+                "name": "dashen"
+            }
+        ],
+        "memories": [
+            {
+                "capacity": 2048,
+                "caption": "XMM1",
+                "description": "DIMM",
+                "manufacturer": "Samsung",
+                "model": "M378B5673FH0-CH9",
+                "numslots": 1,
+                "serialnumber": "B47DE963",
+                "speed": "1333",
+                "type": "DDR3"
+            },
+            {
+                "caption": "XMM2",
+                "description": "DIMM",
+                "numslots": 2,
+                "type": "DDR3"
+            },
+            {
+                "caption": "XMM3",
+                "description": "DIMM",
+                "numslots": 3,
+                "type": "DDR3"
+            },
+            {
+                "caption": "XMM4",
+                "description": "DIMM",
+                "numslots": 4,
+                "type": "DDR3"
+            }
+        ],
+        "monitors": [
+            {
+                "base64": "AP\/\/\/\/\/\/\/wAwrr1gAQEBATIcAQMOKRd46pkVpVVRoCcQUFSv7wCBioGAcU8BAQEBAQEBAQEBZiFWqlEAHjBGjzMAmuYQAAAeAAAA\/QAyTB5BDgAKICAgICAgAAAA\/ABFMTkyMnMgIFdpZGUKAAAA\/wBWOTA0QTRWWAogICAgAJs=",
+                "caption": "E1922s  Wide",
+                "description": "50\/2018",
+                "manufacturer": "Lenovo Group Limited",
+                "serial": "V904A4VX"
+            }
+        ],
+        "networks": [
+            {
+                "description": "Intel(R) 82567LM-3 Gigabit Network Connection",
+                "ipaddress": "172.23.250.38",
+                "ipgateway": "172.23.250.2",
+                "ipmask": "255.255.255.0",
+                "ipsubnet": "172.23.250.0",
+                "mac": "1C:C1:DE:59:B4:88",
+                "pciid": "8086:10DE:3646:103C",
+                "pnpdeviceid": "PCI\\VEN_8086&DEV_10DE&SUBSYS_3646103C&REV_02\\3&33FD14CA&0&C8",
+                "speed": "1000",
+                "status": "up",
+                "type": "ethernet",
+                "virtualdev": false
+            },
+            {
+                "description": "Intel(R) 82567LM-3 Gigabit Network Connection",
+                "ipaddress6": "fe80::d560:e2ba:99af:d0bd",
+                "ipmask6": "ffff:ffff:ffff:ffff::",
+                "ipsubnet6": "fe80::",
+                "mac": "1C:C1:DE:59:B4:88",
+                "pciid": "8086:10DE:3646:103C",
+                "pnpdeviceid": "PCI\\VEN_8086&DEV_10DE&SUBSYS_3646103C&REV_02\\3&33FD14CA&0&C8",
+                "speed": "1000",
+                "status": "up",
+                "type": "ethernet",
+                "virtualdev": false
+            }
+        ],
+        "operatingsystem": {
+            "arch": "64-bit",
+            "boot_time": "2026-11-04 05:54:45",
+            "dns_domain": "ITMOD.local",
+            "fqdn": "4KILO-11-2026.ITMOD.local",
+            "full_name": "Microsoft Windows 10 Pro",
+            "install_date": "2026-08-11 12:23:00",
+            "kernel_name": "MSWin32",
+            "kernel_version": "10.0.14393",
+            "name": "Windows",
+            "service_pack": "14393.187",
+            "timezone": {
+                "name": "America\/Los_Angeles",
+                "offset": "-0800"
+            },
+            "version": "1607"
+        },
+        "ports": [
+            {
+                "description": "SAS\/SATA Plug Receptacle",
+                "name": "SATA0",
+                "type": "SATA"
+            },
+            {
+                "description": "SAS\/SATA Plug Receptacle",
+                "name": "SATA1",
+                "type": "SATA"
+            },
+            {
+                "description": "SAS\/SATA Plug Receptacle",
+                "name": "SATA2",
+                "type": "SATA"
+            },
+            {
+                "caption": "ESATA",
+                "description": "SAS\/SATA Plug Receptacle",
+                "name": "ESATA",
+                "type": "SATA"
+            },
+            {
+                "caption": "COM A",
+                "description": "DB-9 male",
+                "name": "SERIAL A",
+                "type": "Serial Port 16550A Compatible"
+            },
+            {
+                "caption": "DB-9 male",
+                "description": "Other",
+                "name": "SERIAL B",
+                "type": "Serial Port 16550A Compatible"
+            },
+            {
+                "caption": "PARALLEL",
+                "description": "DB-25 female",
+                "name": "PARALLEL",
+                "type": "Parallel Port ECP\/EPP"
+            },
+            {
+                "caption": "USB 1",
+                "description": "Access Bus (USB)",
+                "name": "USB 1",
+                "type": "USB"
+            },
+            {
+                "caption": "USB 2",
+                "description": "Access Bus (USB)",
+                "name": "USB 2",
+                "type": "USB"
+            },
+            {
+                "caption": "USB 3",
+                "description": "Access Bus (USB)",
+                "name": "USB 3",
+                "type": "USB"
+            },
+            {
+                "caption": "USB 4",
+                "description": "Access Bus (USB)",
+                "name": "USB 4",
+                "type": "USB"
+            },
+            {
+                "caption": "USB 5",
+                "description": "Access Bus (USB)",
+                "name": "USB 5",
+                "type": "USB"
+            },
+            {
+                "caption": "USB 6",
+                "description": "Access Bus (USB)",
+                "name": "USB 6",
+                "type": "USB"
+            },
+            {
+                "caption": "USB 7",
+                "description": "9 Pin Dual Inline (pin 10 cut)",
+                "name": "FRNT USB",
+                "type": "USB"
+            },
+            {
+                "caption": "USB 8",
+                "description": "9 Pin Dual Inline (pin 10 cut)",
+                "name": "FRNT USB",
+                "type": "USB"
+            },
+            {
+                "caption": "Access Bus (USB)",
+                "description": "9 Pin Dual Inline (pin 10 cut)",
+                "name": "MEDIA CARD",
+                "type": "USB"
+            },
+            {
+                "caption": "Access Bus (USB)",
+                "description": "9 Pin Dual Inline (pin 10 cut)",
+                "name": "MEDIA CARD",
+                "type": "USB"
+            },
+            {
+                "caption": "USB 11",
+                "description": "9 Pin Dual Inline (pin 10 cut)",
+                "name": "FRNT USB",
+                "type": "USB"
+            },
+            {
+                "caption": "USB 12",
+                "description": "9 Pin Dual Inline (pin 10 cut)",
+                "name": "FRNT USB",
+                "type": "USB"
+            },
+            {
+                "caption": "KEYBOARD",
+                "description": "PS\/2",
+                "name": "KEYBOARD",
+                "type": "Keyboard Port"
+            },
+            {
+                "caption": "MOUSE",
+                "description": "PS\/2",
+                "name": "MOUSE",
+                "type": "Mouse Port"
+            },
+            {
+                "caption": "REAR LINE IN",
+                "description": "Mini DIN",
+                "name": "REAR LINE IN",
+                "type": "Audio Port"
+            },
+            {
+                "caption": "REAR HEADPHONE\/LINEOUT",
+                "description": "Mini DIN",
+                "name": "REAR HEADPHONE\/LINEOUT",
+                "type": "Audio Port"
+            },
+            {
+                "caption": "FRONT HEADPHONE & MIC",
+                "description": "Other",
+                "name": "FRNT AUD",
+                "type": "Audio Port"
+            },
+            {
+                "caption": "VIDEO",
+                "description": "DB-15 female",
+                "name": "VIDEO",
+                "type": "Video Port"
+            },
+            {
+                "caption": "Display Port",
+                "description": "Other",
+                "name": "Display Port",
+                "type": "Video Port"
+            },
+            {
+                "caption": "RJ45",
+                "description": "RJ-45",
+                "name": "RJ45",
+                "type": "Network Port"
+            },
+            {
+                "description": "Other",
+                "name": "POWER SUPPLY FAN",
+                "type": "Other"
+            },
+            {
+                "description": "Other",
+                "name": "FRONT CHASSIS FAN",
+                "type": "Other"
+            },
+            {
+                "description": "Other",
+                "name": "SPEAKER (SPKR)",
+                "type": "Other"
+            },
+            {
+                "description": "Other",
+                "name": "PASSWORD CLEAR (PSWD)",
+                "type": "Other"
+            },
+            {
+                "description": "Other",
+                "name": "HOOD SENSE (HSENSE)",
+                "type": "Other"
+            },
+            {
+                "description": "Other",
+                "name": "HOOD LOCK (HLCK)",
+                "type": "Other"
+            },
+            {
+                "description": "Other",
+                "name": "POWER BUTTON (PB\/LED)",
+                "type": "Other"
+            },
+            {
+                "caption": "Communications Port (COM1)",
+                "description": "Communications Port",
+                "name": "Communications Port (COM1)",
+                "type": "Serial"
+            },
+            {
+                "caption": "LPT1",
+                "description": "LPT1",
+                "name": "LPT1",
+                "type": "Parallel"
+            },
+            {
+                "caption": "SATA0",
+                "description": "SATA0",
+                "name": "SATA0",
+                "type": "Unknown"
+            },
+            {
+                "caption": "SATA1",
+                "description": "SATA1",
+                "name": "SATA1",
+                "type": "Unknown"
+            },
+            {
+                "caption": "SATA2",
+                "description": "SATA2",
+                "name": "SATA2",
+                "type": "Unknown"
+            },
+            {
+                "caption": "",
+                "description": "",
+                "name": "",
+                "type": "Unknown"
+            },
+            {
+                "caption": "",
+                "description": "",
+                "name": "",
+                "type": "DB-25, Female"
+            },
+            {
+                "caption": "",
+                "description": "",
+                "name": "",
+                "type": "Access.bus"
+            },
+            {
+                "caption": "",
+                "description": "",
+                "name": "",
+                "type": "Access.bus"
+            },
+            {
+                "caption": "",
+                "description": "",
+                "name": "",
+                "type": "Access.bus"
+            },
+            {
+                "caption": "",
+                "description": "",
+                "name": "",
+                "type": "Access.bus"
+            },
+            {
+                "caption": "",
+                "description": "",
+                "name": "",
+                "type": "Access.bus"
+            },
+            {
+                "caption": "",
+                "description": "",
+                "name": "",
+                "type": "Access.bus"
+            },
+            {
+                "caption": "FRNT USB",
+                "description": "FRNT USB",
+                "name": "FRNT USB",
+                "type": "Access.bus, Circular"
+            },
+            {
+                "caption": "FRNT USB",
+                "description": "FRNT USB",
+                "name": "FRNT USB",
+                "type": "Access.bus, Circular"
+            },
+            {
+                "caption": "MEDIA CARD",
+                "description": "MEDIA CARD",
+                "name": "MEDIA CARD",
+                "type": "Access.bus, Circular"
+            },
+            {
+                "caption": "MEDIA CARD",
+                "description": "MEDIA CARD",
+                "name": "MEDIA CARD",
+                "type": "Access.bus, Circular"
+            },
+            {
+                "caption": "FRNT USB",
+                "description": "FRNT USB",
+                "name": "FRNT USB",
+                "type": "Access.bus, Circular"
+            },
+            {
+                "caption": "FRNT USB",
+                "description": "FRNT USB",
+                "name": "FRNT USB",
+                "type": "Access.bus, Circular"
+            },
+            {
+                "caption": "",
+                "description": "",
+                "name": "",
+                "type": "PS\/2"
+            },
+            {
+                "caption": "",
+                "description": "",
+                "name": "",
+                "type": "PS\/2"
+            },
+            {
+                "caption": "",
+                "description": "",
+                "name": "",
+                "type": "Mini-DIN"
+            },
+            {
+                "caption": "",
+                "description": "",
+                "name": "",
+                "type": "Mini-DIN"
+            },
+            {
+                "caption": "FRNT AUD",
+                "description": "FRNT AUD",
+                "name": "FRNT AUD",
+                "type": "Mini-DIN"
+            },
+            {
+                "caption": "",
+                "description": "",
+                "name": "",
+                "type": "DB-15, Female"
+            },
+            {
+                "caption": "",
+                "description": "",
+                "name": "",
+                "type": "Unknown"
+            },
+            {
+                "caption": "",
+                "description": "",
+                "name": "",
+                "type": "RJ45"
+            },
+            {
+                "caption": "POWER SUPPLY FAN",
+                "description": "POWER SUPPLY FAN",
+                "name": "POWER SUPPLY FAN",
+                "type": "Unknown"
+            },
+            {
+                "caption": "FRONT CHASSIS FAN",
+                "description": "FRONT CHASSIS FAN",
+                "name": "FRONT CHASSIS FAN",
+                "type": "Unknown"
+            },
+            {
+                "caption": "SPEAKER (SPKR)",
+                "description": "SPEAKER (SPKR)",
+                "name": "SPEAKER (SPKR)",
+                "type": "Unknown"
+            },
+            {
+                "caption": "PASSWORD CLEAR (PSWD)",
+                "description": "PASSWORD CLEAR (PSWD)",
+                "name": "PASSWORD CLEAR (PSWD)",
+                "type": "Unknown"
+            },
+            {
+                "caption": "HOOD SENSE (HSENSE)",
+                "description": "HOOD SENSE (HSENSE)",
+                "name": "HOOD SENSE (HSENSE)",
+                "type": "Unknown"
+            },
+            {
+                "caption": "HOOD LOCK (HLCK)",
+                "description": "HOOD LOCK (HLCK)",
+                "name": "HOOD LOCK (HLCK)",
+                "type": "Unknown"
+            },
+            {
+                "caption": "POWER BUTTON (PB\/LED)",
+                "description": "POWER BUTTON (PB\/LED)",
+                "name": "POWER BUTTON (PB\/LED)",
+                "type": "Unknown"
+            }
+        ],
+        "powersupplies": [
+            {
+                "hotreplaceable": true,
+                "partnum": "High Efficiency",
+                "plugged": true,
+                "status": "Present, Unknown"
+            }
+        ],
+        "printers": [
+            {
+                "driver": "Microsoft XPS Document Writer v4",
+                "name": "Microsoft XPS Document Writer",
+                "network": false,
+                "port": "PORTPROMPT:",
+                "printprocessor": "winprint",
+                "resolution": "600x600",
+                "shared": false,
+                "status": "Idle"
+            },
+            {
+                "driver": "Microsoft Print To PDF",
+                "name": "Microsoft Print to PDF",
+                "network": false,
+                "port": "PORTPROMPT:",
+                "printprocessor": "winprint",
+                "resolution": "600x600",
+                "shared": false,
+                "status": "Idle"
+            },
+            {
+                "driver": "Microsoft Shared Fax Driver",
+                "name": "Fax",
+                "network": false,
+                "port": "SHRFAX:",
+                "printprocessor": "winprint",
+                "resolution": "200x200",
+                "shared": false,
+                "status": "Idle"
+            }
+        ],
+        "slots": [
+            {
+                "description": "PCI",
+                "designation": "1",
+                "name": "PCI1",
+                "status": "used"
+            },
+            {
+                "description": "PCI Express",
+                "designation": "1",
+                "name": "PCI EXPRESS x1 SLOT 1 (PCIEx1 1)",
+                "status": "free"
+            },
+            {
+                "description": "PCI Express",
+                "designation": "1",
+                "name": "PCI EXPRESS x1 SLOT 2 (PCIEx1 2)",
+                "status": "free"
+            },
+            {
+                "description": "PCI Express 2",
+                "designation": "1",
+                "name": "PCI EXPRESS x16 SLOT (PCIEx16)",
+                "status": "free"
+            },
+            {
+                "description": "System Slot",
+                "designation": "PCI1",
+                "name": "System Slot",
+                "status": "used"
+            },
+            {
+                "description": "System Slot",
+                "designation": "PCI EXPRESS x1 SLOT 1 (PCIEx1 1)",
+                "name": "System Slot",
+                "status": "free"
+            },
+            {
+                "description": "System Slot",
+                "designation": "PCI EXPRESS x1 SLOT 2 (PCIEx1 2)",
+                "name": "System Slot",
+                "status": "free"
+            },
+            {
+                "description": "System Slot",
+                "designation": "PCI EXPRESS x16 SLOT (PCIEx16)",
+                "name": "System Slot",
+                "status": "free"
+            }
+        ],
+        "softwares": [
+            {
+                "arch": "x86_64",
+                "from": "registry",
+                "guid": "{54660B80-3014-39F5-BD95-F1DE4A85E1FC}",
+                "install_date": "2026-08-13",
+                "name": "Google Chrome",
+                "publisher": "Google LLC",
+                "system_category": "application",
+                "uninstall_string": "MsiExec.exe \/X{54660B80-3014-39F5-BD95-F1DE4A85E1FC}",
+                "version": "143.0.7499.41"
+            },
+            {
+                "arch": "x86_64",
+                "comments": "GLPI Agent 1.15",
+                "from": "registry",
+                "guid": "{A249D82A-6BF3-1014-8291-EC831F1C4D64}",
+                "helplink": "https:\/\/glpi-project.org\/discussions\/",
+                "install_date": "2026-11-04",
+                "name": "GLPI Agent 1.15",
+                "publisher": "Teclib'",
+                "system_category": "application",
+                "uninstall_string": "MsiExec.exe \/I{A249D82A-6BF3-1014-8291-EC831F1C4D64}",
+                "url_info_about": "https:\/\/glpi-project.org\/",
+                "version": "1.15"
+            },
+            {
+                "arch": "x86_64",
+                "from": "registry",
+                "install_date": "2026-08-11",
+                "name": "Internet Explorer (64bit)",
+                "publisher": "Microsoft Corporation",
+                "version": "11.187.14393.0"
+            },
+            {
+                "arch": "i586",
+                "from": "registry",
+                "install_date": "2026-08-11",
+                "name": "Internet Explorer",
+                "publisher": "Microsoft Corporation",
+                "version": "11.187.14393.0"
+            },
+            {
+                "arch": "x86_64",
+                "comments": "Update",
+                "from": "WMI",
+                "install_date": "2016-09-18",
+                "name": "KB3176936",
+                "release_type": "Update",
+                "system_category": "update"
+            },
+            {
+                "arch": "x86_64",
+                "comments": "Security Update",
+                "from": "WMI",
+                "install_date": "2016-09-18",
+                "name": "KB3188128",
+                "release_type": "Security Update",
+                "system_category": "security_update"
+            },
+            {
+                "arch": "x86_64",
+                "comments": "Security Update",
+                "from": "WMI",
+                "install_date": "2016-09-18",
+                "name": "KB3189866",
+                "release_type": "Security Update",
+                "system_category": "security_update"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.AAD.BrokerPlugin_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft AAD BrokerPlugin",
+                "publisher": "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                "system_category": "system",
+                "version": "1000.14393.0.0"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.AccountsControl_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft AccountsControl",
+                "publisher": "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                "system_category": "system",
+                "version": "10.0.14393.187"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.BioEnrollment_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft BioEnrollment",
+                "publisher": "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                "system_category": "system",
+                "version": "10.0.14393.0"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.LockApp_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft LockApp",
+                "publisher": "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                "system_category": "system",
+                "version": "10.0.14393.0"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.MicrosoftEdge_8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft MicrosoftEdge",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "38.14393.0.0"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.PPIProjection_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft PPIProjection",
+                "publisher": "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                "system_category": "system",
+                "version": "10.0.14393.0"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.AppRep.ChxApp_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft Windows Apprep ChxApp",
+                "publisher": "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                "system_category": "system",
+                "version": "1000.14393.0.0"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.AssignedAccessLockApp_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft Windows AssignedAccessLockApp",
+                "publisher": "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                "system_category": "system",
+                "version": "1000.14393.0.0"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.CloudExperienceHost_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft Windows CloudExperienceHost",
+                "publisher": "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                "system_category": "system",
+                "version": "10.0.14393.0"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.ContentDeliveryManager_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft Windows ContentDeliveryManager",
+                "publisher": "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                "system_category": "system",
+                "version": "10.0.14393.0"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.Cortana_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft Windows Cortana",
+                "publisher": "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                "system_category": "system",
+                "version": "1.7.0.14393"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\ParentalControls_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft Windows ParentalControls",
+                "publisher": "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                "system_category": "system",
+                "version": "1000.14393.0.0"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.SecondaryTileExperience_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "SecondaryTileExperience",
+                "publisher": "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                "system_category": "system",
+                "version": "10.0.0.0"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.SecureAssessmentBrowser_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft Windows SecureAssessmentBrowser",
+                "publisher": "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                "system_category": "system",
+                "version": "10.0.14393.0"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\ShellExperienceHost_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft Windows ShellExperienceHost",
+                "publisher": "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                "system_category": "system",
+                "version": "10.0.14393.187"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.XboxGameCallableUI_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft XboxGameCallableUI",
+                "publisher": "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                "system_category": "system",
+                "version": "1000.14393.0.0"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\ContactSupport_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Windows ContactSupport",
+                "publisher": "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                "system_category": "system",
+                "version": "10.0.14393.0"
+            },
+            {
+                "arch": "neutral",
+                "comments": "Change settings and customize how you use your computer.",
+                "folder": "C:\\Windows\\ImmersiveControlPanel",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Settings",
+                "publisher": "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                "system_category": "system",
+                "version": "6.2.0.0"
+            },
+            {
+                "arch": "neutral",
+                "comments": "Wireless Display Media Viewer",
+                "folder": "C:\\Windows\\MiracastView",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Wireless Display Media Viewer",
+                "publisher": "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                "system_category": "system",
+                "version": "6.3.0.0"
+            },
+            {
+                "arch": "neutral",
+                "comments": "Print Dialog",
+                "folder": "C:\\Windows\\PrintDialog",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "PrintDialog",
+                "publisher": "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                "system_category": "system",
+                "version": "6.2.0.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.3DBuilder_11.0.47.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft 3DBuilder",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "11.0.47.0"
+            },
+            {
+                "arch": "x64",
+                "comments": "Microsoft Advertising SDK for XAML",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.Advertising.Xaml_10.0.1605.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft Advertising SDK for XAML",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "10.0.1605.0"
+            },
+            {
+                "arch": "x86",
+                "comments": "Microsoft Advertising SDK for XAML",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.Advertising.Xaml_10.0.1605.0_x86__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft Advertising SDK for XAML",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "10.0.1605.0"
+            },
+            {
+                "arch": "x86",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.BingWeather_4.9.51.0_x86__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft BingWeather",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "4.9.51.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.DesktopAppInstaller_1.0.1471.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft DesktopAppInstaller",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.0.1471.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.Getstarted_3.11.3.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft Getstarted",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "3.11.3.0"
+            },
+            {
+                "arch": "x86",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.Messaging_3.19.1001.0_x86__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft Messaging",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "3.19.1001.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.MicrosoftOfficeHub_17.6801.23751.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft MicrosoftOfficeHub",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "17.6801.23751.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.MicrosoftSolitaireCollection_3.9.5100.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft Solitaire Collection",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "3.9.5100.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.MicrosoftStickyNotes_1.0.136.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft Sticky Notes",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.0.136.0"
+            },
+            {
+                "arch": "x64",
+                "comments": "Microsoft .Net Native Framework Package 1.3",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.NET.Native.Framework.1.3_1.3.23901.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft .Net Native Framework Package 1.3",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.3.23901.0"
+            },
+            {
+                "arch": "x86",
+                "comments": "Microsoft .Net Native Framework Package 1.3",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.NET.Native.Framework.1.3_1.3.23901.0_x86__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft .Net Native Framework Package 1.3",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.3.23901.0"
+            },
+            {
+                "arch": "x64",
+                "comments": "Microsoft .Net Native Runtime Package 1.3",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.NET.Native.Runtime.1.3_1.3.23901.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft .Net Native Runtime Package 1.3",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.3.23901.0"
+            },
+            {
+                "arch": "x86",
+                "comments": "Microsoft .Net Native Runtime Package 1.3",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.NET.Native.Runtime.1.3_1.3.23901.0_x86__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft .Net Native Runtime Package 1.3",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.3.23901.0"
+            },
+            {
+                "arch": "x64",
+                "comments": "OneNote",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.Office.OneNote_17.6868.57981.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "OneNote",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "17.6868.57981.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.OneConnect_1.1605.17.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft OneConnect",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.1605.17.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.People_10.0.11902.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft People",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "10.0.11902.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.SkypeApp_11.4.86.0_x64__kzf8qxf38zg5c",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft SkypeApp",
+                "publisher": "Skype",
+                "system_category": "store",
+                "version": "11.4.86.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.StorePurchaseApp_1.0.45.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Store Purchase App",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.0.45.0"
+            },
+            {
+                "arch": "x64",
+                "comments": "Microsoft Visual C++ 2015 UWP Runtime support for native applications",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.VCLibs.140.00_14.0.23816.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft Visual C++ 2015 UWP Runtime Package",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "14.0.23816.0"
+            },
+            {
+                "arch": "x86",
+                "comments": "Microsoft Visual C++ 2015 UWP Runtime support for native applications",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.VCLibs.140.00_14.0.23816.0_x86__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft Visual C++ 2015 UWP Runtime Package",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "14.0.23816.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.Windows.Photos_16.511.8780.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft Windows Photos",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "16.511.8780.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsAlarms_10.1605.1742.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft WindowsAlarms",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "10.1605.1742.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsCalculator_10.1605.1582.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft WindowsCalculator",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "10.1605.1582.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsCamera_2016.404.190.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft WindowsCamera",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "2016.404.190.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\microsoft.windowscommunicationsapps_17.6868.41201.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "microsoft windowscommunicationsapps",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "17.6868.41201.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsFeedbackHub_1.3.1741.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft WindowsFeedbackHub",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.3.1741.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsMaps_5.1603.1830.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft WindowsMaps",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "5.1603.1830.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsSoundRecorder_10.1605.1622.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft WindowsSoundRecorder",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "10.1605.1622.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsStore_11606.1001.39.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft WindowsStore",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "11606.1001.39.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.XboxApp_15.18.23005.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Xbox",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "15.18.23005.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.XboxIdentityProvider_11.18.16009.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft XboxIdentityProvider",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "11.18.16009.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.ZuneMusic_3.6.19261.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft ZuneMusic",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "3.6.19261.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.ZuneVideo_3.6.19281.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2016-07-16",
+                "name": "Microsoft ZuneVideo",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "3.6.19281.0"
+            }
+        ],
+        "sounds": [
+            {
+                "caption": "High Definition Audio Device",
+                "description": "High Definition Audio Device",
+                "manufacturer": "Microsoft",
+                "name": "High Definition Audio Device"
+            }
+        ],
+        "storages": [
+            {
+                "description": "Integrated : Adapter 2 : Port 0",
+                "disksize": 160041,
+                "firmware": "02.03A02",
+                "interface": "SATA",
+                "model": "WDC WD1600AAJS-60B4A0",
+                "name": "PhysicalDisk0",
+                "serial": "WD-WMAT21381904",
+                "type": "UNKNOWN"
+            }
+        ],
+        "usbdevices": [
+            {
+                "caption": "Optical Mouse",
+                "manufacturer": "Lenovo",
+                "name": "Optical Mouse",
+                "productid": "608D",
+                "vendorid": "17EF"
+            },
+            {
+                "caption": "USB Composite Device",
+                "manufacturer": "Lenovo",
+                "name": "USB Composite Device",
+                "productid": "6190",
+                "vendorid": "17EF"
+            }
+        ],
+        "users": [
+            {
+                "domain": "4KILO-11-2026",
+                "login": "Administrator"
+            }
+        ],
+        "versionclient": "GLPI-Agent_v1.15",
+        "versionprovider": {
+            "comments": [
+                "Provided by Teclib Edition",
+                "Installer built on Mon Jun  9 13:00:00 2025 UTC",
+                "Built with Strawberry Perl 5.40.2",
+                "Built on github actions windows image for glpi-project\/glpi-agent repository"
+            ],
+            "etime": 41,
+            "name": "GLPI",
+            "perl_exe": "C:\\Program Files\\GLPI-Agent\\perl\\bin\\glpi-agent.exe",
+            "perl_version": "v5.40.2",
+            "program": "C:\\Program Files\\GLPI-Agent\\perl\\bin\\glpi-win32-service",
+            "version": "1.15"
+        },
+        "videos": [
+            {
+                "chipset": "Intel(r)Eaglelake Graphics Chip",
+                "name": "Microsoft Basic Display Adapter",
+                "resolution": "1024x768"
+            }
+        ]
+    },
+    "deviceid": "4KILO-11-2026-2026-11-04-04-55-53",
+    "itemtype": "Computer"
+}

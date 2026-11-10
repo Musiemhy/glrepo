@@ -1,0 +1,57 @@
+{
+    "packages": [
+        {
+            "name": "sportlog/google-charts",
+            "version": "v1.0.4",
+            "version_normalized": "1.0.4.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/sportlog/google-charts.git",
+                "reference": "4dc4a8a128a77cd8766aea085dd6f5c62bdf97da"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/sportlog/google-charts/zipball/4dc4a8a128a77cd8766aea085dd6f5c62bdf97da",
+                "reference": "4dc4a8a128a77cd8766aea085dd6f5c62bdf97da",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.1"
+            },
+            "require-dev": {
+                "phpstan/phpstan": "^2.1",
+                "phpunit/phpunit": "^12.5"
+            },
+            "time": "2026-04-14T18:13:30+00:00",
+            "type": "project",
+            "installation-source": "dist",
+            "autoload": {
+                "psr-4": {
+                    "Sportlog\\GoogleCharts\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Johannes Aberidis"
+                }
+            ],
+            "description": "PHP Wrapper for Google charts",
+            "keywords": [
+                "charts",
+                "google",
+                "graphs"
+            ],
+            "support": {
+                "issues": "https://github.com/sportlog/google-charts/issues",
+                "source": "https://github.com/sportlog/google-charts/tree/v1.0.4"
+            },
+            "install-path": "../sportlog/google-charts"
+        }
+    ],
+    "dev": false,
+    "dev-package-names": []
+}

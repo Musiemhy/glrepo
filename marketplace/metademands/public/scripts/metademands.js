@@ -1,0 +1,1335 @@
+/**
+ * -------------------------------------------------------------------------
+ * metademands plugin for GLPI
+ * Copyright (C) 2018-2026 by the metademands Development Team.
+ *
+ * https://github.com/InfotelGLPI/metademands
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of metademands.
+ *
+ * metademands is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * metademands is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+/**
+ * metademandWizard
+ *
+ * @param  options
+ */
+
+(function ($) {
+    $.fn.metademandWizard = function (options) {
+
+        var object = this;
+        init();
+
+        /**
+         * Start the plugin
+         */
+        function init()
+        {
+            object.params = [];
+            object.params.lang = '';
+            object.params.root_doc = '';
+
+            if (options != undefined) {
+                $.each(options, function (index, val) {
+                    if (val != undefined && val != null) {
+                        object.params[index] = val;
+                    }
+                });
+            }
+        }
+
+
+        /**
+         * metademands_add_custom_values : add text input
+         */
+        this.metademands_add_custom_values = function (field_name, field_id) {
+            var count = $('#count_custom_values').val();
+            $('#count_custom_values').val(parseInt(count) + 1);
+
+            var display_comment = $('#display_comment').val();
+            var display_default = $('#display_default').val();
+            var display_icon = $('#display_icon').val();
+            $.ajax({
+                url: object.params.root_doc + '/ajax/addnewvalue.php',
+                type: "POST",
+                dataType: "html",
+                data: {
+                    'action': 'add',
+                    'display_comment': display_comment,
+                    'display_default': display_default,
+                    'display_icon': display_icon,
+                    'field_id': field_id,
+                    'count': $('#count_custom_values').val()
+                },
+                success: function (response) {
+                    var item_bloc = $('#' + field_name);
+                    item_bloc.append(response);
+                    $('#add_custom_values').show();
+                }
+            });
+        };
+
+        return this;
+    };
+}(jQuery));
+
+
+function basketSearchInit(fieldId) {
+    const table = document.getElementById('tablesearch-' + fieldId);
+    if (!table) return;
+
+    const filterRefInput         = document.getElementById('searchref-' + fieldId);
+    const filterNameInput        = document.getElementById('searchname-' + fieldId);
+    const filterDescriptionInput = document.getElementById('searchdescription-' + fieldId);
+    const rows = table.getElementsByTagName('tr');
+
+    function filterTable() {
+        const filterRef  = filterRefInput.value.toUpperCase();
+        const filterName = filterNameInput.value.toUpperCase();
+        const filterDesc = filterDescriptionInput.value.toUpperCase();
+
+        for (let i = 0; i < rows.length; i++) {
+            const cells = rows[i].getElementsByTagName('td');
+            if (cells.length < 3) continue;
+            const ref  = cells[0].textContent.toUpperCase();
+            const name = cells[1].textContent.toUpperCase();
+            const desc = cells[2].textContent.toUpperCase();
+            rows[i].style.display = (ref.includes(filterRef) && name.includes(filterName) && desc.includes(filterDesc)) ? '' : 'none';
+        }
+    }
+
+    filterRefInput.addEventListener('input', filterTable);
+    filterNameInput.addEventListener('input', filterTable);
+    filterDescriptionInput.addEventListener('input', filterTable);
+}
+
+
+function plugin_metademands_wizard_validateForm(metademandparams)
+{
+
+    // This function deals with validation of the form fields
+    var x, y = 0, w = 0, z = 0, i, valid = true, ko = 0, kop = 0;
+    var fieldid, fieldname, fieldtype, fieldmandatory, isswitch, isnumber, ismultiplenumber, minimal_mandatory, alert_mandatory_fields_list, alert_msg;
+
+    if (metademandparams.use_as_step == 1) {
+        var x = document.getElementsByClassName('tab-step');
+        // var x = {};
+        //
+        // for (var i = 0; i < tabs.length; i++) {
+        //     x[i + 1] = tabs[i];
+        // }
+    } else {
+        var x = document.getElementsByClassName('tab-nostep');
+    }
+
+    if (typeof x[metademandparams.currentTab] !== 'undefined') {
+        //only inputs with div visible
+        const inputs = x[metademandparams.currentTab].getElementsByTagName('input');
+        y = Array.from(inputs).filter(input => {
+            const bloc = input.closest('[bloc-id]');
+            return bloc && bloc.style.display !== 'none';
+        });
+        const selects = x[metademandparams.currentTab].getElementsByTagName('select');
+        z = Array.from(selects).filter(select => {
+            const bloc = select.closest('[bloc-id]');
+            return bloc && bloc.style.display !== 'none';
+        });
+
+        const textareas = x[metademandparams.currentTab].getElementsByTagName('textarea');
+        w = Array.from(textareas).filter(select => {
+            const bloc = select.closest('[bloc-id]');
+            return bloc && bloc.style.display !== 'none';
+        });
+    }
+
+    var mandatory = [];
+
+    var mandatory_regex = [];
+
+    //check mandatory signature
+    let keys = Object.keys(sessionStorage);
+    for (let key of keys) {
+        if (key == 'mandatory_sign') {
+            mandatory.push(sessionStorage.getItem(key));
+            ko++;
+        }
+    }
+
+    // A loop that checks every input field in the current tab:
+    for (i = 0; i < y.length; i++) {
+        // If a field is empty...
+        fieldid = y[i].id;
+        fieldname = y[i].name;
+        fieldtype = y[i].type;
+
+        if ((fieldtype == 'email'
+                || fieldtype == 'tel'
+                || fieldtype == 'url')
+            && document.getElementById(fieldid) != null
+            && !document.getElementById(fieldid).checkValidity()) {
+            document.getElementById(fieldid).reportValidity();
+            return false;
+        }
+
+        fieldmandatory = y[i].required;
+        if (fieldname != '_uploader_filename[]'
+            && fieldname != '_uploader_content[]'
+            && fieldtype != 'file'
+            && fieldtype != 'informations'
+            && !y[i].classList.contains('flatpickr-alt-input') // skip flatpickr display input (no name, duplicate of hidden below)
+            && (fieldtype != 'hidden' || y[i].classList.contains('flatpickr-input')) // allow flatpickr date hidden input; exclude dropdown_multiple hidden inputs
+            && fieldmandatory == true) {
+            var res = $('[name=\"' + fieldname + '\"]').closest('[bloc-id]').css('display');
+
+            if (res != 'none') {
+                //ignore for hidden inputs below file inputs
+                if (!y[i].parentElement.querySelector('input[type=\"file\"]')) {
+                    if (y[i].value == '') {
+                        $('[name=\"' + fieldname + '\"]').addClass('invalid');
+                        $('[name=\"' + fieldname + '\"]').attr('required', 'required');
+                        //                              $('[for=\"' + fieldname + '\"]').css('color', 'red');
+                        //hack for date
+                        $('[name=\"' + fieldname + '\"]').next('input').addClass('invalid');
+                        $('[name=\"' + fieldname + '\"]').next('input').attr('required', 'required');
+                        var newfieldname = fieldname.match(/\[(.*?)\]/);
+                        if (newfieldname) {
+                            mandatory.push(newfieldname[1]);
+                        }
+                        ko++;
+                    } else {
+                        $('[name=\"' + fieldname + '\"]').removeClass('invalid');
+                        // $('[name=\"' + fieldname + '\"]').removeAttr('required');
+                        if (y[i].type === 'text') {
+                            if (y[i].pattern) {
+
+                                let regex = new RegExp(y[i].pattern);
+                                if (!regex.test(y[i].value)) {
+
+                                    $('[name=\"' + fieldname + '\"]').addClass('invalid');
+                                    $('[name=\"' + fieldname + '\"]').attr('required', 'required');
+                                    var newfieldname = fieldname.match(/\[(.*?)\]/);
+                                    if (newfieldname) {
+                                        mandatory_regex.push(newfieldname[1]);
+                                    }
+                                    ko++;
+                                }
+                            }
+                        }
+                        //hack for date
+                        $('[name=\"' + fieldname + '\"]').next('input').removeClass('invalid');
+                        // $('[name=\"' + fieldname + '\"]').next('input').removeAttr('required');
+
+                        //                              $('[for=\"' + fieldname + '\"]').css('color', 'unset');
+                    }
+                }
+            } else {
+                $('[name=\"' + fieldname + '\"]').removeClass('invalid');
+                $('[name=\"' + fieldname + '\"]').removeAttr('required');
+//                                hack for date
+                $('[name=\"' + fieldname + '\"]').next('input').removeClass('invalid');
+                $('[name=\"' + fieldname + '\"]').next('input').removeAttr('required');
+            }
+        }
+        if (y[i].type == 'file'
+            && fieldname == '_uploader_filename[]'
+            && fieldname.indexOf('_uploader_field') == -1
+            && y[i].required) {
+            var inputPieceJointe = document.getElementById(fieldid);
+            let fileIndicator = inputPieceJointe.parentElement.getElementsByClassName('fileupload_info')[0];
+
+            if (fileIndicator.getElementsByTagName('p').length > 0) {
+                $('#' + y[i].id).removeClass('invalid');
+                $('#' + y[i].id).removeAttr('required');
+//                         $('[for=\"' + fieldname + '\"]').css('color', 'unset');
+            } else {
+                $('#' + y[i].id).addClass('invalid');
+                $('#' + y[i].id).attr('required', 'required');
+//                         $('[for=\"' + fieldname + '\"]').css('color', 'red');
+                var newfieldname = fileIndicator.id.match(/\d+$/);
+                if (newfieldname) {
+                    mandatory.push(newfieldname[0]);
+                }
+                ko++;
+            }
+        }
+
+
+        if (y[i].type == 'radio'
+            && fieldmandatory == true) {
+            var boutonsRadio = document.querySelectorAll('input[name=\"' + fieldname + '\"]');
+            var check = false;
+            for (var b = 0; b < boutonsRadio.length; b++) {
+                if (boutonsRadio[b].checked) {
+                    check = true;
+                    break;
+                }
+            }
+            // Vérifier le résultat
+            if (check) {
+                $('[name=\"' + fieldname + '\"]').removeClass('invalid');
+                $('[name=\"' + fieldname + '\"]').removeAttr('required');
+//                              $('[for=\"' + fieldname + '\"]').css('color', 'unset');
+            } else {
+                $('[name=\"' + fieldname + '\"]').addClass('invalid');
+                $('[name=\"' + fieldname + '\"]').attr('required', 'required');
+//                              $('[for=\"' + fieldname + '\"]').css('color', 'red');
+                var newfieldname = fieldid.match(/\[(.*?)\]/);
+                if (newfieldname) {
+                    mandatory.push(newfieldname[1]);
+                }
+                ko++;
+            }
+        }
+        if (y[i].type == 'checkbox'
+            && fieldmandatory == true) {
+            isswitch = y[i].getAttribute('isswitch');
+            if (isswitch == null) {
+                var newfieldname = fieldname.match(/^(.*?)\[\w+\]/)[0];
+                var casesACocher = document.querySelectorAll('input[name*=\"' + newfieldname + '\"]');
+
+                // Parcourir les cases à cocher pour vérifier s'il y en a au moins une de cochée
+                var check = false;
+                for (var c = 0; c < casesACocher.length; c++) {
+                    if (casesACocher[c].checked) {
+                        check = true;
+                        break;
+                    }
+                }
+                if (check) {
+                    $('[name*=\"' + newfieldname + '\"]').removeClass('invalid');
+                    $('[name*=\"' + newfieldname + '\"]').removeAttr('required');
+//                              $('[for*=\"' + newfieldname + '\"]').css('color', 'unset');
+                } else {
+                    $('[name*=\"' + newfieldname + '\"]').addClass('invalid');
+                    $('[name*=\"' + newfieldname + '\"]').attr('required', 'required');
+//                              $('[for*=\"' + newfieldname + '\"]').css('color', 'red');
+                    var mandfieldname = fieldid.match(/\[(.*?)\]/);
+                    if (mandfieldname) {
+                        mandatory.push(mandfieldname[1]);
+                    }
+                    ko++;
+                }
+            }
+        }
+
+        if (y[i].type == 'range'
+            && fieldmandatory == true) {
+            minimal_mandatory = y[i].getAttribute('minimal_mandatory');
+            var fieldname = y[i].name;
+            var res = $('[name=\"' + fieldname + '\"]').closest('[bloc-id]').css('display');
+            if (res != 'none' && parseInt(y[i].value) < parseInt(minimal_mandatory)) {
+                $('[name=\"' + fieldname + '\"]').addClass('invalid');
+                $('[name=\"' + fieldname + '\"]').attr('required', 'required');
+                var newfieldname = fieldname.match(/\[(.*?)\]/);
+                if (newfieldname) {
+                    mandatory.push(newfieldname[1]);
+                }
+                ko++;
+            } else {
+                $('[name=\"' + fieldname + '\"]').removeClass('invalid');
+                $('[name=\"' + fieldname + '\"]').removeAttr('required');
+            }
+        }
+    }
+
+
+    //for textarea
+    if (w.length > 0) {
+        for (var y = 0; y < w.length; y++) {
+            fieldmandatory = w[y].required;
+            var fieldname = w[y].name;
+            var fieldid = w[y].id;
+
+            var textarea = w[y];
+            var res = $('[name=\"' + fieldname + '\"]').closest('[bloc-id]').css('display');
+            //hack for tinymce
+
+            if (document.querySelector('div[id-field=\"' + fieldid + '\"] > .tox-tinymce') !== null) {
+                if (document.querySelector('div[id-field=\"' + fieldid + '\"] > .tox-tinymce').classList.contains('required')) {
+                    fieldmandatory = true;
+                }
+            }
+            const richtextarea = document.querySelector('textarea[id=\"' + fieldid + '\"]');
+            const nextDiv = richtextarea.nextElementSibling;
+
+            if (nextDiv && nextDiv.tagName.toLowerCase() === 'div') {
+                if (nextDiv.classList.contains('required')) {
+                    fieldmandatory = true;
+                }
+            }
+            if (res != 'none'
+                && fieldmandatory == true) {
+                if (typeof tinymce !== 'undefined'
+                    && tinymce.get(textarea.id)) {
+                    var contenu = tinymce.get(textarea.id).getContent();
+                    // Vérifier si le contenu est vide
+                    if (contenu.trim().length) {
+                        $('[name=\"' + fieldname + '\"]').removeClass('invalid');
+                    } else {
+                        $('[name=\"' + fieldname + '\"]').addClass('invalid');
+                        $('[name=\"' + fieldname + '\"]').attr('required', 'required');
+                        $('[name=\"' + fieldname + '\"]').next().css('border', 'solid 1px red');
+                        var newfieldname = fieldname.match(/\[(.*?)\]/);
+
+                        if (newfieldname) {
+                            mandatory.push(newfieldname[1]);
+                        }
+                        ko++;
+                    }
+                } else {
+                    var contenu = textarea.value.trim();
+                    // Vérifier si le contenu est vide
+                    if (contenu.length) {
+                        $('[name=\"' + fieldname + '\"]').removeClass('invalid');
+                    } else {
+                        $('[name=\"' + fieldname + '\"]').addClass('invalid');
+                        $('[name=\"' + fieldname + '\"]').attr('required', 'required');
+                        var newfieldname = fieldid.match(/\[(.*?)\]/);
+                        if (newfieldname) {
+                            mandatory.push(newfieldname[1]);
+                        }
+                        ko++;
+                    }
+                }
+            }
+        }
+    }
+    //for select
+    if (z.length > 0) {
+        for (i = 0; i < z.length; i++) {
+            fieldmandatory = z[i].required;
+            // If a field is empty...
+            isnumber = z[i].getAttribute('isnumber');
+            ismultiplenumber = z[i].getAttribute('ismultiplenumber');
+            minimal_mandatory = z[i].getAttribute('minimal_mandatory');
+            var fieldname = z[i].name;
+            var idfield = fieldname.replace(/[\[\]]/g, '')
+            var visible = $('[id-field=\"' + idfield + '\"]').css('display');
+
+            if (fieldname.endsWith('-dropdown')) {
+                if (fieldmandatory == true) {
+                    const realName = fieldname.replace(/-dropdown$/, '');
+                    const hiddenInput = document.querySelector('[name="' + realName + '"]');
+                    const realValue = hiddenInput ? hiddenInput.value : '';
+                    const res = $('[name="' + fieldname + '"]').closest('[bloc-id]').css('display');
+                    if (res != 'none' && (realValue === '' || realValue === '0' || parseInt(realValue) === 0)) {
+                        $('[name="' + fieldname + '"]').addClass('invalid');
+                        $('[name="' + fieldname + '"]').attr('required', 'required');
+                        const newfieldname = realName.match(/\[(.*?)\]/);
+                        if (newfieldname) {
+                            mandatory.push(newfieldname[1]);
+                        }
+                        ko++;
+                    } else {
+                        $('[name="' + fieldname + '"]').removeClass('invalid');
+                        $('[name="' + fieldname + '"]').removeAttr('required');
+                    }
+                }
+                continue;
+            }
+
+            if (z[i].value == 0 && isnumber == null
+                && ismultiplenumber == null
+                && fieldmandatory == true
+                && visible != 'none') {
+                // add an 'invalid' class to the field:
+
+                var fieldname = z[i].name;
+
+                var res = $('[name=\"' + fieldname + '\"]').closest('[bloc-id]').css('display');
+                if (res != 'none') {
+                    $('[name*=\"' + fieldname + '\"]').addClass('invalid');
+                    $('[name*=\"' + fieldname + '\"]').attr('required', 'required');
+//                                 $('[for=\"' + fieldname + '\"]').css('color', 'red');
+
+                    var newfieldname = fieldname.match(/\[(.*?)\]/);
+                    if (newfieldname) {
+                        mandatory.push(newfieldname[1]);
+                    }
+                    ko++;
+                } else {
+                    $('[name*=\"' + fieldname + '\"]').removeClass('invalid');
+                    $('[name*=\"' + fieldname + '\"]').removeAttr('required');
+//                                 $('[for=\"' + fieldname + '\"]').css('color', 'unset');
+                }
+            } else if (isnumber == 'isnumber'
+                && ismultiplenumber == null
+                && fieldmandatory == true) {
+                // add an 'invalid' class to the field:
+                var fieldname = z[i].name;
+                var res = $('[name=\"' + fieldname + '\"]').closest('[bloc-id]').css('display');
+                if (res != 'none' && parseInt(z[i].value) < parseInt(minimal_mandatory)) {
+                    $('[name=\"' + fieldname + '\"]').addClass('invalid');
+                    $('[name=\"' + fieldname + '\"]').attr('required', 'required');
+                    var newfieldname = fieldname.match(/\[(.*?)\]/);
+                    if (newfieldname) {
+                        mandatory.push(newfieldname[1]);
+                    }
+                    ko++;
+                } else {
+                    $('[name=\"' + fieldname + '\"]').removeClass('invalid');
+                    $('[name=\"' + fieldname + '\"]').removeAttr('required');
+                }
+            } else if (z[i].value == 0
+                && ismultiplenumber == 'ismultiplenumber'
+                && fieldmandatory == true) {
+                // add an 'invalid' class to the field:
+                var fieldname = z[i].name;
+                var newfieldname = fieldname.match(/^(.*?)\[\w+\]/)[0];
+
+                var numbers = document.querySelectorAll('[name*=\"' + newfieldname + '\"]');
+                var check = false;
+                for (var n = 0; n < numbers.length; n++) {
+                    var myval = $('[name*=\"' + numbers[n].name + '\"]').children('option:selected').val();
+                    if (myval > 0) {
+                        check = true;
+                        break;
+                    }
+                }
+
+                if (check) {
+                    $('[name*=\"' + newfieldname + '\"]').removeClass('invalid');
+                    $('[name*=\"' + newfieldname + '\"]').removeAttr('required');
+                    //                              $('[for*=\"' + fieldname + '\"]').css('color', 'unset');
+                } else {
+                    $('[name*=\"' + newfieldname + '\"]').addClass('invalid');
+                    $('[name*=\"' + newfieldname + '\"]').attr('required', 'required');
+                    //                              $('[for*=\"' + fieldname + '\"]').css('color', 'red');
+                    var mandfieldname = fieldname.match(/\[(.*?)\]/);
+                    if (mandfieldname) {
+                        mandatory.push(mandfieldname[1]);
+                    }
+                    ko++;
+                }
+            } else {
+                z[i].classList.remove('invalid');
+            }
+        }
+    }
+
+    if (ko > 0 && metademandparams.edit_model == 0) {
+        valid = false;
+
+        const fields_mandatory = mandatory.filter(element => element !== '' && element !== null && element !== undefined);
+        const fields_mandatory_regex = mandatory_regex.filter(element => element !== '' && element !== null && element !== undefined);
+
+        const fields_mandatory_unique = fields_mandatory.filter((element, index) => fields_mandatory.indexOf(element) === index);
+        const fields_mandatory_unique_regex = fields_mandatory_regex.filter((element, index) => fields_mandatory_regex.indexOf(element) === index);
+
+        fields_mandatory_unique.sort((a, b) => a - b);
+        //json_all_meta_fields
+        var alert_mandatory_fields = [];
+        $.each(fields_mandatory_unique, function (k, v) {
+            $.each(metademandparams.json_all_meta_fields, function (key, value) {
+                if (v == key) {
+                    alert_mandatory_fields.push(value);
+                }
+            });
+        });
+        $.each(fields_mandatory_unique_regex, function (k, v) {
+            $.each(metademandparams.json_all_meta_fields, function (key, value) {
+                if (v == key) {
+                    alert_mandatory_fields.push(metademandparams.msg_regex + " : " +value);
+                }
+            });
+        });
+        alert_mandatory_fields_list = alert_mandatory_fields.join('<br> ');
+        alert_msg = metademandparams.msg + ' : <br><br>' + alert_mandatory_fields_list;
+        alert(alert_msg);
+    }
+    return valid;
+}
+
+function plugin_metademands_wizard_showTab(firstnumTab, metademandparams, metademandconditionsparams)
+{
+    // This function will display the specified tab of the form...
+
+    if (metademandconditionsparams.use_condition == true) {
+        if (metademandconditionsparams.show_rule == 2) {
+            if (document.getElementById('nextBtn').innerHTML == metademandconditionsparams.submittitle) {
+                document.getElementById('nextBtn').style.display = 'none';
+            }
+        }
+
+        $('#prevBtn').off('click.metademands').on('click.metademands', function () {
+            if (document.getElementById('nextBtn').innerHTML == metademandconditionsparams.nexttitle) {
+                document.getElementById('nextBtn').style.display = 'inline';
+            }
+        });
+
+        plugin_metademands_wizard_checkConditions(metademandconditionsparams);
+    }
+
+    if (metademandparams.use_as_step == 1) {
+        var x = document.getElementsByClassName('tab-step');
+        // var x = {};
+        //
+        // for (var i = 0; i < tabs.length; i++) {
+        //     x[i + 1] = tabs[i];
+        // }
+    } else {
+        var x = document.getElementsByClassName('tab-nostep');
+    }
+
+
+    //First loading of first tab
+    if (metademandparams.currentTab == 0) {
+        document.getElementById('prevBtn').style.display = 'none';
+    } else {
+        document.getElementById('prevBtn').style.display = 'inline';
+    }
+    if (typeof x[metademandparams.currentTab] !== 'undefined') {
+        x[metademandparams.currentTab].style.display = 'block';
+    }
+    //... and fix the Previous/Next buttons:
+    if (typeof firstnumTab !== 'undefined') {
+        if (metademandparams.currentTab == firstnumTab) {
+            document.getElementById('prevBtn').style.display = 'none';
+        } else {
+            document.getElementById('prevBtn').style.display = 'inline';
+        }
+    }
+
+    if (metademandparams.updatestepform == 1) {
+        document.getElementById('prevBtn').style.display = 'none';
+        if (document.getElementById('button_save_draft') != null) {
+            document.getElementById('button_save_draft').style.display = 'none';
+        }
+    }
+
+    if (metademandparams.currentTab == 0) {
+        document.getElementById('prevBtn').style.display = 'none';
+    }
+
+
+    document.getElementById('nextBtn').innerHTML = metademandparams.nexttitle;
+
+    if (metademandparams.currentTab == (x.length - 1)) {
+        if (metademandparams.seeform == 0) {
+            document.getElementById('nextBtn').innerHTML = metademandparams.submittitle;
+        } else {
+            document.getElementById('nextBtn').style.display = 'none';
+        }
+    }
+
+    //... and run a function that will display the correct step indicator:
+    if (metademandparams.use_as_step == 1) {
+        plugin_metademands_wizard_displayStepButton(metademandparams);
+        plugin_metademands_wizard_displayStepMsg(metademandparams);
+    }
+}
+
+function plugin_metademands_wizard_displayStepButton(metademandparams)
+{
+
+    //for next user button change
+    if (typeof metademandparams !== 'undefined') {
+        var x = document.getElementsByClassName('tab-step');
+        // var x = {};
+        //
+        // for (var i = 0; i < tabs.length; i++) {
+        //     x[i + 1] = tabs[i];
+        // }
+
+        let create = false;
+        const asArray = Array.from(x);
+        const displayed = asArray.find(e => e.style.display == 'block');
+
+        let nextTab = asArray.indexOf(displayed) + 1;
+
+        while (nextTab < x.length && x[nextTab].firstChild.style.display == 'none') {
+            nextTab = nextTab + 1;
+        }
+
+        if (x[nextTab] != undefined) {
+            let bloc = x[nextTab].firstChild.getAttribute('bloc-id');
+
+            let id_bloc = parseInt(bloc.replace('bloc', ''));
+
+            if (typeof metademandparams !== 'undefined') {
+                if (!metademandparams.listStepBlock.includes(id_bloc)) {
+                    create = true;
+                }
+            }
+        }
+
+        if (metademandparams.seeform == 0) {
+            document.getElementById('nextBtn').style.display = 'inline';
+            if (nextTab >= x.length) {
+                document.getElementById('nextBtn').innerHTML = metademandparams.submittitle;
+            } else {
+                if (create) {
+                    document.getElementById('nextBtn').innerHTML = metademandparams.submitsteptitle;
+                    document.getElementById('nextBtn2').style.display = 'none';
+                } else if (metademandparams.changestepbystepoption) {
+                    document.getElementById('nextBtn').innerHTML = metademandparams.submitsteptitle;
+                    document.getElementById('nextBtn2').style.display = 'inline';
+                } else {
+                    document.getElementById('nextBtn').innerHTML = metademandparams.nextsteptitle;
+                    document.getElementById('nextBtn2').style.display = 'none';
+                }
+            }
+        } else {
+            document.getElementById('nextBtn').style.display = 'none';
+        }
+    }
+}
+
+function plugin_metademands_wizard_displayStepMsg(metademandparams)
+{
+    // This function removes the 'active' class of all steps...
+    var i, x = document.getElementsByClassName('step_wizard');
+    for (i = 0; i < x.length; i++) {
+        x[i].className = x[i].className.replace(' active', '');
+    }
+    //... and adds the 'active' class on the current step:
+
+    if (x[metademandparams.currentTab] != undefined && x[metademandparams.currentTab].className) {
+        x[metademandparams.currentTab].className += ' active';
+    }
+
+    var x = document.getElementsByClassName('tab-step');
+    // var x = {};
+    //
+    // for (var i = 0; i < tabs.length; i++) {
+    //     x[i + 1] = tabs[i];
+    // }
+
+    let bloc = x[metademandparams.currentTab].firstChild.getAttribute('bloc-id');
+    let id_bloc = parseInt(bloc.replace('bloc', ''));
+
+    $(document).ready(function () {
+        $.ajax({
+            url: metademandparams.root_doc + '/ajax/getNextMessage.php',
+            type: 'POST',
+            data:
+                {
+                    '_glpi_csrf_token': metademandparams.token,
+                    plugin_metademands_metademands_id: metademandparams.id,
+                    block_id: id_bloc
+            },
+            success: function (response) {
+                if (response.length == 0) {
+                    document.getElementById('nextMsg').style.display = 'none';
+                } else {
+                    document.getElementById('nextMsg').style.display = 'block';
+                    document.getElementById('nextMsg').innerHTML = response;
+                }
+            },
+            error: function (xhr, status, error) {
+                // console.log(xhr);
+                // console.log(status);
+                // console.log(error);
+            }
+        });
+    });
+}
+
+function plugin_metademands_wizard_checkConditions(metademandconditionsparams)
+{
+
+    var formDatas;
+
+    if (metademandconditionsparams.show_rule != 1) {
+        formDatas = $('#wizard_form').serializeArray();
+
+        if (typeof tinyMCE !== 'undefined' && metademandconditionsparams.use_richtext) {
+            for (let i = 0; i < metademandconditionsparams.richtext_ids.length; i++) {
+                let field = 'field' + metademandconditionsparams.richtext_ids[i];
+
+                if (typeof tinyMCE.get(field) !== 'undefined') {
+                    if (tinyMCE.get(field).getContent() !== 'undefined') {
+                        let content = tinyMCE.get(field).getContent();
+                        let name = 'field[' + metademandconditionsparams.richtext_ids[i] + ']';
+                        formDatas.push({
+                            name: name,
+                            value: content
+                        });
+                    }
+                }
+            }
+        }
+
+        $.ajax({
+            url: metademandconditionsparams.root_doc + '/ajax/condition.php',
+            type: 'POST',
+            dataType: 'JSON',
+            data: formDatas,
+            success: function (response) {
+                const btn = document.getElementById('nextBtn');
+                const innerHTML = btn.innerHTML;
+                const isAnyStepTitle = innerHTML == metademandconditionsparams.submittitle;
+
+                if (!isAnyStepTitle) {
+                    return;
+                }
+
+                const valid_condition = Boolean(response);
+                const shouldShow = (metademandconditionsparams.show_button == 1) ? !valid_condition : valid_condition;
+                btn.style.display = shouldShow ? 'inline' : 'none';
+            },
+            error: function (xhr, status, error) {
+                console.log(xhr);
+                console.log(status);
+                console.log(error);
+            }
+        });
+    }
+
+}
+
+
+async function plugin_metademands_wizard_nextBtn(n, firstnumTab, metademandparams, metademandconditionsparams, ischangestepbystepoption)
+{
+
+    // This function will figure out which tab to display
+    if (metademandparams.use_as_step == 1) {
+        var x = document.getElementsByClassName('tab-step');
+        // var x = {};
+        //
+        // for (var i = 0; i < tabs.length; i++) {
+        //     x[i + 1] = tabs[i];
+        // }
+    } else {
+        var x = document.getElementsByClassName('tab-nostep');
+    }
+
+    // Exit the function if any field in the current tab is invalid:
+    if (n == 1 && !plugin_metademands_wizard_validateForm(metademandparams)) {
+        return false;
+    }
+
+    if (metademandparams.useconfirm > 0
+        && metademandparams.edit_model == 0
+            && metademandparams.use_as_step == 1) {
+        const currentBlocAttr = x[metademandparams.currentTab]?.firstChild?.getAttribute('bloc-id');
+        const id_bloc = currentBlocAttr ? parseInt(currentBlocAttr.replace('bloc', '')) : 0;
+        const div = document.querySelector('[bloc-id="bloc' + id_bloc + '"]');
+
+        if (!plugin_metademands_wizard_stepHasInput(div)) {
+            const confirmation = await showBootstrapConfirmationModal(metademandparams.confirmmsg);
+            if (!confirmation) {
+                return false;
+            }
+        }
+    }
+    // Increase or decrease the current tab by 1:
+    let nextTab = metademandparams.currentTab + n;
+    // Hide the current tab:
+    if (x[metademandparams.currentTab] !== undefined) {
+        x[metademandparams.currentTab].style.display = 'none';
+    }
+
+    // Increase or decrease the current tab by 1:
+
+    metademandparams.currentTab = metademandparams.currentTab + n;
+
+    let create = false;
+    let createNow = false;
+
+    if (metademandparams.use_as_step == 1) {
+        var finded = false;
+
+        while (finded == false) {
+            if (true) {
+                if (x[metademandparams.currentTab] == undefined || x[metademandparams.currentTab].firstChild == undefined) {
+                    createNow = true;
+                    finded = true;
+                } else {
+                    if (x[metademandparams.currentTab].firstChild.style.display != 'none') {
+                        finded = true;
+                        nextTab = metademandparams.currentTab + n;
+                        while (nextTab >= firstnumTab && nextTab < x.length && x[nextTab].firstChild.style.display == 'none') {
+                            nextTab = nextTab + n;
+                        }
+                        if (nextTab >= x.length) {
+                            create = true;
+                        }
+                    } else {
+                        metademandparams.currentTab = metademandparams.currentTab + n;
+                    }
+                }
+            } else {
+                finded = true;
+            }
+        }
+    }
+
+    // if you have reached the end of the form...
+    if (metademandparams.currentTab >= x.length || createNow) {
+        document.getElementById('nextBtn').style.display = 'none';
+        // ... the form gets submitted:
+        if (typeof tinyMCE !== 'undefined') {
+            tinyMCE.triggerSave();
+        }
+        jQuery('.resume_builder_input').trigger('change');
+        $('select[id$=\"_to\"] option').each(function () {
+            $(this).prop('selected', true);
+        });
+        $('#ajax_loader').show();
+        let arrayDatas = $('#wizard_form').serializeArray();
+        arrayDatas.push({name: 'save_form', value: true});
+        arrayDatas.push({name: 'step', value: 2});
+        arrayDatas.push({name: 'form_name', value: metademandparams.nameform});
+
+        if (metademandparams.seesummary == 1) {
+            $.ajax({
+                url: metademandparams.root_doc + '/ajax/createmetademands.php?metademands_id=' + metademandparams.id + '&step=2' + metademandparams.paramUrl,
+                type: 'POST',
+                datatype: 'html',
+                data: $('#wizard_form').serializeArray(),
+                success: function (response) {
+                    $('#ajax_loader').hide();
+                    $('.md-wizard').append(response);
+                },
+                error: function (xhr, status, error) {
+                    // console.log(xhr);
+                    // console.log(status);
+                    // console.log(error);
+                }
+            });
+            //add to basket
+        } else if (metademandparams.is_order == 1) {
+
+            $.ajax({
+                url: metademandparams.root_doc + '/ajax/addtobasket.php?metademands_id=' + metademandparams.id + '&step=2' + metademandparams.paramUrl,
+                type: 'POST',
+                datatype: 'html',
+                data: $('#wizard_form').serializeArray(),
+                success: function (response) {
+                    if (response != 1) {
+                        window.location.href = metademandparams.root_doc + '/front/wizard.form.php?metademands_id=' + metademandparams.id + '&step=2';
+                    } else {
+                        location.reload();
+                    }
+                },
+                error: function (xhr, status, error) {
+                    // console.log(xhr);
+                    // console.log(status);
+                    // console.log(error);
+                }
+            });
+        } else {
+            $.ajax({
+                url: metademandparams.root_doc + '/ajax/addform.php',
+                type: 'POST',
+                datatype: 'html',
+                data: arrayDatas,
+                success: function (response) {
+                    if (response != 1) {
+                        $.ajax({
+                            url: metademandparams.root_doc + '/ajax/createmetademands.php?' + metademandparams.paramUrl,
+                            type: 'POST',
+                            data: arrayDatas,
+                            success: function (response) {
+                                if (response != 1) {
+                                    window.location.href = metademandparams.root_doc + '/front/wizard.form.php?metademands_id=' + metademandparams.id + '&step=create_metademands';
+                                } else {
+                                    location.reload();
+                                }
+                            },
+                            error: function (xhr, status, error) {
+                                // console.log(xhr);
+                                // console.log(status);
+                                // console.log(error);
+                            }
+                        });
+                    } else {
+                        location.reload();
+                    }
+                },
+                error: function (xhr, status, error) {
+                    // console.log(xhr);
+                    // console.log(status);
+                    // console.log(error);
+                }
+            });
+        }
+
+        return false;
+    }
+
+    if (metademandparams.use_as_step == 1
+        && typeof metademandparams !== 'undefined') {
+        if (x[metademandparams.currentTab] !== undefined) {
+            let bloc = x[metademandparams.currentTab].firstChild.getAttribute('bloc-id');
+            let id_bloc = parseInt(bloc.replace('bloc', ''));
+
+            document.querySelectorAll('a[id^=\"ablock\"]').forEach(a => a.classList.remove('active'));
+            document.getElementById('ablock' + id_bloc)?.classList.add('active');
+            if (document.querySelector('.scrollable-tabs')) {
+                document.querySelector('.scrollable-tabs').scrollBy({left: 150, behavior: 'smooth'});
+            }
+
+            if (!metademandparams.listStepBlock.includes(id_bloc)|| (metademandparams.changestepbystepoption && !ischangestepbystepoption)) {
+                if (typeof tinyMCE !== 'undefined') {
+                    tinyMCE.triggerSave();
+                }
+                jQuery('.resume_builder_input').trigger('change');
+                $('select[id$=\"_to\"] option').each(function () {
+                    $(this).prop('selected', true);
+                });
+                let arrayDatas = $('#wizard_form').serializeArray();
+                arrayDatas.push({name: 'block_id', value: id_bloc});
+                arrayDatas.push({name: 'action', value: 'nextUser'});
+                arrayDatas.push({name: 'form_name', value: metademandparams.nameform});
+                arrayDatas.push({name: 'update_stepform', value: metademandparams.updatestepform});
+
+                if (metademandparams.havenextuser == true && ischangestepbystepoption == false) {
+                    plugin_metademands_wizard_showStep(metademandparams.root_doc, arrayDatas);
+                    return false;
+                } else {
+                    plugin_metademands_wizard_nextUser(metademandparams.root_doc, arrayDatas);
+                }
+            }
+        } else {
+            location.href = metademandparams.root_doc + '/front/wizard.form.php';
+        }
+    }
+}
+
+function plugin_metademands_wizard_findFirstTab(block_id, metademandparams)
+{
+    if (metademandparams.use_as_step == 1) {
+        var x = document.getElementsByClassName('tab-step');
+    } else {
+        var x = document.getElementsByClassName('tab-nostep');
+    }
+
+    if (block_id > 0) {
+        let bloc = x[metademandparams.currentTab].firstChild.getAttribute('bloc-id');
+        let id_bloc = parseInt(bloc.replace('bloc', ''));
+        while (block_id != id_bloc) {
+            metademandparams.currentTab = metademandparams.currentTab + 1;
+            bloc = x[metademandparams.currentTab].firstChild.getAttribute('bloc-id');
+            id_bloc = parseInt(bloc.replace('bloc', ''));
+        }
+        firstnumTab = metademandparams.currentTab;
+    }
+}
+
+function plugin_metademands_wizard_prevBtn(n, firstnumTab, metademandparams, metademandconditionsparams)
+{
+
+    var firstnumTab = 0;
+    // This function will figure out which tab to display
+    if (metademandparams.use_as_step == 1) {
+        var x = document.getElementsByClassName('tab-step');
+        // var x = {};
+        //
+        // for (var i = 0; i < tabs.length; i++) {
+        //     x[i + 1] = tabs[i];
+        // }
+    } else {
+        var x = document.getElementsByClassName('tab-nostep');
+    }
+
+    // Increase or decrease the current tab by 1:
+    let nextTab = metademandparams.currentTab + n;
+    // Hide the current tab:
+    if (x[metademandparams.currentTab] !== undefined) {
+        x[metademandparams.currentTab].style.display = 'none';
+    }
+
+    // Increase or decrease the current tab by 1:
+    if (metademandparams.currentTab >= 1) {
+        metademandparams.currentTab = metademandparams.currentTab + n;
+    }
+
+    if (metademandparams.use_as_step == 1) {
+        if (metademandparams.currentTab >= 1) {
+            var finded = false;
+            while (finded == false) {
+                if (true) {
+                    if (x[metademandparams.currentTab] == undefined || x[metademandparams.currentTab].firstChild == undefined) {
+                        finded = true;
+                    } else {
+                        if (x[metademandparams.currentTab].firstChild.style.display != 'none') {
+                            finded = true;
+                            nextTab = metademandparams.currentTab + n;
+                            while (nextTab >= firstnumTab && nextTab < x.length && x[nextTab].firstChild.style.display == 'none') {
+                                nextTab = nextTab + n;
+                            }
+                        } else {
+                            metademandparams.currentTab = metademandparams.currentTab + n;
+                        }
+                    }
+                } else {
+                    finded = true;
+                }
+            }
+        }
+
+
+        if (x[metademandparams.currentTab] !== undefined) {
+            let bloc = x[metademandparams.currentTab].firstChild.getAttribute('bloc-id');
+            let id_bloc = parseInt(bloc.replace('bloc', ''));
+
+            document.querySelectorAll('a[id^=\"ablock\"]').forEach(a => a.classList.remove('active'));
+            document.getElementById('ablock' + id_bloc)?.classList.add('active');
+            if (document.querySelector('.scrollable-tabs')) {
+                document.querySelector('.scrollable-tabs').scrollBy({left: -150, behavior: 'smooth'});
+            }
+
+            plugin_metademands_wizard_showTab(firstnumTab, metademandparams, metademandconditionsparams);
+        } else {
+            location.href = metademandparams.root_doc + '/front/wizard.form.php';
+        }
+    }
+}
+
+function plugin_metademands_wizard_nextUser(root_doc, arrayDatas)
+{
+    $.ajax(
+        {
+            type: 'POST',
+            url: root_doc + '/ajax/nextUser.php',
+            data: arrayDatas,
+            dataType: 'JSON',
+            success: function (ret) {
+
+                if (ret == 0) {
+                    location.href = root_doc + '/front/wizard.form.php';
+                } else {
+                    window.location.reload();
+                }
+            },
+            error: function (xhr, status, error) {
+                // console.log(xhr);
+                // console.log(status);
+                // console.log(error);
+            }
+        }
+    );
+}
+
+function plugin_metademands_wizard_showStep(root_doc, arrayDatas)
+{
+    $.ajax(
+        {
+            type: 'POST',
+            url: root_doc + '/ajax/showStep.php',
+            data: arrayDatas,
+            dataType: 'JSON',
+            success: function (response) {
+                try {
+                    // For modern browsers except IE:
+                    var event = new Event('show.bs.modal');
+                } catch (err) {
+                    // If IE 11 (or 10 or 9...?) do it this way:
+
+                    // Create the event.
+                    var event = document.createEvent('Event');
+                }
+                $('#modalgroupspan').html(response);
+                $.globalEval(response.js);
+                $('#modalgroup').modal('show');
+                document.dispatchEvent(event);
+            },
+            error: function (xhr, status, error) {
+                // console.log(xhr);
+                // console.log(status);
+                // console.log(error);
+            }
+
+        }
+    );
+
+}
+
+/**
+ * Returns true when at least one *visible* field of the given block holds a
+ * user-entered value. Fields located in a collapsed sub-block (bloc-id in
+ * display:none) are ignored, so a hidden dropdown keeping its default value no
+ * longer prevents the "no value entered" confirmation popup from showing.
+ * Mirrors the visibility filter of plugin_metademands_wizard_validateForm().
+ *
+ * @param {Element|null} div block wrapper ([bloc-id="blocN"]) to inspect
+ * @returns {boolean}
+ */
+function plugin_metademands_wizard_stepHasInput(div)
+{
+    // Block not found: keep previous behaviour (do not prompt, let navigation proceed)
+    if (!div) {
+        return true;
+    }
+
+    let hasInput = false;
+    div.querySelectorAll('input, select, textarea').forEach(input => {
+        // Skip fields sitting in a hidden (collapsed) sub-block
+        const bloc = input.closest('[bloc-id]');
+        if (!bloc || bloc.style.display === 'none') {
+            return;
+        }
+
+        if ((input.type === 'checkbox' || input.type === 'radio') && input.checked) {
+            hasInput = true;
+        } else if (input.tagName === 'SELECT') {
+            const isYesNo = input.classList.contains('yesno');
+            const value = input.value;
+
+            if ((isYesNo && value === '2') || (!isYesNo && (value !== '0' && value !== ''))) {
+                hasInput = true;
+            }
+        } else if (input.tagName === 'TEXTAREA') {
+            let value = input.value;
+
+            if (window.tinymce && tinymce.get(input.id)) {
+                value = tinymce.get(input.id).getContent({ format: 'text' });
+            }
+
+            if (value.trim() !== '') {
+                hasInput = true;
+            }
+        }
+    });
+
+    return hasInput;
+}
+
+function showBootstrapConfirmationModal(message)
+{
+    return new Promise((resolve) => {
+        const modalElement = document.getElementById('confirmationModal');
+        const modalBody = modalElement.querySelector('.modal-body');
+        const yesBtn = modalElement.querySelector('#confirmYes');
+        const noBtn = modalElement.querySelector('#confirmNo');
+
+        modalBody.textContent = message;
+
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+
+        const cleanup = () => {
+            yesBtn.removeEventListener('click', onYes);
+            noBtn.removeEventListener('click', onNo);
+        };
+
+        const onYes = () => {
+            cleanup();
+            resolve(true);
+        };
+        const onNo = () => {
+            cleanup();
+            resolve(false);
+        };
+
+        yesBtn.addEventListener('click', onYes);
+        noBtn.addEventListener('click', onNo);
+    });
+}
+
+function updateActiveTab(rank)
+{
+    document.querySelectorAll('a[id^=\"ablock\"]').forEach(a => a.classList.remove('active'));
+    document.querySelectorAll('div[id^=\"block\"]').forEach(div => div.classList.remove('active'));
+
+    document.getElementById('ablock' + rank)?.classList.add('active');
+    $('div[id^=\"block\"]').hide();
+    $('#block' + rank).show();
+
+    document.getElementById('ablock' + rank)?.scrollIntoView({behavior: 'smooth', inline: 'center', block: 'nearest'});
+}
+
+async function plugin_metademands_wizard_goToTab(targetBlockId, firstnumTab, metademandparams, metademandconditionsparams)
+{
+    if (metademandparams.use_as_step != 1) return;
+
+    const tabs = document.getElementsByClassName('tab-step');
+
+    // Trouver l'index du tab cible à partir du bloc-id
+    let targetTabIndex = -1;
+    for (let t = 0; t < tabs.length; t++) {
+        const blocAttr = tabs[t]?.firstChild?.getAttribute('bloc-id');
+        if (blocAttr && parseInt(blocAttr.replace('bloc', '')) === targetBlockId) {
+            targetTabIndex = t;
+            break;
+        }
+    }
+
+    // Bloc introuvable, déjà actif, ou caché : on ignore
+    if (targetTabIndex === -1 || targetTabIndex === metademandparams.currentTab) return;
+    if (tabs[targetTabIndex]?.firstChild?.style.display === 'none') return;
+
+    const goingForward = targetTabIndex > metademandparams.currentTab;
+
+    if (goingForward) {
+        // Valider tous les tabs intermédiaires (du tab courant jusqu'au tab cible exclu)
+        const originalTab = metademandparams.currentTab;
+        for (let checkIdx = originalTab; checkIdx < targetTabIndex; checkIdx++) {
+            metademandparams.currentTab = checkIdx;
+            if (!plugin_metademands_wizard_validateForm(metademandparams)) {
+                // Si le tab défaillant n'est pas le tab courant, naviguer vers lui
+                if (checkIdx !== originalTab && tabs[originalTab] !== undefined) {
+                    tabs[originalTab].style.display = 'none';
+                }
+                const failingBlocAttr = tabs[checkIdx]?.firstChild?.getAttribute('bloc-id');
+                const failingBlockId = failingBlocAttr ? parseInt(failingBlocAttr.replace('bloc', '')) : null;
+                if (failingBlockId !== null) {
+                    document.querySelectorAll('a[id^="ablock"]').forEach(a => a.classList.remove('active'));
+                    document.getElementById('ablock' + failingBlockId)?.classList.add('active');
+                    document.getElementById('ablock' + failingBlockId)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                }
+                plugin_metademands_wizard_showTab(firstnumTab, metademandparams, metademandconditionsparams);
+                return;
+            }
+        }
+        metademandparams.currentTab = originalTab;
+
+        // Confirmation si aucune valeur saisie dans le step courant
+        if (metademandparams.useconfirm > 0 && metademandparams.edit_model == 0) {
+            const currentBlocAttr = tabs[metademandparams.currentTab]?.firstChild?.getAttribute('bloc-id');
+            const id_bloc = currentBlocAttr ? parseInt(currentBlocAttr.replace('bloc', '')) : 0;
+            const div = document.querySelector('[bloc-id="bloc' + id_bloc + '"]');
+            if (!plugin_metademands_wizard_stepHasInput(div)) {
+                const confirmed = await showBootstrapConfirmationModal(metademandparams.confirmmsg);
+                if (!confirmed) return;
+            }
+        }
+    }
+
+    // Cacher le tab courant
+    if (tabs[metademandparams.currentTab] !== undefined) {
+        tabs[metademandparams.currentTab].style.display = 'none';
+    }
+
+    metademandparams.currentTab = targetTabIndex;
+
+    // Mettre à jour l'onglet actif
+    document.querySelectorAll('a[id^="ablock"]').forEach(a => a.classList.remove('active'));
+    document.getElementById('ablock' + targetBlockId)?.classList.add('active');
+    document.getElementById('ablock' + targetBlockId)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+
+    plugin_metademands_wizard_showTab(firstnumTab, metademandparams, metademandconditionsparams);
+}
+
+function plugin_metademands_changeLDAP(root_doc, ldap) {
+    var ldap_directory = ldap.value;
+
+    jQuery.ajax({
+        url: root_doc + '/ajax/ldap_filter.php',
+        type: 'POST',
+        data: {
+            value: ldap_directory,
+        },
+    }).done(function(response) {
+        document.querySelector('form [name="ldap_filter"]').value = response;
+    });
+}

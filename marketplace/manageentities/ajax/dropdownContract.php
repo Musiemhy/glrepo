@@ -1,0 +1,118 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * manageentities plugin for GLPI
+ * Copyright (C) 2017-2026 by the manageentities Development Team.
+ *
+ * https://github.com/InfotelGLPI/manageentities
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of manageentities.
+ *
+ * manageentities is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * manageentities is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with manageentities. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use Glpi\Application\View\TemplateRenderer;
+use Glpi\Exception\Http\AccessDeniedHttpException;
+use Glpi\Exception\Http\NotFoundHttpException;
+use GlpiPlugin\Manageentities\Contract as PluginContract;
+use GlpiPlugin\Manageentities\ContractDay;
+use GlpiPlugin\Manageentities\ContractState;
+use GlpiPlugin\Manageentities\CriDetail;
+use GlpiPlugin\Manageentities\EditorSubscription;
+
+header("Content-Type: text/html; charset=UTF-8");
+Html::header_nocache();
+
+// Authorization: plugin access or intervention-report rights (shared by the admin pages and the
+// CRI generation page). The payloads below are contractual data - contract comment, end date and
+// status, subscription flags, remaining days - so the entry right is the one actually carried by
+// the calling page, and no longer the far broader "may create a ticket".
+if (!Session::haveRight('plugin_manageentities', READ)
+    && !Session::haveRight('plugin_manageentities_cri_create', READ)) {
+    throw new AccessDeniedHttpException();
+}
+
+if (!isset($_POST["contracts_id"])) {
+    throw new NotFoundHttpException();
+}
+
+if (isset($_POST["contracts_id"])) {
+    $contract = new Contract();
+    if (
+        !$contract->getFromDB((int) $_POST["contracts_id"])
+        || !Session::haveAccessToEntity($contract->fields['entities_id'])
+    ) {
+        // The contract id comes from $_POST: enforce entity access before disclosing its
+        // comment, end date, status and subscription flags (cross-entity IDOR).
+        throw new AccessDeniedHttpException();
+    }
+
+    $contractdays_id = 0;
+    if ($_POST["current_contracts_id"] == $_POST["contracts_id"]) {
+        $contractdays_id = $_POST["contractdays_id"];
+    }
+
+    if ($contractdays_id == 0) {
+        $contractday = new ContractDay();
+        $restrict    = ['entities_id'  => $contract->fields['entities_id'],
+            'contracts_id' => $_POST["contracts_id"],
+            [
+                'OR' => [
+                    ['plugin_manageentities_contractstates_id' => ContractState::getOpenedStates()],
+                    ['id' => $contractdays_id],
+                ],
+            ]];
+        $datas       = $contractday->find($restrict);
+        //if a single contractday
+        if (count($datas) == 1) {
+            $datas = reset($datas);
+            //Default contractday Display
+            $contractdays_id = $datas['id'];
+        }
+    }
+    // Details of the contract for public/scripts/cridetail-contract.js, as JSON in an
+    // auto-escaped attribute; subscription flags are read from EditorSubscription
+    $subData  = EditorSubscription::getForEntity((int) $contract->fields['entities_id']);
+    $statesId = (int) ($contract->fields['states_id'] ?? 0);
+    TemplateRenderer::getInstance()->display('@manageentities/contract_info.html.twig', [
+        'info' => [
+            'status'     => $statesId > 0 ? Dropdown::getDropdownName('glpi_states', $statesId) : '',
+            'states_id'  => $statesId,
+            'comment'    => $contract->fields['comment'] ?? '',
+            'end_date'   => $contract->fields['end_date'] ?? '',
+            'editor_sub' => (int) ($subData['active_editor_suscription'] ?? 0),
+            'cloud'      => (int) ($subData['cloud_client'] ?? 0),
+            'inet'       => (int) ($subData['internet_publication'] ?? 0),
+        ],
+    ]);
+    $restrict = ['entities_id'  => $contract->fields['entities_id'],
+        'contracts_id' => $_POST["contracts_id"],
+        [
+            'OR' => [
+                ['plugin_manageentities_contractstates_id' => ContractState::getOpenedStates()],
+                ['id' => $contractdays_id],
+            ],
+        ]];
+
+    Dropdown::show(ContractDay::class, ['name'      => 'plugin_manageentities_contractdays_id',
+        'value'     => $contractdays_id,
+        'condition' => $restrict,
+        'width'     => (int) ($_POST['width'] ?? 300),
+        'on_change' => CriDetail::CHANGE_EVENT_JS]);
+}

@@ -1,0 +1,2513 @@
+{
+    "action": "inventory",
+    "content": {
+        "accesslog": {
+            "logdate": "2026-11-04 04:36:44"
+        },
+        "antivirus": [
+            {
+                "base_version": "1.437.1.0",
+                "company": "Microsoft Corporation",
+                "enabled": true,
+                "guid": "{D68DDC3A-831F-4fae-9E44-DA132C1ACF46}",
+                "name": "Windows Defender",
+                "uptodate": false,
+                "version": "4.18.25080.5"
+            }
+        ],
+        "bios": {
+            "bdate": "2024-08-19",
+            "bmanufacturer": "VMware, Inc.",
+            "bversion": "VMW201.00V.24224532.B64.2408191502",
+            "mmanufacturer": "Intel Corporation",
+            "mmodel": "440BX Desktop Reference Platform",
+            "smanufacturer": "VMware, Inc.",
+            "smodel": "VMware20,1",
+            "ssn": "VMware-56 4d 89 6e 18 4c b0 0b-8b 8b e6 7c 11 cb a3 64"
+        },
+        "controllers": [
+            {
+                "caption": "SATA AHCI controller",
+                "manufacturer": "VMware",
+                "name": "SATA AHCI controller",
+                "pcisubsystemid": "15ad:07e0",
+                "productid": "07e0",
+                "type": "Standard SATA AHCI Controller",
+                "vendorid": "15ad"
+            },
+            {
+                "caption": "82371AB\/EB\/MB PIIX4 IDE",
+                "manufacturer": "Intel Corporation",
+                "name": "Virtual Machine Chipset",
+                "pcisubsystemid": "15ad:1976",
+                "productid": "7111",
+                "type": "Intel(R) 82371AB\/EB PCI Bus Master IDE Controller",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "SAS1068 PCI-X Fusion-MPT SAS",
+                "manufacturer": "Broadcom \/ LSI",
+                "name": "SAS Controller",
+                "pcisubsystemid": "15ad:1976",
+                "productid": "0054",
+                "type": "LSI Adapter, SAS 3000 series, 8-port with 1068",
+                "vendorid": "1000"
+            },
+            {
+                "caption": "Standard USB 3.20 eXtensible Host Controller - 1.20 (Microsoft)",
+                "manufacturer": "VMware",
+                "name": "Standard USB 3.20 eXtensible Host Controller - 1.20 (Microsoft)",
+                "pcisubsystemid": "15ad:077a",
+                "productid": "077a",
+                "type": "Standard USB 3.20 eXtensible Host Controller - 1.20 (Microsoft)",
+                "vendorid": "15ad"
+            },
+            {
+                "caption": "440BX\/ZX\/DX - 82443BX\/ZX\/DX AGP bridge",
+                "manufacturer": "Intel Corporation",
+                "name": "440BX\/ZX\/DX - 82443BX\/ZX\/DX AGP bridge",
+                "pcisubsystemid": "0000:0000",
+                "productid": "7191",
+                "type": "PCI-to-PCI Bridge",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "82574L Gigabit Network Connection",
+                "manufacturer": "Intel Corporation",
+                "name": "82574L Gigabit Network Connection",
+                "pcisubsystemid": "15ad:07d0",
+                "productid": "10d3",
+                "type": "Intel(R) 82574L Gigabit Network Connection",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "Virtual Machine Communication Interface",
+                "manufacturer": "VMware",
+                "name": "Virtual Machine Communication Interface",
+                "pcisubsystemid": "15ad:0740",
+                "productid": "0740",
+                "type": "Base System Device",
+                "vendorid": "15ad"
+            },
+            {
+                "caption": "82371AB\/EB\/MB PIIX4 ISA",
+                "manufacturer": "Intel Corporation",
+                "name": "Virtual Machine Chipset",
+                "pcisubsystemid": "15ad:1976",
+                "productid": "7110",
+                "type": "PCI to ISA Bridge",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "440BX\/ZX\/DX - 82443BX\/ZX\/DX Host bridge",
+                "manufacturer": "Intel Corporation",
+                "name": "Virtual Machine Chipset",
+                "pcisubsystemid": "15ad:1976",
+                "productid": "7190",
+                "type": "CPU to PCI Bridge",
+                "vendorid": "8086"
+            },
+            {
+                "caption": "SVGA II Adapter",
+                "manufacturer": "VMware",
+                "name": "SVGA II Adapter",
+                "pcisubsystemid": "15ad:0405",
+                "productid": "0405",
+                "type": "Microsoft Basic Display Adapter",
+                "vendorid": "15ad"
+            }
+        ],
+        "cpus": [
+            {
+                "core": 1,
+                "description": "Intel64 Family 6 Model 85 Stepping 7",
+                "familynumber": "6",
+                "id": "0F8BFBFF00050657",
+                "manufacturer": "GenuineIntel",
+                "model": "85",
+                "name": "Intel Xeon Gold 6258R CPU @ 2.70GHz",
+                "serial": "",
+                "speed": 2700,
+                "stepping": 7,
+                "thread": 1
+            },
+            {
+                "core": 1,
+                "description": "Intel64 Family 6 Model 85 Stepping 7",
+                "familynumber": "6",
+                "id": "0F8BFBFF00050657",
+                "manufacturer": "GenuineIntel",
+                "model": "85",
+                "name": "Intel Xeon Gold 6258R CPU @ 2.70GHz",
+                "serial": "",
+                "speed": 2700,
+                "stepping": 7,
+                "thread": 1
+            }
+        ],
+        "drives": [
+            {
+                "description": "Local Fixed Disk",
+                "encrypt_algo": "None",
+                "encrypt_name": "BitLocker",
+                "encrypt_status": "No",
+                "filesystem": "NTFS",
+                "free": 77802,
+                "label": "",
+                "letter": "C:",
+                "serial": "EEDE2092",
+                "systemdrive": true,
+                "total": 101288,
+                "type": "Local Disk",
+                "volumn": ""
+            },
+            {
+                "description": "CD-ROM Disc",
+                "filesystem": "UDF",
+                "free": 0,
+                "label": "CCCOMA_X64FRE_EN-US_DV9",
+                "letter": "D:",
+                "serial": "D537A843",
+                "systemdrive": false,
+                "total": 8628,
+                "type": "Compact Disc",
+                "volumn": "CCCOMA_X64FRE_EN-US_DV9"
+            },
+            {
+                "filesystem": "NTFS",
+                "free": 114,
+                "serial": "AE308F2D",
+                "systemdrive": false,
+                "total": 891,
+                "type": "Local Disk"
+            },
+            {
+                "filesystem": "FAT32",
+                "free": 161,
+                "serial": "D0DDF5BF",
+                "systemdrive": false,
+                "total": 196,
+                "type": "Local Disk"
+            }
+        ],
+        "envs": [
+            {
+                "key": "ComSpec",
+                "val": "%SystemRoot%\\system32\\cmd.exe"
+            },
+            {
+                "key": "DriverData",
+                "val": "C:\\Windows\\System32\\Drivers\\DriverData"
+            },
+            {
+                "key": "OS",
+                "val": "Windows_NT"
+            },
+            {
+                "key": "Path",
+                "val": "%SystemRoot%\\system32;%SystemRoot%;%SystemRoot%\\System32\\Wbem;%SYSTEMROOT%\\System32\\WindowsPowerShell\\v1.0\\;%SYSTEMROOT%\\System32\\OpenSSH\\"
+            },
+            {
+                "key": "PATHEXT",
+                "val": ".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC"
+            },
+            {
+                "key": "PROCESSOR_ARCHITECTURE",
+                "val": "AMD64"
+            },
+            {
+                "key": "PSModulePath",
+                "val": "%ProgramFiles%\\WindowsPowerShell\\Modules;%SystemRoot%\\system32\\WindowsPowerShell\\v1.0\\Modules"
+            },
+            {
+                "key": "TEMP",
+                "val": "%SystemRoot%\\TEMP"
+            },
+            {
+                "key": "TMP",
+                "val": "%SystemRoot%\\TEMP"
+            },
+            {
+                "key": "USERNAME",
+                "val": "SYSTEM"
+            },
+            {
+                "key": "windir",
+                "val": "%SystemRoot%"
+            },
+            {
+                "key": "NUMBER_OF_PROCESSORS",
+                "val": "2"
+            },
+            {
+                "key": "PROCESSOR_LEVEL",
+                "val": "6"
+            },
+            {
+                "key": "PROCESSOR_IDENTIFIER",
+                "val": "Intel64 Family 6 Model 85 Stepping 7, GenuineIntel"
+            },
+            {
+                "key": "PROCESSOR_REVISION",
+                "val": "5507"
+            }
+        ],
+        "firewalls": [
+            {
+                "profile": "DomainProfile",
+                "status": "off"
+            },
+            {
+                "description": "Intel(R) 82574L Gigabit Network Connection",
+                "ipaddress": "192.168.12.204",
+                "profile": "PublicProfile",
+                "status": "off"
+            },
+            {
+                "description": "Intel(R) 82574L Gigabit Network Connection",
+                "ipaddress6": "fe80::1ef0:9b49:2487:f3",
+                "profile": "PublicProfile",
+                "status": "off"
+            },
+            {
+                "profile": "StandardProfile",
+                "status": "off"
+            }
+        ],
+        "hardware": {
+            "chassis_type": "Other",
+            "defaultgateway": "192.168.12.254",
+            "dns": "172.25.20.100",
+            "lastloggeduser": "User",
+            "memory": 4095,
+            "name": "DBHQ-PC-204",
+            "uuid": "6E894D56-4C18-0BB0-8B8B-E67C11CBA364",
+            "vmsystem": "VMware",
+            "winlang": "1033",
+            "winowner": "User",
+            "winprodid": "00330-80000-00000-AA119",
+            "winprodkey": "VK7JG-NPHTM-C97JM-9MPGT-3V66T",
+            "workgroup": "ITMOD.local"
+        },
+        "inputs": [
+            {
+                "caption": "Enhanced (101- or 102-key)",
+                "description": "Remote Desktop Keyboard Device",
+                "layout": "00000409",
+                "name": "Enhanced (101- or 102-key)"
+            },
+            {
+                "caption": "USB Input Device",
+                "description": "USB Input Device",
+                "interface": "USB",
+                "manufacturer": "(Standard system devices)",
+                "name": "USB Input Device",
+                "pointingtype": "2"
+            },
+            {
+                "caption": "Remote Desktop Mouse Device",
+                "description": "Remote Desktop Mouse Device",
+                "interface": "Other",
+                "manufacturer": "(Standard mouse types)",
+                "name": "Remote Desktop Mouse Device",
+                "pointingtype": "2"
+            },
+            {
+                "caption": "PS\/2 Compatible Mouse",
+                "description": "PS\/2 Compatible Mouse",
+                "interface": "PS\/2",
+                "manufacturer": "Microsoft",
+                "name": "PS\/2 Compatible Mouse",
+                "pointingtype": "2"
+            }
+        ],
+        "local_groups": [
+            {
+                "id": "S-1-5-32-579",
+                "name": "Access Control Assistance Operators"
+            },
+            {
+                "id": "S-1-5-32-544",
+                "name": "Administrators"
+            },
+            {
+                "id": "S-1-5-32-551",
+                "name": "Backup Operators"
+            },
+            {
+                "id": "S-1-5-32-569",
+                "name": "Cryptographic Operators"
+            },
+            {
+                "id": "S-1-5-32-583",
+                "name": "Device Owners"
+            },
+            {
+                "id": "S-1-5-32-562",
+                "name": "Distributed COM Users"
+            },
+            {
+                "id": "S-1-5-32-573",
+                "name": "Event Log Readers"
+            },
+            {
+                "id": "S-1-5-32-546",
+                "name": "Guests"
+            },
+            {
+                "id": "S-1-5-32-578",
+                "name": "Hyper-V Administrators"
+            },
+            {
+                "id": "S-1-5-32-568",
+                "name": "IIS_IUSRS"
+            },
+            {
+                "id": "S-1-5-32-556",
+                "name": "Network Configuration Operators"
+            },
+            {
+                "id": "S-1-5-32-585",
+                "name": "OpenSSH Users"
+            },
+            {
+                "id": "S-1-5-32-559",
+                "name": "Performance Log Users"
+            },
+            {
+                "id": "S-1-5-32-558",
+                "name": "Performance Monitor Users"
+            },
+            {
+                "id": "S-1-5-32-547",
+                "name": "Power Users"
+            },
+            {
+                "id": "S-1-5-32-555",
+                "name": "Remote Desktop Users"
+            },
+            {
+                "id": "S-1-5-32-580",
+                "name": "Remote Management Users"
+            },
+            {
+                "id": "S-1-5-32-552",
+                "name": "Replicator"
+            },
+            {
+                "id": "S-1-5-32-581",
+                "name": "System Managed Accounts Group"
+            },
+            {
+                "id": "S-1-5-32-584",
+                "name": "User Mode Hardware Operators"
+            },
+            {
+                "id": "S-1-5-32-545",
+                "name": "Users"
+            }
+        ],
+        "local_users": [
+            {
+                "id": "S-1-5-21-1203052953-1116279944-3380764928-500",
+                "name": "Administrator"
+            },
+            {
+                "id": "S-1-5-21-1203052953-1116279944-3380764928-1001",
+                "name": "User"
+            }
+        ],
+        "memories": [
+            {
+                "capacity": 4096,
+                "caption": "RAM slot #0",
+                "description": "DIMM",
+                "manufacturer": "VMware Virtual RAM",
+                "model": "VMW-4096MB",
+                "numslots": 1,
+                "serialnumber": "00000001",
+                "type": "DRAM"
+            },
+            {
+                "caption": "RAM slot #1",
+                "description": "DIMM",
+                "numslots": 2
+            },
+            {
+                "caption": "RAM slot #2",
+                "description": "DIMM",
+                "numslots": 3
+            },
+            {
+                "caption": "RAM slot #3",
+                "description": "DIMM",
+                "numslots": 4
+            },
+            {
+                "caption": "RAM slot #4",
+                "description": "DIMM",
+                "numslots": 5
+            },
+            {
+                "caption": "RAM slot #5",
+                "description": "DIMM",
+                "numslots": 6
+            },
+            {
+                "caption": "RAM slot #6",
+                "description": "DIMM",
+                "numslots": 7
+            },
+            {
+                "caption": "RAM slot #7",
+                "description": "DIMM",
+                "numslots": 8
+            },
+            {
+                "caption": "RAM slot #8",
+                "description": "DIMM",
+                "numslots": 9
+            },
+            {
+                "caption": "RAM slot #9",
+                "description": "DIMM",
+                "numslots": 10
+            },
+            {
+                "caption": "RAM slot #10",
+                "description": "DIMM",
+                "numslots": 11
+            },
+            {
+                "caption": "RAM slot #11",
+                "description": "DIMM",
+                "numslots": 12
+            },
+            {
+                "caption": "RAM slot #12",
+                "description": "DIMM",
+                "numslots": 13
+            },
+            {
+                "caption": "RAM slot #13",
+                "description": "DIMM",
+                "numslots": 14
+            },
+            {
+                "caption": "RAM slot #14",
+                "description": "DIMM",
+                "numslots": 15
+            },
+            {
+                "caption": "RAM slot #15",
+                "description": "DIMM",
+                "numslots": 16
+            },
+            {
+                "caption": "RAM slot #16",
+                "description": "DIMM",
+                "numslots": 17
+            },
+            {
+                "caption": "RAM slot #17",
+                "description": "DIMM",
+                "numslots": 18
+            },
+            {
+                "caption": "RAM slot #18",
+                "description": "DIMM",
+                "numslots": 19
+            },
+            {
+                "caption": "RAM slot #19",
+                "description": "DIMM",
+                "numslots": 20
+            },
+            {
+                "caption": "RAM slot #20",
+                "description": "DIMM",
+                "numslots": 21
+            },
+            {
+                "caption": "RAM slot #21",
+                "description": "DIMM",
+                "numslots": 22
+            },
+            {
+                "caption": "RAM slot #22",
+                "description": "DIMM",
+                "numslots": 23
+            },
+            {
+                "caption": "RAM slot #23",
+                "description": "DIMM",
+                "numslots": 24
+            },
+            {
+                "caption": "RAM slot #24",
+                "description": "DIMM",
+                "numslots": 25
+            },
+            {
+                "caption": "RAM slot #25",
+                "description": "DIMM",
+                "numslots": 26
+            },
+            {
+                "caption": "RAM slot #26",
+                "description": "DIMM",
+                "numslots": 27
+            },
+            {
+                "caption": "RAM slot #27",
+                "description": "DIMM",
+                "numslots": 28
+            },
+            {
+                "caption": "RAM slot #28",
+                "description": "DIMM",
+                "numslots": 29
+            },
+            {
+                "caption": "RAM slot #29",
+                "description": "DIMM",
+                "numslots": 30
+            },
+            {
+                "caption": "RAM slot #30",
+                "description": "DIMM",
+                "numslots": 31
+            },
+            {
+                "caption": "RAM slot #31",
+                "description": "DIMM",
+                "numslots": 32
+            },
+            {
+                "caption": "RAM slot #32",
+                "description": "DIMM",
+                "numslots": 33
+            },
+            {
+                "caption": "RAM slot #33",
+                "description": "DIMM",
+                "numslots": 34
+            },
+            {
+                "caption": "RAM slot #34",
+                "description": "DIMM",
+                "numslots": 35
+            },
+            {
+                "caption": "RAM slot #35",
+                "description": "DIMM",
+                "numslots": 36
+            },
+            {
+                "caption": "RAM slot #36",
+                "description": "DIMM",
+                "numslots": 37
+            },
+            {
+                "caption": "RAM slot #37",
+                "description": "DIMM",
+                "numslots": 38
+            },
+            {
+                "caption": "RAM slot #38",
+                "description": "DIMM",
+                "numslots": 39
+            },
+            {
+                "caption": "RAM slot #39",
+                "description": "DIMM",
+                "numslots": 40
+            },
+            {
+                "caption": "RAM slot #40",
+                "description": "DIMM",
+                "numslots": 41
+            },
+            {
+                "caption": "RAM slot #41",
+                "description": "DIMM",
+                "numslots": 42
+            },
+            {
+                "caption": "RAM slot #42",
+                "description": "DIMM",
+                "numslots": 43
+            },
+            {
+                "caption": "RAM slot #43",
+                "description": "DIMM",
+                "numslots": 44
+            },
+            {
+                "caption": "RAM slot #44",
+                "description": "DIMM",
+                "numslots": 45
+            },
+            {
+                "caption": "RAM slot #45",
+                "description": "DIMM",
+                "numslots": 46
+            },
+            {
+                "caption": "RAM slot #46",
+                "description": "DIMM",
+                "numslots": 47
+            },
+            {
+                "caption": "RAM slot #47",
+                "description": "DIMM",
+                "numslots": 48
+            },
+            {
+                "caption": "RAM slot #48",
+                "description": "DIMM",
+                "numslots": 49
+            },
+            {
+                "caption": "RAM slot #49",
+                "description": "DIMM",
+                "numslots": 50
+            },
+            {
+                "caption": "RAM slot #50",
+                "description": "DIMM",
+                "numslots": 51
+            },
+            {
+                "caption": "RAM slot #51",
+                "description": "DIMM",
+                "numslots": 52
+            },
+            {
+                "caption": "RAM slot #52",
+                "description": "DIMM",
+                "numslots": 53
+            },
+            {
+                "caption": "RAM slot #53",
+                "description": "DIMM",
+                "numslots": 54
+            },
+            {
+                "caption": "RAM slot #54",
+                "description": "DIMM",
+                "numslots": 55
+            },
+            {
+                "caption": "RAM slot #55",
+                "description": "DIMM",
+                "numslots": 56
+            },
+            {
+                "caption": "RAM slot #56",
+                "description": "DIMM",
+                "numslots": 57
+            },
+            {
+                "caption": "RAM slot #57",
+                "description": "DIMM",
+                "numslots": 58
+            },
+            {
+                "caption": "RAM slot #58",
+                "description": "DIMM",
+                "numslots": 59
+            },
+            {
+                "caption": "RAM slot #59",
+                "description": "DIMM",
+                "numslots": 60
+            },
+            {
+                "caption": "RAM slot #60",
+                "description": "DIMM",
+                "numslots": 61
+            },
+            {
+                "caption": "RAM slot #61",
+                "description": "DIMM",
+                "numslots": 62
+            },
+            {
+                "caption": "RAM slot #62",
+                "description": "DIMM",
+                "numslots": 63
+            },
+            {
+                "caption": "RAM slot #63",
+                "description": "DIMM",
+                "numslots": 64
+            },
+            {
+                "caption": "NVD slot #0",
+                "description": "DIMM",
+                "numslots": 65
+            },
+            {
+                "caption": "NVD slot #1",
+                "description": "DIMM",
+                "numslots": 66
+            },
+            {
+                "caption": "NVD slot #2",
+                "description": "DIMM",
+                "numslots": 67
+            },
+            {
+                "caption": "NVD slot #3",
+                "description": "DIMM",
+                "numslots": 68
+            },
+            {
+                "caption": "NVD slot #4",
+                "description": "DIMM",
+                "numslots": 69
+            },
+            {
+                "caption": "NVD slot #5",
+                "description": "DIMM",
+                "numslots": 70
+            },
+            {
+                "caption": "NVD slot #6",
+                "description": "DIMM",
+                "numslots": 71
+            },
+            {
+                "caption": "NVD slot #7",
+                "description": "DIMM",
+                "numslots": 72
+            },
+            {
+                "caption": "NVD slot #8",
+                "description": "DIMM",
+                "numslots": 73
+            },
+            {
+                "caption": "NVD slot #9",
+                "description": "DIMM",
+                "numslots": 74
+            },
+            {
+                "caption": "NVD slot #10",
+                "description": "DIMM",
+                "numslots": 75
+            },
+            {
+                "caption": "NVD slot #11",
+                "description": "DIMM",
+                "numslots": 76
+            },
+            {
+                "caption": "NVD slot #12",
+                "description": "DIMM",
+                "numslots": 77
+            },
+            {
+                "caption": "NVD slot #13",
+                "description": "DIMM",
+                "numslots": 78
+            },
+            {
+                "caption": "NVD slot #14",
+                "description": "DIMM",
+                "numslots": 79
+            },
+            {
+                "caption": "NVD slot #15",
+                "description": "DIMM",
+                "numslots": 80
+            },
+            {
+                "caption": "NVD slot #16",
+                "description": "DIMM",
+                "numslots": 81
+            },
+            {
+                "caption": "NVD slot #17",
+                "description": "DIMM",
+                "numslots": 82
+            },
+            {
+                "caption": "NVD slot #18",
+                "description": "DIMM",
+                "numslots": 83
+            },
+            {
+                "caption": "NVD slot #19",
+                "description": "DIMM",
+                "numslots": 84
+            },
+            {
+                "caption": "NVD slot #20",
+                "description": "DIMM",
+                "numslots": 85
+            },
+            {
+                "caption": "NVD slot #21",
+                "description": "DIMM",
+                "numslots": 86
+            },
+            {
+                "caption": "NVD slot #22",
+                "description": "DIMM",
+                "numslots": 87
+            },
+            {
+                "caption": "NVD slot #23",
+                "description": "DIMM",
+                "numslots": 88
+            },
+            {
+                "caption": "NVD slot #24",
+                "description": "DIMM",
+                "numslots": 89
+            },
+            {
+                "caption": "NVD slot #25",
+                "description": "DIMM",
+                "numslots": 90
+            },
+            {
+                "caption": "NVD slot #26",
+                "description": "DIMM",
+                "numslots": 91
+            },
+            {
+                "caption": "NVD slot #27",
+                "description": "DIMM",
+                "numslots": 92
+            },
+            {
+                "caption": "NVD slot #28",
+                "description": "DIMM",
+                "numslots": 93
+            },
+            {
+                "caption": "NVD slot #29",
+                "description": "DIMM",
+                "numslots": 94
+            },
+            {
+                "caption": "NVD slot #30",
+                "description": "DIMM",
+                "numslots": 95
+            },
+            {
+                "caption": "NVD slot #31",
+                "description": "DIMM",
+                "numslots": 96
+            },
+            {
+                "caption": "NVD slot #32",
+                "description": "DIMM",
+                "numslots": 97
+            },
+            {
+                "caption": "NVD slot #33",
+                "description": "DIMM",
+                "numslots": 98
+            },
+            {
+                "caption": "NVD slot #34",
+                "description": "DIMM",
+                "numslots": 99
+            },
+            {
+                "caption": "NVD slot #35",
+                "description": "DIMM",
+                "numslots": 100
+            },
+            {
+                "caption": "NVD slot #36",
+                "description": "DIMM",
+                "numslots": 101
+            },
+            {
+                "caption": "NVD slot #37",
+                "description": "DIMM",
+                "numslots": 102
+            },
+            {
+                "caption": "NVD slot #38",
+                "description": "DIMM",
+                "numslots": 103
+            },
+            {
+                "caption": "NVD slot #39",
+                "description": "DIMM",
+                "numslots": 104
+            },
+            {
+                "caption": "NVD slot #40",
+                "description": "DIMM",
+                "numslots": 105
+            },
+            {
+                "caption": "NVD slot #41",
+                "description": "DIMM",
+                "numslots": 106
+            },
+            {
+                "caption": "NVD slot #42",
+                "description": "DIMM",
+                "numslots": 107
+            },
+            {
+                "caption": "NVD slot #43",
+                "description": "DIMM",
+                "numslots": 108
+            },
+            {
+                "caption": "NVD slot #44",
+                "description": "DIMM",
+                "numslots": 109
+            },
+            {
+                "caption": "NVD slot #45",
+                "description": "DIMM",
+                "numslots": 110
+            },
+            {
+                "caption": "NVD slot #46",
+                "description": "DIMM",
+                "numslots": 111
+            },
+            {
+                "caption": "NVD slot #47",
+                "description": "DIMM",
+                "numslots": 112
+            },
+            {
+                "caption": "NVD slot #48",
+                "description": "DIMM",
+                "numslots": 113
+            },
+            {
+                "caption": "NVD slot #49",
+                "description": "DIMM",
+                "numslots": 114
+            },
+            {
+                "caption": "NVD slot #50",
+                "description": "DIMM",
+                "numslots": 115
+            },
+            {
+                "caption": "NVD slot #51",
+                "description": "DIMM",
+                "numslots": 116
+            },
+            {
+                "caption": "NVD slot #52",
+                "description": "DIMM",
+                "numslots": 117
+            },
+            {
+                "caption": "NVD slot #53",
+                "description": "DIMM",
+                "numslots": 118
+            },
+            {
+                "caption": "NVD slot #54",
+                "description": "DIMM",
+                "numslots": 119
+            },
+            {
+                "caption": "NVD slot #55",
+                "description": "DIMM",
+                "numslots": 120
+            },
+            {
+                "caption": "NVD slot #56",
+                "description": "DIMM",
+                "numslots": 121
+            },
+            {
+                "caption": "NVD slot #57",
+                "description": "DIMM",
+                "numslots": 122
+            },
+            {
+                "caption": "NVD slot #58",
+                "description": "DIMM",
+                "numslots": 123
+            },
+            {
+                "caption": "NVD slot #59",
+                "description": "DIMM",
+                "numslots": 124
+            },
+            {
+                "caption": "NVD slot #60",
+                "description": "DIMM",
+                "numslots": 125
+            },
+            {
+                "caption": "NVD slot #61",
+                "description": "DIMM",
+                "numslots": 126
+            },
+            {
+                "caption": "NVD slot #62",
+                "description": "DIMM",
+                "numslots": 127
+            },
+            {
+                "caption": "NVD slot #63",
+                "description": "DIMM",
+                "numslots": 128
+            }
+        ],
+        "networks": [
+            {
+                "description": "Intel(R) 82574L Gigabit Network Connection",
+                "ipaddress": "192.168.12.204",
+                "ipgateway": "192.168.12.254",
+                "ipmask": "255.255.255.0",
+                "ipsubnet": "192.168.12.0",
+                "mac": "00:0C:29:CB:A3:64",
+                "pciid": "8086:10D3:07D0:15AD",
+                "pnpdeviceid": "PCI\\VEN_8086&DEV_10D3&SUBSYS_07D015AD&REV_00\\3&218e0f40&0&08",
+                "speed": "1000",
+                "status": "up",
+                "type": "ethernet",
+                "virtualdev": false
+            },
+            {
+                "description": "Intel(R) 82574L Gigabit Network Connection",
+                "ipaddress6": "fe80::1ef0:9b49:2487:f3",
+                "ipmask6": "ffff:ffff:ffff:ffff::",
+                "ipsubnet6": "fe80::",
+                "mac": "00:0C:29:CB:A3:64",
+                "pciid": "8086:10D3:07D0:15AD",
+                "pnpdeviceid": "PCI\\VEN_8086&DEV_10D3&SUBSYS_07D015AD&REV_00\\3&218e0f40&0&08",
+                "speed": "1000",
+                "status": "up",
+                "type": "ethernet",
+                "virtualdev": false
+            }
+        ],
+        "operatingsystem": {
+            "arch": "64-bit",
+            "boot_time": "2026-11-04 05:34:54",
+            "dns_domain": "ITMOD.local",
+            "fqdn": "DBHQ-PC-204.ITMOD.local",
+            "full_name": "Microsoft Windows 11 Pro",
+            "install_date": "2026-10-30 11:50:08",
+            "kernel_name": "MSWin32",
+            "kernel_version": "10.0.26300",
+            "name": "Windows",
+            "service_pack": "26300.9457",
+            "timezone": {
+                "name": "America\/Los_Angeles",
+                "offset": "-0800"
+            },
+            "version": "26H2"
+        },
+        "ports": [
+            {
+                "caption": "COM 1",
+                "description": "9 Pin Dual Inline (pin 10 cut)",
+                "name": "J19",
+                "type": "Serial Port 16550A Compatible"
+            },
+            {
+                "caption": "Parallel",
+                "description": "25 Pin Dual Inline (pin 26 cut)",
+                "name": "J23",
+                "type": "Parallel Port ECP\/EPP"
+            },
+            {
+                "caption": "Keyboard",
+                "description": "Circular DIN-8 male",
+                "name": "J11",
+                "type": "Keyboard Port"
+            },
+            {
+                "caption": "PS\/2 Mouse",
+                "description": "Circular DIN-8 male",
+                "name": "J12",
+                "type": "Keyboard Port"
+            },
+            {
+                "caption": "J19",
+                "description": "J19",
+                "name": "J19",
+                "type": "DB-9, Male, Circular"
+            },
+            {
+                "caption": "J23",
+                "description": "J23",
+                "name": "J23",
+                "type": "DB-25, Female, On-Board IDE Connector"
+            },
+            {
+                "caption": "J11",
+                "description": "J11",
+                "name": "J11",
+                "type": "Mini-DIN, Male"
+            },
+            {
+                "caption": "J12",
+                "description": "J12",
+                "name": "J12",
+                "type": "Mini-DIN, Male"
+            }
+        ],
+        "printers": [
+            {
+                "driver": "Remote Desktop Easy Print",
+                "name": "OneNote (Desktop) (redirected 2)",
+                "network": false,
+                "port": "TS004",
+                "printprocessor": "winprint",
+                "resolution": "600x600",
+                "shared": false,
+                "status": "Idle"
+            },
+            {
+                "driver": "Remote Desktop Easy Print",
+                "name": "Microsoft Print to PDF (redirected 2)",
+                "network": false,
+                "port": "TS003",
+                "printprocessor": "winprint",
+                "resolution": "600x600",
+                "shared": false,
+                "status": "Idle"
+            },
+            {
+                "driver": "Remote Desktop Easy Print",
+                "name": "Fax (redirected 2)",
+                "network": false,
+                "port": "TS002",
+                "printprocessor": "winprint",
+                "resolution": "200x200",
+                "shared": false,
+                "status": "Idle"
+            },
+            {
+                "driver": "Remote Desktop Easy Print",
+                "name": "HP LaserJet M607 [E32B5F] (redirected 2)",
+                "network": false,
+                "port": "TS001",
+                "printprocessor": "winprint",
+                "resolution": "600x600",
+                "shared": false,
+                "status": "Idle"
+            },
+            {
+                "driver": "Microsoft Print To PDF",
+                "name": "Microsoft Print to PDF",
+                "network": false,
+                "port": "PORTPROMPT:",
+                "printprocessor": "winprint",
+                "resolution": "600x600",
+                "shared": false,
+                "status": "Idle"
+            }
+        ],
+        "slots": [
+            {
+                "description": "PCI",
+                "designation": "1",
+                "name": "PCI Slot J11",
+                "status": "used"
+            },
+            {
+                "description": "PCI",
+                "designation": "2",
+                "name": "PCI Slot J12",
+                "status": "free"
+            },
+            {
+                "description": "PCI",
+                "designation": "3",
+                "name": "PCI Slot J13",
+                "status": "free"
+            },
+            {
+                "description": "PCI",
+                "designation": "4",
+                "name": "PCI Slot J14",
+                "status": "free"
+            },
+            {
+                "description": "PCI",
+                "designation": "5",
+                "name": "PCI Slot J15",
+                "status": "free"
+            },
+            {
+                "description": "PCI",
+                "designation": "6",
+                "name": "PCI Slot J16",
+                "status": "free"
+            },
+            {
+                "description": "System Slot",
+                "designation": "PCI Slot J11",
+                "name": "System Slot",
+                "status": "used"
+            },
+            {
+                "description": "System Slot",
+                "designation": "PCI Slot J12",
+                "name": "System Slot",
+                "status": "free"
+            },
+            {
+                "description": "System Slot",
+                "designation": "PCI Slot J13",
+                "name": "System Slot",
+                "status": "free"
+            },
+            {
+                "description": "System Slot",
+                "designation": "PCI Slot J14",
+                "name": "System Slot",
+                "status": "free"
+            },
+            {
+                "description": "System Slot",
+                "designation": "PCI Slot J15",
+                "name": "System Slot",
+                "status": "free"
+            },
+            {
+                "description": "System Slot",
+                "designation": "PCI Slot J16",
+                "name": "System Slot",
+                "status": "free"
+            }
+        ],
+        "softwares": [
+            {
+                "arch": "x86_64",
+                "from": "registry",
+                "guid": "mstsc-4b0a31aa-df6a-4307-9b47-d5cc50009643",
+                "install_date": "2026-10-30",
+                "name": "mstsc-4b0a31aa-df6a-4307-9b47-d5cc50009643",
+                "publisher": "Microsoft Corporation",
+                "system_category": "application",
+                "uninstall_string": "\"C:\\Windows\\System32\\mstsc.exe\" \/uninstall"
+            },
+            {
+                "arch": "x86_64",
+                "comments": "GLPI Agent 1.15",
+                "from": "registry",
+                "guid": "{A249D82A-6BF3-1014-8291-EC831F1C4D64}",
+                "helplink": "https:\/\/glpi-project.org\/discussions\/",
+                "install_date": "2026-11-04",
+                "name": "GLPI Agent 1.15",
+                "publisher": "Teclib'",
+                "system_category": "application",
+                "uninstall_string": "MsiExec.exe \/I{A249D82A-6BF3-1014-8291-EC831F1C4D64}",
+                "url_info_about": "https:\/\/glpi-project.org\/",
+                "version": "1.15"
+            },
+            {
+                "arch": "x86_64",
+                "from": "registry",
+                "install_date": "2026-10-30",
+                "name": "Internet Explorer (64bit)",
+                "publisher": "Microsoft Corporation",
+                "version": "11.1882.26100.0"
+            },
+            {
+                "arch": "i586",
+                "from": "registry",
+                "guid": "Microsoft Edge",
+                "install_date": "2026-10-30",
+                "name": "Microsoft Edge",
+                "no_remove": true,
+                "publisher": "Microsoft Corporation",
+                "system_category": "application",
+                "uninstall_string": "\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\152.0.4191.66\\Installer\\setup.exe\" --uninstall --msedge --system-level --verbose-logging",
+                "version": "152.0.4191.66"
+            },
+            {
+                "arch": "i586",
+                "from": "registry",
+                "guid": "Microsoft Edge Update",
+                "install_date": "2026-09-13",
+                "name": "Microsoft Edge Update",
+                "no_remove": true,
+                "system_category": "application",
+                "version": "1.3.265.7"
+            },
+            {
+                "arch": "i586",
+                "from": "registry",
+                "guid": "Microsoft EdgeWebView",
+                "install_date": "2026-09-13",
+                "name": "Microsoft Edge WebView2 Runtime",
+                "no_remove": true,
+                "system_category": "application",
+                "version": "152.0.4191.66"
+            },
+            {
+                "arch": "i586",
+                "from": "registry",
+                "install_date": "2026-10-30",
+                "name": "Internet Explorer",
+                "publisher": "Microsoft Corporation",
+                "version": "11.1882.26100.0"
+            },
+            {
+                "arch": "x86_64",
+                "comments": "Update",
+                "from": "WMI",
+                "install_date": "2026-09-13",
+                "name": "KB5126052",
+                "release_type": "Update",
+                "system_category": "update"
+            },
+            {
+                "arch": "x86_64",
+                "comments": "Update",
+                "from": "WMI",
+                "install_date": "2026-09-13",
+                "name": "KB5121794",
+                "release_type": "Update",
+                "system_category": "update"
+            },
+            {
+                "arch": "x86_64",
+                "comments": "Security Update",
+                "from": "WMI",
+                "install_date": "2026-09-13",
+                "name": "KB5129195",
+                "release_type": "Security Update",
+                "system_category": "security_update"
+            },
+            {
+                "arch": "x86_64",
+                "comments": "Security Update",
+                "from": "WMI",
+                "install_date": "2026-09-13",
+                "name": "KB5124007",
+                "release_type": "Security Update",
+                "system_category": "security_update"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.FilePicker_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "1527c705-839a-4832-9118-54d4Bd6a0c89",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.19640.1000"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.FileExplorer_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "File Explorer",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.26100.1"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.AppResolverUX_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "App Resolver",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.19640.1000"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.AddSuggestedFoldersToLibraryDialog_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Add Folder Suggestions dialog",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.26100.1"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.AAD.BrokerPlugin_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Work or school account",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "1000.19580.1000.2"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.AccountsControl_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Email and accounts",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.26100.1"
+            },
+            {
+                "arch": "x64",
+                "comments": "Microsoft AIFabric CBS (1.6.951.100 x64)",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.AIFabric.CBS.1.6_8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Microsoft AIFabric CBS 1.6",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "1.6.951.100"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.AsyncTextService_8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "AsyncTextService",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.26100.1"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.BioEnrollment_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Windows Hello Setup",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.19587.1000"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\microsoft.creddialoghost_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Credential Dialog",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.19595.1001"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.ECApp_8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Eye Control",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.26100.9278"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.LockApp_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Windows Default Lock Screen",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.26100.9278"
+            },
+            {
+                "arch": "neutral",
+                "comments": "Microsoft Edge DevTools Client",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.MicrosoftEdgeDevToolsClient_8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Microsoft Edge DevTools Client",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "1000.25128.1000.0"
+            },
+            {
+                "arch": "x64",
+                "comments": "Microsoft.UI.Xaml",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.UI.Xaml.CBS_8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Microsoft UI Xaml CBS",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "9.2603.18001.0"
+            },
+            {
+                "arch": "neutral",
+                "comments": "Desktop App Web Viewer",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Win32WebViewHost_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Desktop App Web Viewer",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.26100.1"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.AppRep.ChxApp_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Windows Defender SmartScreen",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "1000.25128.1000.0"
+            },
+            {
+                "arch": "neutral",
+                "comments": "Launches above lock app when assigned access user logs in",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.AssignedAccessLockApp_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Assigned Access Lock app",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "1000.25128.1000.0"
+            },
+            {
+                "arch": "x64",
+                "comments": "Microsoft Windows AugLoop CBS",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.AugLoop.CBS_8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Microsoft Windows AugLoop CBS",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "1.1126.2131.0"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.CapturePicker_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "CapturePicker",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.19580.1000"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.CloudExperienceHost_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Your account",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.26100.1"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.ContentDeliveryManager_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Microsoft Content",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.26100.1"
+            },
+            {
+                "arch": "neutral",
+                "comments": "Narrator Home",
+                "folder": "C:\\Windows\\SystemApps\\microsoft.windows.narratorquickstart_8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2024-04-01",
+                "name": "Narrator",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.26100.1"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.OOBENetworkCaptivePortal_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Captive Portal Flow",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.26569.1000"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.OOBENetworkConnectionFlow_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Network Connection Flow",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.26569.1000"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\ParentalControls_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Microsoft Family Safety",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "1000.25128.1000.0"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.PeopleExperienceHost_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Windows Shell Experience",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.26100.1"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.PinningConfirmationDialog_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "PinningConfirmationDialog",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "1000.25140.1001.0"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.PrintQueueActionCenter_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Print Queue",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "1.0.2.0"
+            },
+            {
+                "arch": "neutral",
+                "comments": "Take a Test",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.SecureAssessmentBrowser_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Take a Test",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.26100.1"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\ShellExperienceHost_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Windows Shell Experience",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.26100.8115"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Microsoft Windows StartMenuExperienceHost",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.26100.4768"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.Windows.XGpuEjectDialog_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Safely Remove Device",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.26100.1"
+            },
+            {
+                "arch": "x64",
+                "comments": "Microsoft Windows App Runtime CBS (6000.900.156.100 x64)",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.WindowsAppRuntime.CBS_8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Microsoft WindowsAppRuntime CBS 1.6",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "6000.900.156.100"
+            },
+            {
+                "arch": "x64",
+                "comments": "Microsoft Windows App Runtime CBS (2.2.0.100 x64)",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.WindowsAppRuntime.CBS.2_8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Microsoft WindowsAppRuntime CBS 2",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "2.2.0.100"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\Microsoft.XboxGameCallableUI_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Xbox Game UI",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "1000.25128.1000.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Windows\\SystemApps\\SxS\\MicrosoftWindows.61869720.Voiess_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Windows Feature Experience Pack",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "1000.26100.9278.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Windows\\SystemApps\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Windows Feature Experience Pack",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "1000.26100.360.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Windows\\SystemApps\\MicrosoftWindows.Client.CoreAI_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "MicrosoftWindows.Client.CoreAI",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "1000.26100.9457.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Windows\\SystemApps\\MicrosoftWindows.Client.Core_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Windows Feature Experience Pack",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "1000.26100.133.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Windows\\SystemApps\\MicrosoftWindows.Client.FileExp_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Windows Feature Experience Pack",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "1000.26100.10.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Windows\\SystemApps\\MicrosoftWindows.Client.OOBE_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Windows Feature Experience Pack",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "1000.26100.55.0"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Windows\\SystemApps\\MicrosoftWindows.UndockedDevKit_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "UDK Package",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.26100.1"
+            },
+            {
+                "arch": "neutral",
+                "comments": "Windows Barcode Preview Dialog",
+                "folder": "C:\\Windows\\SystemApps\\Windows.CBSPreview_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Windows Barcode Preview",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.19580.1000"
+            },
+            {
+                "arch": "neutral",
+                "comments": "Change settings and customize how you use your computer.",
+                "folder": "C:\\Windows\\ImmersiveControlPanel",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Settings",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "10.0.8.1000"
+            },
+            {
+                "arch": "neutral",
+                "comments": "Windows Print",
+                "folder": "C:\\Windows\\SystemApps\\Windows.PrintDialog_cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Windows Print",
+                "publisher": "Microsoft Corporation",
+                "system_category": "system",
+                "version": "6.2.3.0"
+            },
+            {
+                "arch": "x64",
+                "comments": "Microsoft Windows App Runtime 1.8 (8000.731.1532.0 x64 )",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsAppRuntime.1.8_8000.731.1532.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "WindowsAppRuntime.1.8",
+                "publisher": "Microsoft Corporation",
+                "system_category": "developer",
+                "version": "8000.731.1532.0"
+            },
+            {
+                "arch": "x64",
+                "comments": "Microsoft Windows App Runtime 1.6 (6000.424.1611.0 x64 )",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsAppRuntime.1.6_6000.424.1611.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "WindowsAppRuntime.1.6",
+                "publisher": "Microsoft Corporation",
+                "system_category": "developer",
+                "version": "6000.424.1611.0"
+            },
+            {
+                "arch": "x64",
+                "comments": "Microsoft .Net Native Runtime Package 2.2",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.NET.Native.Runtime.2.2_2.2.28604.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2024-04-01",
+                "name": "Microsoft .Net Native Runtime Package 2.2",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "2.2.28604.0"
+            },
+            {
+                "arch": "x64",
+                "comments": "Microsoft .Net Native Framework Package 2.2",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.NET.Native.Framework.2.2_2.2.29512.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2024-04-01",
+                "name": "Microsoft .Net Native Framework Package 2.2",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "2.2.29512.0"
+            },
+            {
+                "arch": "x64",
+                "comments": "Microsoft.UI.Xaml",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.UI.Xaml.2.8_8.2511.26001.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft UI Xaml 2.8",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "8.2511.26001.0"
+            },
+            {
+                "arch": "x64",
+                "comments": "Microsoft Windows App Runtime 2 (2.2.0.0 x64 )",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsAppRuntime.2_2.2.0.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "WindowsAppRuntime.2",
+                "publisher": "Microsoft Corporation",
+                "system_category": "developer",
+                "version": "2.2.0.0"
+            },
+            {
+                "arch": "x64",
+                "comments": "Microsoft Visual C++ 2015 UWP Runtime support for native applications",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.VCLibs.140.00_14.0.33519.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft Visual C++ 2015 UWP Runtime Package",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "14.0.33519.0"
+            },
+            {
+                "arch": "x64",
+                "comments": "Microsoft Visual C++ 2015 UWP Desktop Runtime support for native applications",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.VCLibs.140.00.UWPDesktop_14.0.33728.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft Visual C++ 2015 UWP Desktop Runtime Package",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "14.0.33728.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Clipchamp.Clipchamp_4.5.10920.0_x64__yxz26nhyzhsrt",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Clipchamp.Clipchamp",
+                "publisher": "Microsoft Corp.",
+                "system_category": "store",
+                "version": "4.5.10920.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.ApplicationCompatibilityEnhancements_1.2511.9.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft ApplicationCompatibilityEnhancements",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.2511.9.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.AV1VideoExtension_2.0.7.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft AV1VideoExtension",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "2.0.7.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.AVCEncoderVideoExtension_1.1.23.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft AVCEncoderVideoExtension",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.1.23.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.BingNews_1.0.2.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft BingNews",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.0.2.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.BingSearch_1.1.43.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft BingSearch",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.1.43.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.BingWeather_3.2.11.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft BingWeather",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "3.2.11.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.DesktopAppInstaller_1.26.509.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft DesktopAppInstaller",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.26.509.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.GamingApp_2605.900.13.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Xbox",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "2605.900.13.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.GetHelp_10.2407.40222.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft GetHelp",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "10.2407.40222.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.HEIFImageExtension_1.2.36.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft HEIFImageExtension",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.2.36.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.HEVCVideoExtension_2.4.45.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft HEVCVideoExtension",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "2.4.45.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.MicrosoftOfficeHub_19.2506.56051.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft 365 Copilot",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "19.2506.56051.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.MicrosoftSolitaireCollection_4.25.4290.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Solitaire & Casual Games",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "4.25.4290.0"
+            },
+            {
+                "arch": "neutral",
+                "comments": "Microsoft Edge Browser",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.MicrosoftEdge.Stable_152.0.4191.66_neutral__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Microsoft Edge",
+                "publisher": "Microsoft Corporation",
+                "system_category": "developer",
+                "version": "152.0.4191.66"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.MicrosoftStickyNotes_4.0.6105.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft MicrosoftStickyNotes",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "4.0.6105.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.MPEG2VideoExtension_1.2.13.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft MPEG2VideoExtension",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.2.13.0"
+            },
+            {
+                "arch": "neutral",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.OutlookForWindows_1.0.0.0_neutral__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Outlook for Windows",
+                "publisher": "Microsoft Corporation",
+                "system_category": "developer",
+                "version": "1.0.0.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.Paint_11.2601.440.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft Paint",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "11.2601.440.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.PowerAutomateDesktop_1.0.2046.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft PowerAutomateDesktop",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.0.2046.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.RawImageExtension_2.5.24.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft RawImageExtension",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "2.5.24.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.ScreenSketch_11.2307.64.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft ScreenSketch",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "11.2307.64.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.SecHealthUI_1000.26100.9457.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft SecHealthUI",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1000.26100.9457.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.StorePurchaseApp_22509.1400.2.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft StorePurchaseApp",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "22509.1400.2.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.Todos_0.176.7601.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft Todos",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "0.176.7601.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.VP9VideoExtensions_1.2.20.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft VP9VideoExtensions",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.2.20.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.WebMediaExtensions_2.1.38.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft WebMediaExtensions",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "2.1.38.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.WebpImageExtension_1.2.14.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft WebpImageExtension",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.2.14.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.Windows.DevHome_0.0.0.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2024-04-01",
+                "name": "Microsoft Windows DevHome",
+                "publisher": "Microsoft Corporation",
+                "system_category": "developer",
+                "version": "0.0.0.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.Windows.Photos_24.24070.23002.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft Windows Photos",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "24.24070.23002.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsAlarms_1.1.85.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft WindowsAlarms",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.1.85.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsCalculator_11.2502.2.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft WindowsCalculator",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "11.2502.2.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsCamera_2025.2510.2.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft WindowsCamera",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "2025.2510.2.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsFeedbackHub_2.2607.201.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft WindowsFeedbackHub",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "2.2607.201.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsNotepad_11.2605.34.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft WindowsNotepad",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "11.2605.34.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsSoundRecorder_1.1.86.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft WindowsSoundRecorder",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.1.86.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsStore_22506.1400.2.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft Store",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "22506.1400.2.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_1.24.11911.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft WindowsTerminal",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.24.11911.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.Xbox.TCUI_1.23.28005.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Xbox TCUI",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.23.28005.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.XboxGamingOverlay_7.325.7221.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Game Bar",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "7.325.7221.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.XboxIdentityProvider_12.130.2510.6003_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft XboxIdentityProvider",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "12.130.2510.6003"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.XboxSpeechToTextOverlay_1.123.11001.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft XboxSpeechToTextOverlay",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.123.11001.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.YourPhone_0.26062.148.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft YourPhone",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "0.26062.148.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.ZuneMusic_11.2512.10.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft ZuneMusic",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "11.2512.10.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\MicrosoftCorporationII.QuickAssist_2.0.56.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "MicrosoftCorporationII.QuickAssist",
+                "publisher": "Microsoft Corporation",
+                "system_category": "developer",
+                "version": "2.0.56.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\MicrosoftWindows.Client.WebExperience_526.17301.80.9_x64__cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Windows Web Experience Pack",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "526.17301.80.9"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\MicrosoftWindows.CrossDevice_0.26062.105.0_x64__cw5n1h2txyewy",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "MicrosoftWindows.CrossDevice",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "0.26062.105.0"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\MSTeams_1.0.0.1_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-09-13",
+                "name": "Microsoft Teams",
+                "publisher": "Microsoft Corporation",
+                "system_category": "developer",
+                "version": "1.0.0.1"
+            },
+            {
+                "arch": "x64",
+                "folder": "C:\\Program Files\\WindowsApps\\Microsoft.WidgetsPlatformRuntime_1.6.19.0_x64__8wekyb3d8bbwe",
+                "from": "uwp",
+                "install_date": "2026-10-30",
+                "name": "Widgets Platform Runtime",
+                "publisher": "Microsoft Corporation",
+                "system_category": "store",
+                "version": "1.6.19.0"
+            }
+        ],
+        "storages": [
+            {
+                "description": "PCI Slot 32 : Bus 2 : Device 0 : Function 0 : Adapter 0 : Port 0 : Target 0 : LUN 0",
+                "disksize": 107374,
+                "firmware": "2.0",
+                "interface": "SAS",
+                "manufacturer": "VMware",
+                "model": "Virtual disk",
+                "name": "PhysicalDisk0",
+                "serial": "6000c29c24a2fbe45a4b5046aee08fe0",
+                "type": "SSD"
+            },
+            {
+                "description": "CD-ROM Drive",
+                "disksize": 9047,
+                "manufacturer": "(Standard CD-ROM drives)",
+                "model": "NECVMWar VMware SATA CD00",
+                "name": "NECVMWar VMware SATA CD00",
+                "scsi_coid": "3",
+                "scsi_lun": "0",
+                "scsi_unid": "0",
+                "type": "DVD-ROM"
+            }
+        ],
+        "usbdevices": [
+            {
+                "caption": "Virtual Mouse",
+                "manufacturer": "VMware, Inc.",
+                "name": "Virtual Mouse",
+                "productid": "0003",
+                "vendorid": "0E0F"
+            }
+        ],
+        "users": [
+            {
+                "domain": "DBHQ-PC-204",
+                "login": "User"
+            },
+            {
+                "domain": "DBHQ-PC-204",
+                "login": "Administrator"
+            }
+        ],
+        "versionclient": "GLPI-Agent_v1.15",
+        "versionprovider": {
+            "comments": [
+                "Provided by Teclib Edition",
+                "Installer built on Mon Jun  9 13:00:00 2025 UTC",
+                "Built with Strawberry Perl 5.40.2",
+                "Built on github actions windows image for glpi-project\/glpi-agent repository"
+            ],
+            "etime": 38,
+            "name": "GLPI",
+            "perl_exe": "C:\\Program Files\\GLPI-Agent\\perl\\bin\\glpi-agent.exe",
+            "perl_version": "v5.40.2",
+            "program": "C:\\Program Files\\GLPI-Agent\\perl\\bin\\glpi-win32-service",
+            "version": "1.15"
+        },
+        "videos": [
+            {
+                "name": "Microsoft Remote Display Adapter",
+                "resolution": "1920x1080"
+            },
+            {
+                "chipset": "VMware",
+                "name": "Microsoft Basic Display Adapter",
+                "resolution": "1024x768"
+            }
+        ]
+    },
+    "deviceid": "DBHQ-PC-204-2026-11-04-04-36-29",
+    "itemtype": "Computer"
+}

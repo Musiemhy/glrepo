@@ -1,0 +1,564 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * satisfaction plugin for GLPI
+ * Copyright (C) 2018-2026 by the satisfaction Development Team.
+ *
+ * https://github.com/pluginsGLPI/satisfaction
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of satisfaction.
+ *
+ * satisfaction is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * satisfaction is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with satisfaction. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Satisfaction;
+
+use CommonDBChild;
+use CommonGLPI;
+use DbUtils;
+use Dropdown;
+use Glpi\Application\View\TemplateRenderer;
+use Html;
+use Session;
+use Ticket;
+use TicketSatisfaction;
+
+/**
+ * Class SurveyAnswer
+ */
+class SurveyAnswer extends CommonDBChild
+{
+    public static $rightname = "plugin_satisfaction";
+    public $dohistory = true;
+
+    // From CommonDBChild
+    public static $itemtype = Survey::class;
+    public static $items_id = 'plugin_satisfaction_surveys_id';
+
+    /**
+     * Return the localized name of the current Type
+     * Should be overloaded in each new class
+     *
+     * @return string
+     **/
+    public static function getTypeName($nb = 0)
+    {
+        return _n('Answer', 'Answers', $nb, 'satisfaction');
+    }
+
+    /**
+     * Get Tab Name used for itemtype
+     *
+     * NB : Only called for existing object
+     *      Must check right on what will be displayed + template
+     *
+     * @param $item                     CommonGLPI object for which the tab need to be displayed
+     * @param $withtemplate    boolean  is a template object ? (default 0)
+     *
+     * @return string tab name
+     **@since version 0.83
+     *
+     */
+    public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0)
+    {
+
+        // can exists for template
+        if ($item->getType() == Survey::class) {
+            echo Html::css('/lib/jquery.rateit.css');
+            Html::requireJs('rateit');
+            return self::createTabEntry(__('Preview', 'satisfaction'));
+        }
+
+        return '';
+    }
+
+    /**
+     * show Tab content
+     *
+     * @param $item                  CommonGLPI object for which the tab need to be displayed
+     * @param $tabnum       integer  tab number (default 1)
+     * @param $withtemplate boolean  is a template object ? (default 0)
+     *
+     * @return true
+     **@since version 0.83
+     *
+     */
+    public static function displayTabContentForItem(CommonGLPI $item, $tabnum = 1, $withtemplate = 0)
+    {
+        if ($item->getType() == Survey::class) {
+            self::showSurvey($item, true);
+        }
+        return true;
+    }
+    public static function getIcon()
+    {
+        return "ti ti-message-reply";
+    }
+    /**
+     * Print survey
+     *
+     * @param CommonGLPI $item
+     * @param bool        $preview
+     *
+     * @return bool
+     */
+    public static function showSurvey(CommonGLPI $item, $preview = false)
+    {
+        //find existing answer
+        $sanswer_obj = new self();
+
+        if ($item instanceof TicketSatisfaction) {
+            if ($sanswer_obj->getFromDBByCrit(["ticketsatisfactions_id" => $item->getField('id')])) {
+                $survey = new Survey();
+                $survey->getFromDB($sanswer_obj->fields['plugin_satisfaction_surveys_id']);
+
+                $plugin_satisfaction_surveys_id = $survey->getID();
+            } else {
+                $ticket = new Ticket();
+                $ticket->getFromDB($item->getField('tickets_id'));
+                $entities_id = Session::getActiveEntity();
+                if (isset($ticket->fields['entities_id'])) {
+                    $entities_id = $ticket->fields['entities_id'];
+                }
+                $plugin_satisfaction_surveys_id = Survey::getObjectForEntity($entities_id);
+            }
+        } elseif ($item instanceof Survey) {
+            $plugin_satisfaction_surveys_id = $item->getID();
+        } else {
+            return false;
+        }
+
+        if (!isset($plugin_satisfaction_surveys_id)
+          || $plugin_satisfaction_surveys_id === false) {
+            return false;
+        }
+
+        if (!empty($sanswer_obj->fields['answer'])) {
+            $dbu = new DbUtils();
+            //get answer in array form
+            $sanswer_obj->fields['answer'] = $dbu->importArrayFromDB($sanswer_obj->fields['answer']);
+        }
+
+        //list survey questions
+        $questions     = [];
+        $squestion_obj = new SurveyQuestion();
+        foreach ($squestion_obj->find([
+            SurveyQuestion::$items_id => $plugin_satisfaction_surveys_id]) as $question) {
+            $name = $question['name'];
+            if (SurveyTranslation::hasTranslation($question[
+                "plugin_satisfaction_surveys_id"], $question["id"])) {
+                $name = SurveyTranslation::getTranslation($question[
+                    "plugin_satisfaction_surveys_id"], $question["id"]);
+            }
+            if (isset($sanswer_obj->fields['answer'][$question['id']])) {
+                $value = $sanswer_obj->fields['answer'][$question['id']];
+            } else {
+                if ($question['type'] == SurveyQuestion::TEXTAREA) {
+                    $value = '';
+                } elseif ($question['type'] == SurveyQuestion::NOTE) {
+                    $value = $question['default_value'];
+                } else {
+                    $value = 0;
+                }
+            }
+            $questions[] = [
+                'name'   => $name,
+                'answer' => self::displayAnswer($question, $value),
+            ];
+        }
+
+        $table_script = Html::scriptBlock("
+         // Isolate variables in a self calling function
+         (function(){
+            // Set table content width
+            const setTableWidth = function() {
+               $('#mainformtable td').addClass('w-50');
+            };
+
+            // Throttled function to avoid spamming the function on repeated events
+            const setTableWidthDebounced = _.throttle(setTableWidth, 500, false);
+
+            // Run once immediatly
+            setTableWidth();
+
+            // Run the function on each container change, to make sure it is applied to all rows
+            $('#mainformtable').on('DOMSubtreeModified', function() {
+               setTableWidthDebounced();
+            });
+         })();
+      ");
+
+        TemplateRenderer::getInstance()->display('@satisfaction/surveyanswer.html.twig', [
+            'hidden_survey_id' => Html::hidden(
+                'plugin_satisfaction_surveys_id',
+                ['value' => $plugin_satisfaction_surveys_id],
+            ),
+            'preview'          => $preview,
+            'questions'        => $questions,
+            'table_script'     => $table_script,
+        ]);
+    }
+
+    /**
+     * Print survey
+     *
+     * @param CommonGLPI $item
+     * @param bool        $preview
+     *
+     * @return bool
+     */
+    public static function showResponsiveSurvey(CommonGLPI $item, $preview = false)
+    {
+        //find existing answer
+        $sanswer_obj = new self();
+
+        if ($item instanceof TicketSatisfaction) {
+            if ($sanswer_obj->getFromDBByCrit(["ticketsatisfactions_id" => $item->getField('id')])) {
+                $survey = new Survey();
+                $survey->getFromDB($sanswer_obj->fields['plugin_satisfaction_surveys_id']);
+
+                $plugin_satisfaction_surveys_id = $survey->getID();
+            } else {
+                $ticket = new Ticket();
+                $ticket->getFromDB($item->getField('tickets_id'));
+                $entities_id = Session::getActiveEntity();
+                if (isset($ticket->fields['entities_id'])) {
+                    $entities_id = $ticket->fields['entities_id'];
+                }
+                $plugin_satisfaction_surveys_id = Survey::getObjectForEntity($entities_id);
+            }
+        } elseif ($item instanceof Survey) {
+            $plugin_satisfaction_surveys_id = $item->getID();
+        } else {
+            return false;
+        }
+
+        if (!isset($plugin_satisfaction_surveys_id)
+          || $plugin_satisfaction_surveys_id === false) {
+            return false;
+        }
+
+        if (!empty($sanswer_obj->fields['answer'])) {
+            $dbu = new DbUtils();
+            //get answer in array form
+            $sanswer_obj->fields['answer'] = $dbu->importArrayFromDB($sanswer_obj->fields['answer']);
+        }
+
+        //list survey questions
+        $questions     = [];
+        $squestion_obj = new SurveyQuestion();
+        foreach ($squestion_obj->find([
+            SurveyQuestion::$items_id => $plugin_satisfaction_surveys_id]) as $question) {
+            $name = $question['name'];
+            if (SurveyTranslation::hasTranslation($question[
+                "plugin_satisfaction_surveys_id"], $question["id"])) {
+                $name = SurveyTranslation::getTranslation($question[
+                    "plugin_satisfaction_surveys_id"], $question["id"]);
+            }
+
+            if (isset($sanswer_obj->fields['answer'][$question['id']])) {
+                $value = $sanswer_obj->fields['answer'][$question['id']];
+            } else {
+                if ($question['type'] == SurveyQuestion::TEXTAREA) {
+                    $value = '';
+                } elseif ($question['type'] == SurveyQuestion::NOTE) {
+                    $value = $question['default_value'];
+                } else {
+                    $value = 0;
+                }
+            }
+            $questions[] = [
+                'name'   => $name,
+                'answer' => self::displayAnswer($question, $value),
+            ];
+        }
+
+        TemplateRenderer::getInstance()->display('@satisfaction/surveyanswer_responsive.html.twig', [
+            'hidden_survey_id' => Html::hidden(
+                'plugin_satisfaction_surveys_id',
+                ['value' => $plugin_satisfaction_surveys_id],
+            ),
+            'questions'        => $questions,
+        ]);
+    }
+
+    /**
+     * Display answer by type
+     *
+     * @param     $question
+     * @param int $value
+     */
+    public static function displayAnswer($question, $value = 0)
+    {
+        $questions_id = $question['id'];
+
+        switch ($question['type']) {
+            case SurveyQuestion::YESNO:
+                ob_start();
+                Dropdown::showYesNo("answer[$questions_id]", $value);
+                return ob_get_clean();
+
+            case SurveyQuestion::TEXTAREA:
+                $name = "answer[" . $questions_id . "]";
+                return Html::textarea([
+                    'name'    => $name,
+                    'value'    => $value,
+                    'cols'    => '60',
+                    'rows'    => '6',
+                    'display' => false,
+                ]);
+
+            case SurveyQuestion::NOTE:
+                return self::showStarAnswer($question, $value);
+        }
+
+        return '';
+    }
+
+    /**
+     * Star display
+     *
+     * @param     $question
+     * @param int $value
+     *
+     * @return string
+     */
+    public static function showStarAnswer($question, $value = 0)
+    {
+
+        $questions_id = (int) $question['id'];
+        $number       = (int) $question['number'];
+        $value        = (int) $value;
+
+        $js = "$(function() {"
+            . "$('#stars_$questions_id').rateit({value: $value,"
+            . " min: 0,"
+            . " max: $number,"
+            . " step: 1,"
+            . " backingfld: '#satisfaction_data_$questions_id',"
+            . " ispreset: true,"
+            . " resetable: false});"
+            . "});";
+
+        ob_start();
+        TemplateRenderer::getInstance()->display('@satisfaction/surveyanswer_star.html.twig', [
+            'questions_id' => $questions_id,
+            'number'       => $number,
+            'value'        => $value,
+            'star_script'  => Html::scriptBlock($js),
+        ]);
+        return ob_get_clean();
+    }
+
+    /**
+     * Get answer by type
+     *
+     * @param     $question
+     * @param int $value
+     *
+     * @return \clean|int|string
+     */
+    public static function getAnswer($question, $value = 0)
+    {
+        // Stored answers come from a JSON column: never render a nested value
+        if (!is_scalar($value)) {
+            return '';
+        }
+
+        switch ($question['type']) {
+            case SurveyQuestion::YESNO:
+                return Dropdown::getYesNo($value);
+
+            case SurveyQuestion::TEXTAREA:
+                return nl2br(htmlspecialchars($value, ENT_QUOTES));
+
+            case SurveyQuestion::NOTE:
+                return htmlspecialchars((string) $value, ENT_QUOTES);
+        }
+    }
+
+    /**
+     * Updates with answers
+     *
+     * @param TicketSatisfaction $ticketSatisfaction
+     */
+    public static function preUpdateSatisfaction(TicketSatisfaction $ticketSatisfaction)
+    {
+
+        $surveyanswer = new self();
+        $dbu          = new DbUtils();
+        if ($surveyanswer->getFromDBByCrit(["ticketsatisfactions_id" => $ticketSatisfaction->getField('id')])) {
+            if (!isset($ticketSatisfaction->input['answer'])) {
+                return;
+            }
+            $input = ['id'     => $surveyanswer->getID(),
+                'answer' => $dbu->exportArrayToDB(self::sanitizeAnswers(
+                    (int) $surveyanswer->fields['plugin_satisfaction_surveys_id'],
+                    $ticketSatisfaction->input['answer'],
+                ))];
+            $surveyanswer->update($input);
+        } else {
+            // IDOR hardening: the hidden plugin_satisfaction_surveys_id field marks a survey
+            // submission, but its value is client-controlled and must not be trusted. Recompute
+            // the authoritative survey from the ticket's own entity server-side, so a requester
+            // cannot attach their answer to a survey belonging to another entity.
+            if (isset($ticketSatisfaction->input['plugin_satisfaction_surveys_id'])) {
+                $ticket = new Ticket();
+                if (!$ticket->getFromDB((int) $ticketSatisfaction->getField('tickets_id'))) {
+                    return;
+                }
+                $survey_id = Survey::getObjectForEntity($ticket->fields['entities_id']);
+                if ($survey_id === false) {
+                    return;
+                }
+
+                $input = ['plugin_satisfaction_surveys_id' => $survey_id,
+                    'ticketsatisfactions_id'         => $ticketSatisfaction->getField('id'),
+                    'answer'                         => $dbu->exportArrayToDB(
+                        self::sanitizeAnswers((int) $survey_id, $ticketSatisfaction->input['answer'] ?? []),
+                    )];
+
+                $surveyanswer->add($input);
+            }
+        }
+    }
+
+    /**
+     * Keep only scalar answers to the questions of the given survey,
+     * normalized according to the question type.
+     *
+     * @param int   $survey_id
+     * @param mixed $posted
+     *
+     * @return array<int, int|string>
+     */
+    private static function sanitizeAnswers(int $survey_id, $posted): array
+    {
+        if (!is_array($posted)) {
+            return [];
+        }
+
+        $clean     = [];
+        $questions = (new SurveyQuestion())->find([SurveyQuestion::$items_id => $survey_id]);
+        foreach ($questions as $question) {
+            $value = $posted[$question['id']] ?? null;
+            if (!is_scalar($value)) {
+                continue;
+            }
+            $clean[$question['id']] = match ($question['type']) {
+                SurveyQuestion::NOTE  => max(0, min((int) $question['number'], (int) $value)),
+                SurveyQuestion::YESNO => (int) (bool) $value,
+                default               => mb_substr((string) $value, 0, 65535),
+            };
+        }
+
+        return $clean;
+    }
+
+    /**
+     * Displaying questions in GLPI's ticket satisfaction
+     *
+     * @param $params
+     *
+     * @return bool
+     */
+    public static function displaySatisfaction($params)
+    {
+        static $displayed_ids = [];
+
+        if (isset($params['item'])) {
+            $item = $params['item'];
+            if ($item->getType() == 'TicketSatisfaction') {
+                $item_id = $item->getID();
+                if (isset($displayed_ids[$item_id])) {
+                    return;
+                }
+                $displayed_ids[$item_id] = true;
+                self::showSurvey($item);
+            }
+        }
+    }
+
+    /**
+     * Adding two tags to satisfaction notifications
+     *
+     * @param \NotificationTarget $target
+     */
+    public static function addNotificationDatas(\NotificationTargetTicket $target)
+    {
+
+        $event = $target->raiseevent;
+        if (isset($target->obj->fields['id'])) {
+            $tickets_id  = $target->obj->fields['id'];
+            $entities_id = $target->obj->fields['entities_id'];
+
+            $ticket_satisfaction = new TicketSatisfaction();
+            if ($ticket_satisfaction->getFromDBByRequest(['WHERE'
+                                                            => ["tickets_id" => $tickets_id]])) {
+                $sanswer_obj = new self();
+                if ($sanswer_obj->getFromDBByCrit(["ticketsatisfactions_id" => $ticket_satisfaction->getField('id')])) {
+                    $dbu                           = new DbUtils();
+                    $sanswer_obj->fields['answer'] = $dbu->importArrayFromDB($sanswer_obj->fields['answer']);
+
+                    $plugin_satisfaction_surveys_id = $sanswer_obj->getField('plugin_satisfaction_surveys_id');
+                } else {
+                    if (($survey = Survey::getObjectForEntity($entities_id)) !== false) {
+                        $plugin_satisfaction_surveys_id = $survey;
+                    }
+                }
+
+                if (isset($plugin_satisfaction_surveys_id)) {
+                    $squestion_obj = new SurveyQuestion();
+                    $questions     = $squestion_obj->find([
+                        SurveyQuestion::$items_id => $plugin_satisfaction_surveys_id]);
+
+                    switch ($event) {
+                        case 'satisfaction':
+                            $data = '';
+                            foreach ($questions as $question) {
+                                $data .= $question['name'] . "\n\n";
+                            }
+                            $target->data['##satisfaction.question##'] = $data;
+                            break;
+
+                        case 'replysatisfaction':
+                            $data = '';
+                            foreach ($questions as $question) {
+                                if (isset($sanswer_obj->fields['answer'][$question['id']])) {
+                                    $value = $sanswer_obj->fields['answer'][$question['id']];
+                                } else {
+                                    if ($question['type'] == SurveyQuestion::TEXTAREA) {
+                                        $value = '';
+                                    } elseif ($question['type'] == SurveyQuestion::NOTE) {
+                                        $value = $question['default_value'];
+                                    } else {
+                                        $value = 0;
+                                    }
+                                }
+                                $data .= $question['name'] . " : " . self::getAnswer($question, $value) . "\n\n";
+                            }
+                            $target->data['##satisfaction.answer##'] = $data;
+
+                            break;
+                    }
+                }
+            }
+        }
+    }
+}

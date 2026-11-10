@@ -1,0 +1,179 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * manageentities plugin for GLPI
+ * Copyright (C) 2017-2026 by the manageentities Development Team.
+ *
+ * https://github.com/InfotelGLPI/manageentities
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of manageentities.
+ *
+ * manageentities is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * manageentities is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with manageentities. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Manageentities;
+
+use CommonDropdown;
+use DBConnection;
+use DbUtils;
+use Migration;
+use Session;
+
+class ContractState extends CommonDropdown
+{
+    public static $rightname = 'plugin_manageentities';
+
+    public static function getTypeName($nb = 0)
+    {
+        return _n('State of contract', 'States of contracts', $nb, 'manageentities');
+    }
+
+    public static function canView(): bool
+    {
+        return Session::haveRight(self::$rightname, READ);
+    }
+
+    public static function canCreate(): bool
+    {
+        return Session::HaveRightsOr(self::$rightname, [CREATE, UPDATE, DELETE]);
+    }
+
+    public function getAdditionalFields()
+    {
+        return [
+            [
+                'name' => 'is_active',
+                'label' => __('Active'),
+                'type' => 'bool',
+            ],
+            [
+                'name' => 'is_closed',
+                'label' => __('Closed'),
+                'type' => 'bool',
+            ],
+            [
+                'name' => 'color',
+                'label' => __('Color', 'manageentities'),
+                'type' => 'text',
+            ],
+        ];
+    }
+
+    public function rawSearchOptions()
+    {
+        $tab = parent::rawSearchOptions();
+
+        $tab[] = [
+            'id' => '14',
+            'table' => $this->getTable(),
+            'field' => 'is_active',
+            'name' => __('Active'),
+            'datatype' => 'bool',
+        ];
+
+        $tab[] = [
+            'id' => '15',
+            'table' => $this->getTable(),
+            'field' => 'is_closed',
+            'name' => __('Closed'),
+            'datatype' => 'bool',
+        ];
+
+        $tab[] = [
+            'id' => '17',
+            'table' => $this->getTable(),
+            'field' => 'color',
+            'name' => __('Color', 'manageentities'),
+            'datatype' => 'bool',
+        ];
+
+        return $tab;
+    }
+
+    public function prepareInputForAdd($input)
+    {
+        return $this->checkColor($input);
+    }
+
+    public function prepareInputForUpdate($input)
+    {
+        return $this->checkColor($input);
+    }
+
+    public function checkColor($input)
+    {
+        $color = $input['color'] ?? null;
+        if ($color === null || $color === '') {
+            return $input;
+        }
+        if (!preg_match('/#([a-f]|[A-F]|[0-9]){3}(([a-f]|[A-F]|[0-9]){3})?\b/', $color)) {
+            Session::addMessageAfterRedirect(__('Color field is not correct', 'manageentities'), true, ERROR);
+            return [];
+        }
+        return $input;
+    }
+
+    public static function getOpenedStates()
+    {
+        $out = [];
+        $dbu = new DbUtils();
+        $data = $dbu->getAllDataFromTable('glpi_plugin_manageentities_contractstates', ["`is_active`" => 1]);
+        if (!empty($data)) {
+            foreach ($data as $val) {
+                $out[] = $val['id'];
+            }
+        }
+
+        return $out;
+    }
+
+    public static function install(Migration $migration)
+    {
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+        $table  = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $query = "CREATE TABLE `$table` (
+                            `id` int {$default_key_sign} NOT NULL auto_increment,
+                            `name` varchar(255) collate utf8mb4_unicode_ci DEFAULT NULL,
+                            `is_active` tinyint NOT NULL DEFAULT '0',
+                            `is_closed` tinyint NOT NULL DEFAULT '0',
+                            `color` varchar(7) DEFAULT '#F2F2F2',
+                            `comment` text collate utf8mb4_unicode_ci,
+                            PRIMARY KEY  (`id`),
+                            KEY `name` (`name`),
+                            KEY `is_active` (`is_active`)
+               ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
+
+            $DB->doQuery($query);
+        }
+    }
+
+
+    public static function uninstall()
+    {
+        global $DB;
+
+        $DB->dropTable(self::getTable(), true);
+    }
+}

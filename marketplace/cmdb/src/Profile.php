@@ -1,0 +1,346 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * cmdb plugin for GLPI
+ * Copyright (C) 2020-2026 by the cmdb Development Team.
+ *
+ * https://github.com/InfotelGLPI/cmdb
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of cmdb.
+ *
+ * cmdb is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * cmdb is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with cmdb. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Cmdb;
+
+use CommonGLPI;
+use DbUtils;
+use Html;
+use ProfileRight;
+use Session;
+
+/**
+ * Class Profile
+ */
+class Profile extends \Profile
+{
+    public static $rightname = "profile";
+
+    /**
+     * @param CommonGLPI $item
+     * @param int         $withtemplate
+     *
+     * @return string
+     */
+    public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0)
+    {
+
+        if ($item->getType() == 'Profile') {
+            return self::createTabEntry(__('CMDB', 'cmdb'));
+        }
+        return '';
+    }
+
+
+    public static function getIcon()
+    {
+        return "ti ti-affiliate";
+    }
+    /**
+     * @param CommonGLPI $item
+     * @param int         $tabnum
+     * @param int         $withtemplate
+     *
+     * @return bool
+     */
+    public static function displayTabContentForItem(CommonGLPI $item, $tabnum = 1, $withtemplate = 0)
+    {
+
+        if ($item->getType() == 'Profile') {
+            $ID   = $item->getID();
+            $prof = new self();
+
+            // Rendering the tab used to call addDefaultProfileInfos(), so a GET request
+            // inserted rights rows and pushed them into the session. The seeding already has
+            // its own explicit paths: the install and update hooks go through initProfile(),
+            // which registers the right names on every profile, and a profile created later is
+            // filled by the core in Profile::post_addItem() via fillProfileRights(). A row
+            // that is still missing is read as "no right" by displayRightsChoiceMatrix()
+            // anyway, so displaying only needs to read.
+            // Explicit read guard rather than one delegated to the core: the tab is
+            // routed from the posted _glpi_tab, and showForm() below reads profile
+            // rights straight from the database.
+            Session::checkRight(self::$rightname, READ);
+
+            $prof->showForm($ID);
+        }
+        return true;
+    }
+
+    /**
+     * @param $ID
+     */
+    public static function createFirstAccess($ID)
+    {
+        self::addDefaultProfileInfos($ID, ['plugin_cmdb_operationprocesses'             => 127,
+            'plugin_cmdb_operationprocesses_open_ticket' => 1,
+            'plugin_cmdb_cis'                            => 127,
+            'plugin_cmdb_citypes'                        => 127,
+            'plugin_cmdb_impacticons'                => 127,
+            'plugin_cmdb_impactinfos'                => 127,], true);
+    }
+
+    /**
+     * Show profile form
+     *
+     * @param $items_id integer id of the profile
+     * @param $target value url of target
+     *
+     * @return nothing
+     * */
+    public function showForm($profiles_id = 0, $openform = true, $closeform = true)
+    {
+        echo "<div class='firstbloc'>";
+        $profile = new \Profile();
+        // Computed once, up front, so that every control below shares the same gate:
+        // the Helpdesk checkbox used to be rendered outside it and disclosed a slice of
+        // the profile configuration to a read-only viewer, on a control the core would
+        // have refused to save anyway.
+        $canedit = Session::haveRightsOr(self::$rightname, [CREATE, UPDATE, PURGE]);
+        if ($canedit && $openform) {
+            echo "<form method='post' action='" . $profile->getFormURL() . "'>";
+
+            $profile->getFromDB($profiles_id);
+
+            if ($profile->getField('interface') == 'central') {
+
+                $rights = $this->getCIRights();
+                $profile->displayRightsChoiceMatrix($rights, ['canedit'       => $canedit,
+                    'default_class' => 'tab_bg_2',
+                    'title'         => __('Item Configuration', 'cmdb')]);
+                $rights = $this->getCITypeRights();
+                $profile->displayRightsChoiceMatrix($rights, ['canedit'       => $canedit,
+                    'default_class' => 'tab_bg_2',
+                    'title'         => __('Type of item configuration', 'cmdb')]);
+                $rights = $this->getOperationProcessRights();
+                $profile->displayRightsChoiceMatrix($rights, ['canedit'       => $canedit,
+                    'default_class' => 'tab_bg_2',
+                    'title'         => _n('Service', 'Services', 2, 'cmdb')]);
+                $rights = $this->getImpactIconRights();
+                $profile->displayRightsChoiceMatrix($rights, ['canedit'       => $canedit,
+                    'default_class' => 'tab_bg_2',
+                    'title'         => ImpactIcon::getTypeName(2)]);
+
+                $rights = $this->getImpactInfoRights();
+                $profile->displayRightsChoiceMatrix($rights, ['canedit'       => $canedit,
+                    'default_class' => 'tab_bg_2',
+                    'title'         => ImpactInfo::getTypeName(2)]);
+            }
+        }
+
+        // The Helpdesk right is part of the same editable set as the matrices above.
+        if ($canedit) {
+            echo "<table class='tab_cadre_fixehov'>";
+            echo "<tr class='tab_bg_1'><th colspan='4'>" . __('Helpdesk') . "</th></tr>\n";
+
+            $effective_rights = ProfileRight::getProfileRights($profiles_id, ['plugin_cmdb_operationprocesses_open_ticket']);
+            echo "<tr class='tab_bg_2'>";
+            echo "<td width='20%'>" . __('Associable items to a ticket') . "</td>";
+            echo "<td colspan='5'>";
+            Html::showCheckbox(['name'    => '_plugin_cmdb_operationprocesses_open_ticket',
+                'checked' => $effective_rights['plugin_cmdb_operationprocesses_open_ticket']]);
+            echo "</td></tr>\n";
+            echo "</table>";
+        }
+
+        if ($canedit && $closeform) {
+            echo "<div class='center'>";
+            echo Html::hidden('id', ['value' => $profiles_id]);
+            echo Html::submit(_sx('button', 'Save'), ['name' => 'update', 'class' => 'btn btn-primary']);
+            echo "</div>\n";
+            Html::closeForm();
+        }
+
+        echo "</div>";
+    }
+
+    /**
+     * @return array
+     */
+    public function getOperationProcessRights()
+    {
+        $rights = [['itemtype' => OperationProcess::class,
+            'label'    => _n('Service', 'Services', 2, 'cmdb'),
+            'field'    => 'plugin_cmdb_operationprocesses']];
+        return $rights;
+    }
+
+
+    public function getImpactIconRights()
+    {
+        $rights = [['itemtype' => ImpactIcon::class,
+            'label'    => ImpactIcon::getTypeName(2),
+            'field'    => 'plugin_cmdb_impacticons']];
+        return $rights;
+    }
+
+    public function getImpactInfoRights()
+    {
+        $rights = [['itemtype' => ImpactInfo::class,
+            'label'    => ImpactInfo::getTypeName(2),
+            'field'    => 'plugin_cmdb_impactinfos']];
+        return $rights;
+    }
+
+
+    /**
+     * @return array
+     */
+    public function getCIRights()
+    {
+        $rights = [['itemtype' => CI::class,
+            'label'    => _n('Item configuration', 'Items configuration', 2, 'cmdb'),
+            'field'    => 'plugin_cmdb_cis',
+        ]];
+
+        return $rights;
+    }
+
+    /**
+     * @return array
+     */
+    public function getCITypeRights()
+    {
+        $rights = [['itemtype' => CIType::class,
+            'label'    => _n('Type of item configuration', 'Types of item configuration', 2, 'cmdb'),
+            'field'    => 'plugin_cmdb_citypes',
+        ]];
+
+        return $rights;
+    }
+
+    /**
+     * @param bool $all
+     *
+     * @return array
+     */
+    public static function getAllRights($all = false)
+    {
+        $rights = [
+            // Kept in the list even though the Services menu entry is commented out in
+            // setup.php: createFirstAccess() still grants this right, the front/ controllers
+            // still answer and plugin_cmdb_postinit() still registers the OperationProcess_Item
+            // tab on eleven itemtypes. Commenting the entry out made initProfile() skip the
+            // profilerights row, showForm() hide the matrix and removeRightsFromSession() leave
+            // the right in the session -- the installer profile held it permanently with no way
+            // to delegate or revoke it from the interface.
+            ['itemtype' => OperationProcess::class,
+                'label'    => _n('Service', 'Services', 2, 'cmdb'),
+                'field'    => 'plugin_cmdb_operationprocesses',
+            ],
+            ['itemtype' => CI::class,
+                'label'    => _n('Item configuration', 'Items configuration', 2, 'cmdb'),
+                'field'    => 'plugin_cmdb_cis',
+            ],
+            ['itemtype' => CIType::class,
+                'label'    => _n('Type of Item Configuration', 'Types of item configuration', 2, 'cmdb'),
+                'field'    => 'plugin_cmdb_citypes',
+            ],
+            ['itemtype' => ImpactIcon::class,
+                'label'    => ImpactIcon::getTypeName(2),
+                'field'    => 'plugin_cmdb_impacticons',
+            ],
+            ['itemtype' => ImpactInfo::class,
+                'label'    => ImpactInfo::getTypeName(2),
+                'field'    => 'plugin_cmdb_impactinfos',
+            ],
+        ];
+
+        if ($all) {
+
+            $rights[] = ['itemtype' => OperationProcess::class,
+                'label'    => __('Associable items to a ticket'),
+                'field'    => 'plugin_cmdb_operationprocesses_open_ticket'];
+        }
+
+        return $rights;
+    }
+
+    /**
+     * Initialize profiles, and migrate it necessary
+     */
+    public static function initProfile()
+    {
+        global $DB;
+        $profile = new self();
+        $dbu     = new DbUtils();
+        //Add new rights in glpi_profilerights table
+        foreach ($profile->getAllRights(true) as $data) {
+            if ($dbu->countElementsInTable("glpi_profilerights", ["name" => $data['field']]) == 0) {
+                ProfileRight::addProfileRights([$data['field']]);
+            }
+        }
+
+        $profileId = $_SESSION['glpiactiveprofile']['id'];
+
+        $criteria = [
+            'FROM'  => 'glpi_profilerights',
+            'WHERE' => [
+                'profiles_id' => $profileId,
+                'name'        => ['LIKE', '%plugin_cmdb%'],
+            ],
+        ];
+
+        foreach ($DB->request($criteria) as $prof) {
+            $_SESSION['glpiactiveprofile'][$prof['name']] = $prof['rights'];
+        }
+    }
+
+    public static function removeRightsFromSession()
+    {
+        foreach (self::getAllRights(true) as $right) {
+            if (isset($_SESSION['glpiactiveprofile'][$right['field']])) {
+                unset($_SESSION['glpiactiveprofile'][$right['field']]);
+            }
+        }
+    }
+
+    /**
+     * @param $profile
+     * */
+    public static function addDefaultProfileInfos($profiles_id, $rights, $drop_existing = false)
+    {
+        $dbu          = new DbUtils();
+        $profileRight = new ProfileRight();
+        foreach ($rights as $right => $value) {
+            if ($dbu->countElementsInTable('glpi_profilerights', ["profiles_id" => $profiles_id, "name" => $right]) && $drop_existing) {
+                $profileRight->deleteByCriteria(['profiles_id' => $profiles_id, 'name' => $right]);
+            }
+            if (!$dbu->countElementsInTable('glpi_profilerights', ["profiles_id" => $profiles_id, "name" => $right])) {
+                $myright['profiles_id'] = $profiles_id;
+                $myright['name']        = $right;
+                $myright['rights']      = $value;
+                $profileRight->add($myright);
+
+                //Add right to the current session
+                $_SESSION['glpiactiveprofile'][$right] = $value;
+            }
+        }
+    }
+}

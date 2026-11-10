@@ -1,0 +1,1281 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * manageentities plugin for GLPI
+ * Copyright (C) 2017-2026 by the manageentities Development Team.
+ *
+ * https://github.com/InfotelGLPI/manageentities
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of manageentities.
+ *
+ * manageentities is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * manageentities is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with manageentities. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Manageentities;
+
+use CommonDBTM;
+use DbUtils;
+use Document;
+use Glpi\Application\View\TemplateRenderer;
+use Glpi\DBAL\QueryExpression;
+use Glpi\DBAL\QuerySubQuery;
+use Glpi\DBAL\QueryUnion;
+use Glpi\Exception\Http\AccessDeniedHttpException;
+use Glpi\RichText\RichText;
+use Html;
+use Session;
+use Ticket;
+
+class Cri extends CommonDBTM
+{
+    public static $rightname = 'plugin_manageentities_cri_create';
+
+    // Seconds a report preview is kept on disk before CleanFiles() removes it
+    public const PREVIEW_LIFETIME = 3600;
+
+    public static function getTypeName($nb = 0)
+    {
+        return _n('Intervention report', 'Intervention reports', $nb, 'manageentities');
+    }
+
+    public static function getIcon()
+    {
+        return "ti ti-headset";
+    }
+
+    /**
+     * The manageentities_loadCriForm() call, not yet escaped for HTML: meant for a Twig
+     * attribute, where the auto-escaping adds the HTML layer.
+     *
+     * Two nested contexts for one value: a JavaScript call inside an HTML attribute. The browser
+     * decodes the entities of the attribute before handing the content to the JavaScript parser,
+     * so escaping for HTML alone would be undone; the arguments have to be valid JS literals
+     * first. Both the modal name and the DOM id to refresh come straight from the request, so a
+     * quote in either used to close the attribute.
+     *
+     * @param string               $action the manageentities_loadCriForm action
+     * @param string               $modal  the modal to close, as posted
+     * @param array<string, mixed> $params the parameters forwarded to ajax/cri.php
+     *
+     * @return string
+     */
+    private static function getLoadCriFormCall(string $action, string $modal, array $params): string
+    {
+        // JSON_HEX_QUOT is wanted here, unlike in the plain JS string sinks: json_encode() emits
+        // the delimiters of the literals itself, so nothing of ours depends on a raw quote.
+        $flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
+
+        return "manageentities_loadCriForm("
+            . json_encode($action, $flags) . ", "
+            . json_encode($modal, $flags) . ", "
+            . json_encode($params, $flags) . ");";
+    }
+
+    public function showForm($ID, $options = [])
+    {
+        global $DB;
+
+        $ID = (int) $ID;
+        $job = new Ticket();
+        if (!$job->can($ID, READ)) {
+            throw new AccessDeniedHttpException();
+        }
+
+        $config = Config::getInstance();
+        $width = 200;
+
+        $params = [
+            'job' => $ID,
+            'form' => 'formReport',
+            'root_doc' => PLUGIN_MANAGEENTITIES_WEBDIR,
+            'toupdate' => $options['toupdate'],
+            'pdf_action' => $options['action'],
+            'width' => 1000,
+            'height' => 550,
+        ];
+
+        $modal = (string) ($options['modal'] ?? '');
+
+        // Contract block: the selectors data, and the contract/period they preselect.
+        $restrict = [
+            "`glpi_plugin_manageentities_cridetails`.`entities_id`" => $job->fields['entities_id'],
+            "`glpi_plugin_manageentities_cridetails`.`tickets_id`" => $job->fields['id'],
+        ];
+        $dbu = new DbUtils();
+        $cridetails = $dbu->getAllDataFromTable("glpi_plugin_manageentities_cridetails", $restrict);
+        $cridetail = reset($cridetails);
+        if (isset($cridetail['withcontract'])) {
+            $contract_link    = CriDetail::getContractLinkDropdownData(
+                $cridetail,
+                $job->fields['entities_id'],
+                'cri',
+            );
+            $contract_data    = $contract_link['template'];
+            $contractSelected = $contract_link['selection'];
+        } else {
+            $contract_data = [
+                'layout'          => 'table',
+                'out_of_contract' => true,
+            ];
+            $contractSelected = [
+                'contractSelected' => 0,
+                'contractdaySelected' => 0,
+                'is_contract' => 0,
+            ];
+        }
+
+        // Technicians already assigned to the ticket tasks.
+        $CriTechnician = new CriTechnician();
+        $technicians_id = $CriTechnician->getTechnicians($ID, true);
+        $is_task = self::isTask($ID);
+
+        // Structured data: cri_form.html.twig escapes the names and the handlers itself
+        $technicians = [];
+        if ($is_task) {
+            foreach ($technicians_id as $remove => $data) {
+                foreach ($data as $users_id => $users_name) {
+                    $delete_onclick = '';
+                    if ($remove == 'remove') {
+                        $tech_params = $params;
+                        $tech_params['tech_id'] = $users_id;
+                        $delete_onclick = self::getLoadCriFormCall('deleteTech', $modal, $tech_params);
+                    }
+                    $technicians[] = [
+                        'name'           => (string) $users_name,
+                        'delete_onclick' => $delete_onclick,
+                    ];
+                }
+            }
+        }
+
+        // Add-technician control (user dropdown + link) — always displayed.
+        $used = [];
+        if (!empty($technicians_id)) {
+            foreach ($technicians_id as $data) {
+                foreach ($data as $users_id => $users_name) {
+                    $used[] = $users_id;
+                }
+            }
+        }
+        $rand = mt_rand();
+        $add_tech_onclick = self::getLoadCriFormCall('addTech', $modal, $params);
+
+        // Hidden contract fields + optional CRI-type / moving-number dropdowns.
+        $contract_id       = 0;
+        $contractday_id    = 0;
+        $noprice           = false;
+        $without_contract  = false;
+        $critypes_data     = null;
+        $critypes_default  = 0;
+        $critype_label     = CriType::getTypeName(1);
+        $number_moving     = null;
+
+        if ($contractSelected['contractSelected'] && $contractSelected['contractdaySelected']) {
+            $contract_id    = $contractSelected['contractSelected'];
+            $contractday_id = $contractSelected['contractdaySelected'];
+
+            if ($config->fields['useprice'] == Config::PRICE) {
+                $CriPrice = new CriPrice();
+                $critypes = $CriPrice->getItems($contractSelected['contractdaySelected']);
+                $critypes_data = [\Dropdown::EMPTY_VALUE];
+                foreach ($critypes as $value) {
+                    $critypes_data[$value['plugin_manageentities_critypes_id']] = $value['critypes_name'];
+                    if ($value['is_default']) {
+                        $critypes_default = $value['plugin_manageentities_critypes_id'];
+                    }
+                }
+                //configuration do not use price
+            } else {
+                $noprice = true;
+            }
+
+            $contract = new Contract();
+            if ($contract->getFromDBByCrit([
+                'contracts_id' => $contractSelected['contractSelected'],
+                'entities_id' => $job->fields["entities_id"],
+            ])) {
+                if ($contract->fields['moving_management']) {
+                    $number_moving = $cridetail['number_moving'];
+                }
+            }
+        } elseif (!isset($cridetail['withcontract']) || $cridetail['withcontract'] == false) {
+            $without_contract = true;
+        }
+
+        $has_tasks = false;
+        $description = '';
+        $description_rand = 0;
+        $generate_button = null;
+        $no_tasks_message = '';
+        $not_task_message = '';
+
+        if ($is_task) {
+            /*
+             * Global CRI description, pre-filled with the non-private ticket tasks content.
+             */
+            $desc = "";
+            $criteria = [
+                'SELECT' => [
+                    'glpi_tickettasks.begin',
+                    'glpi_tickettasks.content',
+                    'glpi_tickettasks.end',
+                ],
+                'FROM' => 'glpi_tickettasks',
+
+                'WHERE' => [
+                    'glpi_tickettasks.tickets_id' => $ID,
+                ],
+            ];
+
+            if ($config->fields['use_publictask'] == Config::HOUR) {
+                $criteria['WHERE'] = $criteria['WHERE'] + ['glpi_tickettasks.is_private' => 0];
+            }
+
+            if ($config->fields['hourorday'] == Config::HOUR) {
+                $criteria['LEFT JOIN'] = [
+                    'glpi_plugin_manageentities_taskcategories' => [
+                        'ON' => [
+                            'glpi_plugin_manageentities_taskcategories' => 'taskcategories_id',
+                            'glpi_tickettasks' => 'taskcategories_id',
+                        ],
+                    ],
+                ];
+                $criteria['WHERE'] = $criteria['WHERE'] + ['glpi_plugin_manageentities_taskcategories.is_usedforcount' => 1];
+            }
+
+
+            $iterator = $DB->request($criteria);
+
+            if (count($iterator) > 0) {
+                $has_tasks = true;
+                foreach ($iterator as $data) {
+                    $desc .= $data["content"] . "\n\n";
+                }
+                $desc = substr($desc, 0, strlen($desc) - 2); // Drop the trailing carriage returns of the last task.
+
+                $description      = RichText::getEnhancedHtml($desc);
+                $description_rand = mt_rand();
+
+                // action empty : add cri
+                if (empty($options['action'])) {
+                    if (!empty($technicians_id)) {
+                        $generate_button = [
+                            'name'    => 'add_cri',
+                            'label'   => __('Generation of the intervention report', 'manageentities'),
+                            'onclick' => self::getLoadCriFormCall('addCri', $modal, $params),
+                        ];
+                    }
+                    // action not empty : update cri
+                } elseif ($options['action'] == 'update_cri') {
+                    if (!empty($technicians_id)) {
+                        $generate_button = [
+                            'name'    => 'update_cri',
+                            'label'   => __('Regenerate the intervention report', 'manageentities'),
+                            'onclick' => self::getLoadCriFormCall('updateCri', $modal, $params),
+                        ];
+                    }
+                }
+            } else {
+                if ($config->fields['hourorday'] != Config::HOUR) {
+                    $no_tasks_message = __("Impossible generation, you didn't create a scheduled task", 'manageentities');
+                } else {
+                    $no_tasks_message = __('No tasks whose category can be used', 'manageentities');
+                }
+            }
+        } else {
+            $not_task_message = __("Impossible generation, you didn't create a scheduled task", 'manageentities');
+        }
+
+        TemplateRenderer::getInstance()->display('@manageentities/cri_form.html.twig', [
+            'form_action'          => PLUGIN_MANAGEENTITIES_WEBDIR . "/front/cri.form.php",
+            'report_id'            => $ID,
+            'contract_id'          => $contract_id,
+            'contractday_id'       => $contractday_id,
+            'noprice'              => $noprice,
+            'without_contract'     => $without_contract,
+            'contract_data'        => $contract_data,
+            'is_task_list'         => $is_task,
+            'technicians'          => $technicians,
+            'entities_id'          => $job->fields['entities_id'],
+            'used_technicians'     => $used,
+            'width'                => $width,
+            'add_tech_onclick'     => $add_tech_onclick,
+            'add_tech_rand'        => $rand,
+            'critypes'             => $critypes_data,
+            'critype_default'      => $critypes_default,
+            'critype_label'        => $critype_label,
+            'number_moving'        => $number_moving,
+            'is_task'              => $is_task,
+            'has_tasks'            => $has_tasks,
+            'description'          => $description,
+            'description_rand'     => $description_rand,
+            'generate_button'      => $generate_button,
+            'no_tasks_message'     => $no_tasks_message,
+            'not_task_message'     => $not_task_message,
+        ]);
+    }
+
+    public function isTask($tickets_id)
+    {
+        $tickettask = new \TicketTask();
+        $tasks = $tickettask->find(['tickets_id' => $tickets_id]);
+        if (count($tasks)) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * Collect the data and generate the document. It is saved depending on the
+     * saving parameter.
+     *
+     * @param $params
+     * @param $options
+     *
+     * @return boolean
+     * @global CriPDF $PDF
+     * @global type $DB
+     * @global type $CFG_GLPI
+     *
+     */
+    /**
+     * Re-validate a posted core contract identifier against the entity of the report ticket.
+     *
+     * CriDetail::showContractLinkDropdown() only offers a contract when a plugin Contract row
+     * declares it for the entity of the ticket, but that criterion lives in the list builder
+     * alone: the identifier travels back as a hidden field and used to be trusted verbatim.
+     * Replay the very same criterion here rather than inventing another one - comparing the
+     * entity of the *core* contract with the entity of the ticket would wrongly reject the
+     * recursive contracts the dropdown does legitimately offer.
+     *
+     * No additional right bit is required on top: the CRI form is already gated on
+     * plugin_manageentities_cri_create plus READ on the ticket, and its users are not expected
+     * to hold the contract rights themselves.
+     *
+     * @param int $contracts_id the posted core contract identifier
+     * @param int $entities_id  the entity of the ticket the report belongs to
+     *
+     * @return int the validated identifier, 0 when nothing was posted
+     */
+    private static function validateContract(int $contracts_id, int $entities_id): int
+    {
+        if ($contracts_id <= 0) {
+            return 0;
+        }
+
+        $dbu = new DbUtils();
+        if ($dbu->countElementsInTable(
+            Contract::getTable(),
+            ['contracts_id' => $contracts_id, 'entities_id' => $entities_id],
+        ) === 0) {
+            throw new AccessDeniedHttpException();
+        }
+
+        return $contracts_id;
+    }
+
+    /**
+     * Re-validate a posted contract period against the contract it is claimed to belong to.
+     *
+     * Mirror of the dropdown restriction of CriDetail::showContractLinkDropdown(): a period is
+     * only offered for the selected contract. The contract itself has already been anchored on
+     * the entity of the ticket by validateContract(), so tying the period to it is enough to
+     * keep the pair inside that entity.
+     *
+     * @param int $contractdays_id the posted contract period identifier
+     * @param int $contracts_id    the contract identifier already validated
+     *
+     * @return int the validated identifier, 0 when nothing was posted
+     */
+    private static function validateContractDay(int $contractdays_id, int $contracts_id): int
+    {
+        if ($contractdays_id <= 0) {
+            return 0;
+        }
+
+        $contract_day = new ContractDay();
+        if ($contracts_id <= 0
+            || !$contract_day->getFromDB($contractdays_id)
+            || (int) $contract_day->fields['contracts_id'] !== $contracts_id
+        ) {
+            throw new AccessDeniedHttpException();
+        }
+
+        return $contractdays_id;
+    }
+
+    public function generatePdf($params, $options = [])
+    {
+        global $PDF, $DB, $CFG_GLPI;
+
+        $p['CONTRACTDAY'] = 0;
+        $p['WITHOUTCONTRACT'] = 0;
+        $p['CONTRAT'] = 0;
+        $p['REPORT_ACTIVITE'] = '';
+        $p['REPORT_ACTIVITE_ID'] = 0;
+        $p['documents_id'] = 0;
+        $p['number_moving'] = 0;
+
+        foreach ($params as $key => $val) {
+            $p[$key] = $val;
+            if ($key == 'REPORT_DESCRIPTION') {
+                $p[$key] = urldecode($val);
+            }
+        }
+
+        // The loop above copies the posted payload verbatim, documents_id included, and that value
+        // used to reach Document::update() further down without a single right check: any document
+        // of the instance could be overwritten by pointing this key at its id. The identifier has
+        // exactly one legitimate source, the CRI detail row already attached to the target ticket -
+        // which is what the "updateCri" action of ajax/cri.php reloads before calling this method,
+        // while "saveCri" did not. Resolve it here so that every caller is covered.
+        $p['documents_id'] = 0;
+        $reportCriDetails  = (new CriDetail())->find(['tickets_id' => (int) ($p['REPORT_ID'] ?? 0)]);
+        $reportCriDetail   = reset($reportCriDetails);
+        if (is_array($reportCriDetail)) {
+            $p['documents_id'] = (int) $reportCriDetail['documents_id'];
+        }
+
+        $config = Config::getInstance();
+
+        $PDF = new CriPDF('P', 'mm', 'A4');
+
+        /* Initialise the document with the data entered by the user. */
+        // REPORT_ACTIVITE_ID comes straight from the client payload: the guards of ajax/cri.php
+        // cover the parent ticket and the technician, not this dropdown value, which used to be
+        // resolved with a bare getFromDB() and its label printed into the generated PDF. The id
+        // is also written back as plugin_manageentities_critypes_id further down, hence the cast.
+        // can($id, READ) carries the read right of the itemtype and performs the load; the table
+        // is a global dropdown with no entities_id column, so there is no entity boundary to
+        // enforce on top of it.
+        $criType_id = (int) $p['REPORT_ACTIVITE_ID'];
+        $typeCri = new CriType();
+        if ($criType_id > 0 && $typeCri->can($criType_id, READ)) {
+            $p['REPORT_ACTIVITE'] = $typeCri->getField('name');
+        }
+        if ($config->fields['useprice'] == Config::NOPRICE
+            || $config->fields['hourorday'] == Config::HOUR
+        ) {
+            $p['REPORT_ACTIVITE'] = [];
+        }
+
+        $p['REPORT_DESCRIPTION'] = str_replace("’", "'", $p['REPORT_DESCRIPTION']);
+        $PDF->SetDescriptionCri($p['REPORT_DESCRIPTION']);
+
+        $job = new Ticket();
+        if ($job->getfromDB($p['REPORT_ID'])) {
+            // Security (cross-entity IDOR): CONTRAT and CONTRACTDAY come back from the client as
+            // hidden fields (see cri_form.html.twig, rendered by showForm()) and used to
+            // be consumed as is, although the only thing that ever restricted them is the list
+            // builder of the dropdown. Anchor them on the entity of the ticket before they reach
+            // the generated PDF, the CriDetail row and Contract::updateRemainingDays(), which
+            // would otherwise disclose and decrement another entity's contract.
+            $p['CONTRAT']     = self::validateContract((int) $p['CONTRAT'], (int) $job->fields['entities_id']);
+            $p['CONTRACTDAY'] = self::validateContractDay((int) $p['CONTRACTDAY'], (int) $p['CONTRAT']);
+
+            /* Load the ticket data and initialise the report. */
+            $PDF->SetDemandeAssociee($p['REPORT_ID']); // Ticket linked to the report.
+            // Set intervenants
+            $critechnicians = new CriTechnician();
+            $intervenants = implode(',', $critechnicians->getTechnicians($p['REPORT_ID']));
+            $PDF->SetIntervenant($intervenants);
+
+            if ($p['WITHOUTCONTRACT']) {
+                $sous_contrat = false;
+                $PDF->SetSousContrat(0);
+
+                /* Active entity and its contract. */
+                $infos_entite = [];
+                $entite = new \Entity();
+                $entite->getFromDB($job->fields["entities_id"]);
+                $infos_entite[0] = $entite;
+                $PDF->SetEntite($infos_entite);
+
+                /* Year and month of the intervention (ticket date). */
+                $infos_date = [];
+                $infos_date[0] = $job->fields["date"];
+
+                /* From ... to ... */
+                //configuration only public task
+
+                $criteria1 = [
+                    'SELECT' => [
+                        new QueryExpression("MAX(glpi_tickettasks.end) AS " . $DB->quoteName('max_date')),
+                        new QueryExpression("MIN(glpi_tickettasks.begin) AS " . $DB->quoteName('min_date')),
+                    ],
+                    'FROM' => 'glpi_tickettasks',
+                    'LEFT JOIN' => [
+                        'glpi_plugin_manageentities_taskcategories' => [
+                            'ON' => [
+                                'glpi_plugin_manageentities_taskcategories' => 'taskcategories_id',
+                                'glpi_tickettasks' => 'taskcategories_id',
+                            ],
+                        ],
+                    ],
+                    'WHERE' => [
+                        'glpi_tickettasks.tickets_id' => $p['REPORT_ID'],
+                    ],
+                ];
+                if ($config->fields['use_publictask'] == '1') {
+                    $criteria1['WHERE'] = $criteria1['WHERE'] + ['is_private' => 0];
+                }
+
+                $queries[] = $criteria1;
+
+                $criteria2 = [
+                    'SELECT' => [
+                        new QueryExpression("MAX(glpi_tickettasks.date) AS " . $DB->quoteName('max_date')),
+                        new QueryExpression("MIN(glpi_tickettasks.date) AS " . $DB->quoteName('min_date')),
+                    ],
+                    'FROM' => 'glpi_tickettasks',
+                    'LEFT JOIN' => [
+                        'glpi_plugin_manageentities_taskcategories' => [
+                            'ON' => [
+                                'glpi_plugin_manageentities_taskcategories' => 'taskcategories_id',
+                                'glpi_tickettasks' => 'taskcategories_id',
+                            ],
+                        ],
+                    ],
+                    'WHERE' => [
+                        'glpi_tickettasks.tickets_id' => $p['REPORT_ID'],
+                    ],
+                ];
+                if ($config->fields['use_publictask'] == '1') {
+                    $criteria2['WHERE'] = $criteria2['WHERE'] + ['is_private' => 0];
+                }
+
+                $queries[] = $criteria2;
+
+                $criteria = [
+                    'SELECT' => [
+                        new QueryExpression("MAX(max_date) AS " . $DB->quoteName('max_date')),
+                        new QueryExpression("MIN(min_date) AS " . $DB->quoteName('min_date')),
+                    ],
+                    'FROM' => new QueryUnion($queries),
+                ];
+
+                $iterator = $DB->request($criteria);
+
+                if (count($iterator) > 0) {
+                    foreach ($iterator as $data) {
+                        $infos_date[1] = $data["min_date"];
+                        $infos_date[2] = $data["max_date"];
+                    }
+                }
+                $PDF->SetDateIntervention($infos_date);
+
+                // Forfait
+
+                $temps_passes = [];
+
+
+                $result = self::getTempsPasses($p);
+                $cpt_tps = 0;
+                foreach ($result as $data) {
+                    $un_temps_passe = [];
+
+                    if ($config->fields['useprice'] == Config::PRICE) {
+                        // If the category of the task is not used and is hourly for count we set value to 0
+                        if ($data["is_usedforcount"] == 0 && $config->fields['hourorday'] == Config::HOUR) {
+                            $un_temps_passe[4] = 0;
+                        } else {
+                            $un_temps_passe[4] = round($data["tps_passes"], 2, PHP_ROUND_HALF_UP);
+                        }
+                    } else {
+                        // If the category of the task is not used and is hourly for count we set value to 0
+                        if ($data["is_usedforcount"] == 0 && $config->fields['hourorday'] == Config::HOUR) {
+                            $un_temps_passe[4] = 0;
+                        } else {
+                            $un_temps_passe[4] = $PDF->TotalTpsPassesArrondis(round($data["tps_passes"], 2, PHP_ROUND_HALF_UP));
+                        } //arrondir au quart
+                    }
+                    if ($data["date_debut"] == null && $data["date_fin"] == null) {
+                        $un_temps_passe[0] = substr($data["date"], 8, 2) . "/" . substr(
+                            $data["date"],
+                            5,
+                            2,
+                        ) . "/" . substr($data["date"], 0, 4);
+                        $un_temps_passe[1] = ($data["date"] == "-") ? "-" : substr($data["date"], 11, 2) . ":" . substr(
+                            $data["date"],
+                            14,
+                            2,
+                        );
+                        //calculating the end date
+                        if ($config->fields['hourorday'] == Config::HOUR) {
+                            $date = date(
+                                'Y-m-d H:i:s',
+                                strtotime($data["date"] . " + " . (($un_temps_passe[4]) * 3600) . " seconds"),
+                            );
+                        } else {
+                            //daily
+                            $date = date(
+                                'Y-m-d H:i:s',
+                                strtotime($data["date"] . " + " . $un_temps_passe[4] * $config->fields['hourbyday'] . " hours"),
+                            );
+                        }
+
+                        $un_temps_passe[2] = substr($date, 8, 2) . "/" . substr($date, 5, 2) . "/" . substr(
+                            $date,
+                            0,
+                            4,
+                        );
+                        $un_temps_passe[3] = ($date == "-") ? "-" : substr($date, 11, 2) . ":" . substr($date, 14, 2);
+                    } else {
+                        $un_temps_passe[0] = substr($data["date_debut"], 8, 2) . "/" . substr(
+                            $data["date_debut"],
+                            5,
+                            2,
+                        ) . "/" . substr($data["date_debut"], 0, 4);
+                        $un_temps_passe[1] = ($data["heure_debut"] == "-") ? "-" : substr(
+                            $data["heure_debut"],
+                            11,
+                            2,
+                        ) . ":" . substr($data["heure_debut"], 14, 2);
+                        $un_temps_passe[2] = substr($data["date_fin"], 8, 2) . "/" . substr(
+                            $data["date_fin"],
+                            5,
+                            2,
+                        ) . "/" . substr($data["date_fin"], 0, 4);
+                        $un_temps_passe[3] = ($data["heure_fin"] == "-") ? "-" : substr(
+                            $data["heure_fin"],
+                            11,
+                            2,
+                        ) . ":" . substr($data["heure_fin"], 14, 2);
+                    }
+
+                    $temps_passes[$cpt_tps] = $un_temps_passe;
+
+
+                    if ($config->fields['useprice'] == Config::NOPRICE && $config->fields['hourorday'] == Config::HOUR) {
+                        $p['REPORT_ACTIVITE'][$cpt_tps] = \Dropdown::getDropdownName(
+                            'glpi_taskcategories',
+                            $data['taskcat'],
+                        );
+                    }
+
+                    $cpt_tps++;
+                }
+
+                $PDF->SetLibelleActivite($p['REPORT_ACTIVITE']);
+                $PDF->SetTempsPasses($temps_passes);
+            } else {
+                $manageentities_contract = new Contract();
+                $manageentities_contract_data = $manageentities_contract->find(['contracts_id' => $p['CONTRAT']]);
+                $manageentities_contract_data = array_shift($manageentities_contract_data);
+                $contract_days = new ContractDay();
+                $contract_days->getFromDB($p['CONTRACTDAY']);
+
+                if ($contract_days->fields['begin_date'] == "" && $contract_days->fields['end_date'] == "") {
+                    Session::addMessageAfterRedirect(
+                        __('Please fill the contract period begin and end dates.', 'manageentities'),
+                        true,
+                        ERROR,
+                    );
+                    Html::back();
+                    return false;
+                } elseif ($contract_days->fields['end_date'] == "") {
+                    Session::addMessageAfterRedirect(
+                        __('Please fill the contract period end date.', 'manageentities'),
+                        true,
+                        ERROR,
+                    );
+                    Html::back();
+                    return false;
+                } elseif ($contract_days->fields['begin_date'] == "") {
+                    Session::addMessageAfterRedirect(
+                        __('Please fill the contract period begin date.', 'manageentities'),
+                        true,
+                        ERROR,
+                    );
+                    Html::back();
+                    return false;
+                }
+
+                /* Year and month of the intervention (ticket date). */
+                $infos_date = [];
+                $infos_date[0] = $job->fields["date"];
+                $queries = [];
+                // Not Forfait
+                if (($config->fields['hourorday'] == Config::HOUR)
+                    || (isset($contract_days->fields['contract_type'])
+                        && $contract_days->fields['contract_type'] != Contract::CONTRACT_TYPE_FORFAIT)) {
+                    /* From ... to ... */
+                    //configuration only public task
+                    $criteria1 = [
+                        'SELECT' => [
+                            new QueryExpression("MAX(glpi_tickettasks.end) AS " . $DB->quoteName('max_date')),
+                            new QueryExpression("MIN(glpi_tickettasks.begin) AS " . $DB->quoteName('min_date')),
+                        ],
+                        'FROM' => 'glpi_tickettasks',
+                        'LEFT JOIN' => [
+                            'glpi_plugin_manageentities_taskcategories' => [
+                                'ON' => [
+                                    'glpi_plugin_manageentities_taskcategories' => 'taskcategories_id',
+                                    'glpi_tickettasks' => 'taskcategories_id',
+                                ],
+                            ],
+                        ],
+                        'WHERE' => [
+                            'glpi_tickettasks.tickets_id' => $p['REPORT_ID'],
+                        ],
+                    ];
+                    if ($config->fields['use_publictask'] == '1') {
+                        $criteria1['WHERE'] = $criteria1['WHERE'] + ['is_private' => 0];
+                    }
+
+                    $queries[] = $criteria1;
+
+                    $criteria2 = [
+                        'SELECT' => [
+                            new QueryExpression("MAX(glpi_tickettasks.date) AS " . $DB->quoteName('max_date')),
+                            new QueryExpression("MIN(glpi_tickettasks.date) AS " . $DB->quoteName('min_date')),
+                        ],
+                        'FROM' => 'glpi_tickettasks',
+                        'LEFT JOIN' => [
+                            'glpi_plugin_manageentities_taskcategories' => [
+                                'ON' => [
+                                    'glpi_plugin_manageentities_taskcategories' => 'taskcategories_id',
+                                    'glpi_tickettasks' => 'taskcategories_id',
+                                ],
+                            ],
+                        ],
+                        'WHERE' => [
+                            'glpi_tickettasks.tickets_id' => $p['REPORT_ID'],
+                        ],
+                    ];
+                    if ($config->fields['use_publictask'] == '1') {
+                        $criteria2['WHERE'] = $criteria2['WHERE'] + ['is_private' => 0];
+                    }
+
+                    $queries[] = $criteria2;
+
+                    $criteria = [
+                        'SELECT' => [
+                            new QueryExpression("MAX(max_date) AS " . $DB->quoteName('max_date')),
+                            new QueryExpression("MIN(min_date) AS " . $DB->quoteName('min_date')),
+                        ],
+                        'FROM' => new QueryUnion($queries),
+                    ];
+
+                    $iterator = $DB->request($criteria);
+
+                    if (count($iterator) > 0) {
+                        foreach ($iterator as $data) {
+                            $infos_date[1] = $data["min_date"];
+                            $infos_date[2] = $data["max_date"];
+                        }
+                    }
+
+                    $PDF->SetDateIntervention($infos_date);
+                    // Forfait
+                } else {
+                    $infos_date[1] = $contract_days->fields['begin_date'];
+                    $infos_date[2] = $contract_days->fields['end_date'];
+
+                    $PDF->SetDateIntervention($infos_date);
+                }
+
+                /* Active entity and its contract. */
+                $infos_entite = [];
+                $entite = new \Entity();
+                $entite->getFromDB($job->fields["entities_id"]);
+                $infos_entite[0] = $entite;
+
+                if ($p['CONTRAT']) {
+                    $contract = new \Contract();
+                    $contract->getFromDB($p['CONTRAT']);
+                    $infos_entite[1] = $contract->fields["num"];
+                    $sous_contrat = true;
+                } else {
+                    $infos_entite[1] = "";
+                    $sous_contrat = false;
+                }
+                $PDF->SetSousContrat($sous_contrat);
+
+                $PDF->SetEntite($infos_entite);
+
+                //type of contract Intervention entitled the total change
+                if ($config->fields['hourorday'] == Config::HOUR && (isset($manageentities_contract_data['contract_type']) && $manageentities_contract_data['contract_type'] == Contract::CONTRACT_TYPE_INTERVENTION)) {
+                    $PDF->setIntervention();
+                }
+
+                if (($config->fields['hourorday'] == Config::HOUR)
+                    || (isset($contract_days->fields['contract_type']) && $contract_days->fields['contract_type'] != Contract::CONTRACT_TYPE_FORFAIT)) {
+                    $result = self::getTempsPasses($p);
+                    $temps_passes = [];
+                    $cpt_tps = 0;
+                    foreach ($result as $data) {
+                        $un_temps_passe = [];
+                        if (($config->fields['hourorday'] == Config::HOUR) && (isset($manageentities_contract_data['contract_type']) && $manageentities_contract_data['contract_type'] == Contract::CONTRACT_TYPE_INTERVENTION)) {
+                            $un_temps_passe[4] = 1;
+                        } else {
+                            if ($config->fields['useprice'] == Config::PRICE) {
+                                // If the category of the task is not used and is hourly for count we set value to 0
+                                if ($data["is_usedforcount"] == 0
+                                    && $config->fields['hourorday'] == Config::HOUR) {
+                                    $un_temps_passe[4] = 0;
+                                } else {
+                                    $un_temps_passe[4] = round($data["tps_passes"], 2, PHP_ROUND_HALF_UP);
+                                }
+                            } else {
+                                // If the category of the task is not used and is hourly for count we set value to 0
+                                if ($data["is_usedforcount"] == 0 && $config->fields['hourorday'] == Config::HOUR) {
+                                    $un_temps_passe[4] = 0;
+                                } else {
+                                    $un_temps_passe[4] = $PDF->TotalTpsPassesArrondis(round($data["tps_passes"], 2, PHP_ROUND_HALF_UP));
+                                } //arrondir au quart
+                            }
+                        }
+                        if ($data["date_debut"] == null && $data["date_fin"] == null) {
+                            $un_temps_passe[0] = substr($data["date"], 8, 2) . "/" . substr(
+                                $data["date"],
+                                5,
+                                2,
+                            ) . "/" . substr($data["date"], 0, 4);
+                            $un_temps_passe[1] = ($data["date"] == "-") ? "-" : substr(
+                                $data["date"],
+                                11,
+                                2,
+                            ) . ":" . substr($data["date"], 14, 2);
+                            //calculating the end date
+                            if ($config->fields['hourorday'] == Config::HOUR) {
+                                $date = date(
+                                    'Y-m-d H:i:s',
+                                    strtotime($data["date"] . " + " . (($un_temps_passe[4]) * 3600) . " seconds"),
+                                );
+                            } else {
+                                //daily
+                                $date = date(
+                                    'Y-m-d H:i:s',
+                                    strtotime($data["date"] . " + " . $un_temps_passe[4] * $config->fields['hourbyday'] . " hours"),
+                                );
+                            }
+
+                            $un_temps_passe[2] = substr($date, 8, 2) . "/" . substr($date, 5, 2) . "/" . substr(
+                                $date,
+                                0,
+                                4,
+                            );
+                            $un_temps_passe[3] = ($date == "-") ? "-" : substr($date, 11, 2) . ":" . substr(
+                                $date,
+                                14,
+                                2,
+                            );
+                        } else {
+                            $un_temps_passe[0] = substr($data["date_debut"], 8, 2) . "/" . substr(
+                                $data["date_debut"],
+                                5,
+                                2,
+                            ) . "/" . substr($data["date_debut"], 0, 4);
+                            $un_temps_passe[1] = ($data["heure_debut"] == "-") ? "-" : substr(
+                                $data["heure_debut"],
+                                11,
+                                2,
+                            ) . ":" . substr($data["heure_debut"], 14, 2);
+                            $un_temps_passe[2] = substr($data["date_fin"], 8, 2) . "/" . substr(
+                                $data["date_fin"],
+                                5,
+                                2,
+                            ) . "/" . substr($data["date_fin"], 0, 4);
+                            $un_temps_passe[3] = ($data["heure_fin"] == "-") ? "-" : substr(
+                                $data["heure_fin"],
+                                11,
+                                2,
+                            ) . ":" . substr($data["heure_fin"], 14, 2);
+                        }
+
+                        $temps_passes[$cpt_tps] = $un_temps_passe;
+
+
+                        if ($config->fields['useprice'] == Config::NOPRICE || $config->fields['hourorday'] == Config::HOUR) {
+                            $p['REPORT_ACTIVITE'][$cpt_tps] = \Dropdown::getDropdownName(
+                                'glpi_taskcategories',
+                                $data['taskcat'],
+                            );
+                        }
+
+                        $cpt_tps++;
+                    }
+
+                    $PDF->SetLibelleActivite($p['REPORT_ACTIVITE']);
+                    $PDF->SetTempsPasses($temps_passes);
+                    // Forfait
+                } else {
+                    $PDF->SetForfait();
+                    $un_temps_passe[0] = Html::convDate($contract_days->fields['begin_date']);
+                    $un_temps_passe[1] = '';
+                    $un_temps_passe[2] = Html::convDate($contract_days->fields['end_date']);
+                    $un_temps_passe[3] = '';
+                    $un_temps_passe[4] = $PDF->TotalTpsPassesArrondis(round($contract_days->fields['nbday'], 2, PHP_ROUND_HALF_UP));
+                    $temps_passes[] = $un_temps_passe;
+
+                    if ($config->fields['useprice'] == Config::NOPRICE) {
+                        $tickettasks = new \TicketTask();
+                        $tasks_data = $tickettasks->find(['tickets_id' => $p['REPORT_ID']]);
+                        $tasks_data = array_shift($tasks_data);
+                        $p['REPORT_ACTIVITE'][] = \Dropdown::getDropdownName(
+                            'glpi_taskcategories',
+                            $tasks_data['taskcategories_id'],
+                        );
+                    }
+                    $PDF->SetLibelleActivite($p['REPORT_ACTIVITE']);
+
+                    $PDF->SetTempsPasses($temps_passes);
+                }
+
+                // Travel
+                if ($manageentities_contract_data['moving_management']) {
+                    $PDF->SetDeplacement(true);
+                    if ($config->fields['hourorday'] == Config::HOUR) {
+                        $time_in_sec = $manageentities_contract_data['duration_moving'];
+                        $time_deplacement = ($time_in_sec * $p['number_moving']) / HOUR_TIMESTAMP;
+                        $PDF->SetNombreDeplacement($time_deplacement);
+                    } else {
+                        $time_in_sec = $manageentities_contract_data['duration_moving'];
+                        $time_deplacement = (($time_in_sec * $p['number_moving'] / HOUR_TIMESTAMP) / $config->fields['hourbyday']);
+                        $PDF->SetNombreDeplacement($PDF->TotalTpsPassesArrondis($time_deplacement));
+                    }
+                }
+            }
+        }
+
+        // Draw the document.
+        $PDF->DrawCri();
+
+        //for insert into table cridetails
+        $totaltemps_passes = $PDF->TotalTpsPassesArrondis($_SESSION["glpi_plugin_manageentities_total"]);
+
+        /* Generate the file and store the link in the database. */
+
+        $name = "CRI - " . $PDF->GetNoCri();
+        $filename = $name . ".pdf";
+        $savepath = GLPI_TMP_DIR . "/";
+        $seepath = GLPI_PLUGIN_DOC_DIR . "/manageentities/";
+        $savefilepath = $savepath . $filename;
+
+        // The preview is served by front/cri.send.php out of a directory shared by every
+        // entity, and it used to be named after the CRI number, which is a timestamp: a day
+        // of reports was enumerable in 86400 guesses by anyone holding the global cri right.
+        // Give the preview an unguessable name of its own, registered in the session below,
+        // so the only readable file is the one this session just generated.
+        $seefilename = "CRI-preview-" . bin2hex(random_bytes(16)) . ".pdf";
+        $seefilepath = $seepath . $seefilename;
+
+        if ($config->fields["backup"] == 1 && $p['enregistrement']) {
+            $PDF->Output($savefilepath, 'F');
+
+            $input = [];
+            $input["entities_id"] = $job->fields["entities_id"];
+            // Raw storage since GLPI 10: addslashes() here only wrote literal backslashes into
+            // the document name and filename, and the escaping is the query builder's job.
+            $input["name"] = $name;
+            $input["filename"] = $filename;
+            $input["_filename"][0] = $filename;
+            $input["upload_file"] = $filename;
+            $input["documentcategories_id"] = $config->fields["documentcategories_id"];
+            $input["mime"] = "application/pdf";
+            $input["date_mod"] = date("Y-m-d H:i:s");
+            $input["users_id"] = Session::getLoginUserID();
+            $input["tickets_id"] = $p['REPORT_ID'];
+
+            $doc = new Document();
+            if (empty($p['documents_id'])) {
+                $newdoc = $doc->add($input);
+            } else {
+                $doc->getFromDB($p['documents_id']);
+                $input['current_filepath'] = $filename;
+                $input['id'] = $p['documents_id'];
+                $newdoc = $p['documents_id'];
+
+                // If update worked, delete old file and directory
+                $doc->update($input);
+            }
+
+            $withcontract = 0;
+            if ($sous_contrat == true) {
+                $withcontract = 1;
+            }
+
+            $values = [];
+            $values["entities_id"] = $job->fields["entities_id"];
+            $values["date"] = $infos_date[2];
+            $values["documents_id"] = $newdoc;
+            $values["plugin_manageentities_critypes_id"] = $criType_id;
+            $values["withcontract"] = $withcontract;
+            $values["contracts_id"] = $p['CONTRAT'];
+            $values["realtime"] = $totaltemps_passes;
+            $values["technicians"] = $intervenants;
+            $values["tickets_id"] = $p['REPORT_ID'];
+            $values["number_moving"] = $p['number_moving'];
+
+            $restrict = [
+                "`glpi_plugin_manageentities_cridetails`.`entities_id`" => $job->fields['entities_id'],
+                "`glpi_plugin_manageentities_cridetails`.`tickets_id`" => $job->fields['id'],
+            ];
+            $dbu = new DbUtils();
+            $cridetails = $dbu->getAllDataFromTable("glpi_plugin_manageentities_cridetails", $restrict);
+            $cridetail = reset($cridetails);
+
+            $CriDetail = new CriDetail();
+            if (empty($cridetail)) {
+                $newID = $CriDetail->add($values);
+            } else {
+                $values["id"] = $cridetail['id'];
+                $CriDetail->update($values);
+            }
+
+
+            $this->CleanFiles($seepath);
+        } else {
+            // Save the PDF into the preview file
+            $PDF->Output($seefilepath, 'F');
+
+            // A short list rather than a single slot, so two tabs do not invalidate each
+            // other's preview. Nothing here survives the session.
+            $previews = $_SESSION['plugin_manageentities_cri_previews'] ?? [];
+            $previews[$seefilename] = time();
+            if (count($previews) > 10) {
+                $previews = array_slice($previews, -10, null, true);
+            }
+            $_SESSION['plugin_manageentities_cri_previews'] = $previews;
+
+            if ($config->fields["backup"] == 1) {
+                if ($config->fields['hourorday'] == Config::HOUR) {
+                    $report_activite = 'hour';
+                } elseif ($config->fields['useprice'] == Config::PRICE) {
+                    $report_activite = $p['REPORT_ACTIVITE'];
+                } else {
+                    $report_activite = 'noprice';
+                }
+                $p['REPORT_DESCRIPTION'] = stripcslashes($p['REPORT_DESCRIPTION']);
+                $p['REPORT_DESCRIPTION'] = str_replace("\\\\", "\\", $p['REPORT_DESCRIPTION']);
+                $p['REPORT_DESCRIPTION'] = str_replace("\\'", "'", $p['REPORT_DESCRIPTION']);
+                $p['REPORT_DESCRIPTION'] = str_replace("<br>", " ", $p['REPORT_DESCRIPTION']);
+                $p['REPORT_DESCRIPTION'] = str_replace("’", "'", $p['REPORT_DESCRIPTION']);
+
+                // Carry the description to the saveCri POST without a second, visible rich-text
+                // editor: this preview step only needs to forward the value already entered in the
+                // first modal, so a plain hidden field is enough (the PDF is regenerated from it on
+                // save). A richtext textarea here rendered a useless empty TinyMCE editor.
+                $hidden_fields = [
+                    'REPORT_ID'           => $p['REPORT_ID'],
+                    'REPORT_SOUS_CONTRAT' => $sous_contrat,
+                    'REPORT_ACTIVITE'     => $report_activite,
+                    'REPORT_DESCRIPTION'  => $p['REPORT_DESCRIPTION'],
+                    'INTERVENANTS'        => $intervenants,
+                    'documents_id'        => $p['documents_id'],
+                    'CONTRAT'             => $p['CONTRAT'],
+                    'CONTRACTDAY'         => $p['CONTRACTDAY'],
+                    'WITHOUTCONTRACT'     => $p['WITHOUTCONTRACT'],
+                    'number_moving'       => $p['number_moving'],
+                    'REPORT_ACTIVITE_ID'  => $p['REPORT_ACTIVITE_ID'],
+                ];
+
+                $params = [
+                    'job' => $job->fields['id'],
+                    'form' => 'formReport',
+                    'root_doc' => PLUGIN_MANAGEENTITIES_WEBDIR,
+                    'toupdate' => $options['toupdate'],
+                ];
+                TemplateRenderer::getInstance()->display('@manageentities/cri_preview.html.twig', [
+                    'hidden_fields' => $hidden_fields,
+                    'save_onclick'  => self::getLoadCriFormCall('saveCri', (string) $options['modal'], $params),
+                    'preview_url'   => PLUGIN_MANAGEENTITIES_WEBDIR . "/front/cri.send.php?file=_plugins/manageentities/" . rawurlencode($seefilename),
+                ]);
+            }
+
+
+        }
+    }
+
+    /**
+     * Request: task with time spent
+     *
+     * @param $join
+     * @param $where
+     * @param $p
+     * @param $config
+     *
+     * @global type $DB
+     *
+     */
+    public function getTempsPasses($p)
+    {
+        global $DB;
+
+        $config = Config::getInstance();
+
+        //configuration by day
+        if ($config->fields['hourorday'] == Config::DAY) {
+            $nbhour = $config->fields["hourbyday"];
+            $condition = "";
+        } else {
+            //configuration by hour
+            $nbhour = 1;
+        }
+
+        $criteria1 = [
+            'SELECT' => [
+                'glpi_tickettasks.id',
+                'glpi_tickettasks.taskcategories_id AS taskcat',
+                'glpi_tickettasks.date AS date',
+                'glpi_tickettasks.begin AS date_debut',
+                'glpi_tickettasks.end AS date_fin',
+                'glpi_tickettasks.begin AS heure_debut',
+                'glpi_tickettasks.end AS heure_fin',
+                'glpi_tickettasks.actiontime as actiontime',
+                new QueryExpression(
+                    "(glpi_tickettasks.actiontime/3600)/" . $DB->quoteValue($nbhour) . " AS " . $DB->quoteName(
+                        'tps_passes',
+                    ),
+                ),
+                'glpi_plugin_manageentities_taskcategories.is_usedforcount as is_usedforcount',
+            ],
+            'FROM' => 'glpi_tickettasks',
+            'LEFT JOIN' => [
+                'glpi_plugin_manageentities_taskcategories' => [
+                    'ON' => [
+                        'glpi_plugin_manageentities_taskcategories' => 'taskcategories_id',
+                        'glpi_tickettasks' => 'taskcategories_id',
+                    ],
+                ],
+            ],
+            'WHERE' => [
+                'glpi_tickettasks.tickets_id' => $p['REPORT_ID'],
+            ],
+        ];
+        if ($config->fields['use_publictask'] == '1') {
+            $criteria1['WHERE'] = $criteria1['WHERE'] + ['is_private' => 0];
+        }
+
+        if ($config->fields['hourorday'] == Config::HOUR) {
+            $criteria1['WHERE'] = $criteria1['WHERE'] + ['glpi_plugin_manageentities_taskcategories.is_usedforcount' => 1];
+        }
+
+        $queries[] = $criteria1;
+
+        $criteria2 = [
+            'SELECT' => [
+                'glpi_tickettasks.id',
+                'glpi_tickettasks.taskcategories_id AS taskcat',
+                'glpi_tickettasks.date AS date',
+                'glpi_tickettasks.begin AS date_debut',
+                'glpi_tickettasks.end AS date_fin',
+                'glpi_tickettasks.begin AS heure_debut',
+                'glpi_tickettasks.end AS heure_fin',
+                'glpi_tickettasks.actiontime as actiontime',
+                new QueryExpression(
+                    "(glpi_tickettasks.actiontime/3600)/" . $DB->quoteValue($nbhour) . " AS " . $DB->quoteName(
+                        'tps_passes',
+                    ),
+                ),
+                'glpi_plugin_manageentities_taskcategories.is_usedforcount as is_usedforcount',
+            ],
+            'FROM' => 'glpi_tickettasks',
+            'LEFT JOIN' => [
+                'glpi_plugin_manageentities_taskcategories' => [
+                    'ON' => [
+                        'glpi_plugin_manageentities_taskcategories' => 'taskcategories_id',
+                        'glpi_tickettasks' => 'taskcategories_id',
+                    ],
+                ],
+            ],
+            'WHERE' => [
+                'glpi_tickettasks.tickets_id' => $p['REPORT_ID'],
+                'NOT' => [
+                    'glpi_tickettasks.id' => new QuerySubQuery([
+                        'SELECT' => 'id',
+                        'DISTINCT' => true,
+                        'FROM' => 'glpi_tickettasks',
+                    ]),
+                ],
+            ],
+            'ORDERBY' => 'date_debut ASC',
+        ];
+        if ($config->fields['use_publictask'] == '1') {
+            $criteria2['WHERE'] = $criteria2['WHERE'] + ['is_private' => 0];
+        }
+
+        $queries[] = $criteria2;
+
+        $criteria = [
+            'SELECT' => [
+                'taskcat',
+                'date',
+                'date_debut',
+                'date_fin',
+                'heure_debut',
+                'heure_fin',
+                'actiontime',
+                'tps_passes',
+                'is_usedforcount',
+            ],
+            'FROM' => new QueryUnion($queries),
+        ];
+
+        $iterator = $DB->request($criteria);
+
+        return $iterator;
+    }
+
+    /**
+     * Remove the report previews older than PREVIEW_LIFETIME. Recent ones are kept, so a
+     * preview generated concurrently (another tab or another user) is not deleted under it.
+     */
+    public function CleanFiles($dir)
+    {
+        $handle = opendir($dir);
+        if ($handle === false) {
+            return;
+        }
+        $now = time();
+        while (($file = readdir($handle)) !== false) {
+            if (!str_starts_with($file, 'CRI') || !str_ends_with($file, '.pdf')) {
+                continue;
+            }
+            $path  = $dir . '/' . $file;
+            $mtime = is_file($path) ? filemtime($path) : false;
+            if ($mtime !== false && $now - $mtime > self::PREVIEW_LIFETIME) {
+                unlink($path);
+            }
+        }
+        closedir($handle);
+    }
+
+    /**
+     * Serve an intervention report to the browser.
+     *
+     * The headers used to be written by hand: the file name went into Content-disposition without
+     * escaping the double quote, the MIME type came from the document without a white list - so a
+     * stored text/html was rendered in the GLPI origin instead of being downloaded - and both
+     * failure paths died on a message containing the absolute server path. getAsResponse() is the
+     * GLPI 11 idiom already used by front/logo.send.php: it builds the headers, confines the path
+     * under GLPI_DOC_DIR and raises a NotFoundHttpException when the file is gone.
+     *
+     * @param \Document $doc
+     *
+     * @return \Symfony\Component\HttpFoundation\Response
+     */
+    public function send($doc)
+    {
+        return $doc->getAsResponse();
+    }
+
+}

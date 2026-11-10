@@ -1,0 +1,467 @@
+<?php
+include('../../../inc/includes.php');
+Session::checkRight('config', READ);
+
+Html::header(__('User Performance & KPI'), $_SERVER['REQUEST_URI'], 'tools', 'none');
+
+global $DB;
+
+// ------------------------------------------------------------------
+// 1. Read filters
+// ------------------------------------------------------------------
+$date_from   = $_GET['date_from']   ?? date('Y-m-01');
+$date_to     = $_GET['date_to']     ?? date('Y-m-d');
+$ticket_type = $_GET['ticket_type'] ?? '';
+$tech_id     = $_GET['tech_id']     ?? '';
+$group_id    = $_GET['group_id']    ?? '';
+$cat_id      = $_GET['category']    ?? '';
+$status      = $_GET['status']      ?? '';
+$priority    = $_GET['priority']    ?? '';
+$group_by    = $_GET['group_by']    ?? 'tech';
+$sort_by     = $_GET['sort_by']     ?? 'total';
+$sort_order  = ($_GET['sort_order'] ?? 'DESC') === 'ASC' ? 'ASC' : 'DESC';
+
+// ------------------------------------------------------------------
+// 2. Build SQL WHERE (always safe, no joins here)
+// ------------------------------------------------------------------
+$where   = ["glpi_tickets.is_deleted = 0"];
+$where[] = "DATE(glpi_tickets.date) BETWEEN '{$date_from}' AND '{$date_to}'";
+
+if ($ticket_type !== '') $where[] = "glpi_tickets.type = "             . (int)$ticket_type;
+if ($status      !== '') $where[] = "glpi_tickets.status = "           . (int)$status;
+if ($priority    !== '') $where[] = "glpi_tickets.priority = "         . (int)$priority;
+if ($cat_id      !== '') $where[] = "glpi_tickets.itilcategories_id = ". (int)$cat_id;
+
+if ($tech_id !== '') {
+    $where[] = "EXISTS (SELECT 1 FROM glpi_tickets_users tu
+                        WHERE tu.tickets_id = glpi_tickets.id
+                          AND tu.users_id = " . (int)$tech_id . "
+                          AND tu.type = 2)";
+}
+if ($group_id !== '') {
+    $where[] = "EXISTS (SELECT 1 FROM glpi_groups_tickets gt
+                        WHERE gt.tickets_id = glpi_tickets.id
+                          AND gt.groups_id = " . (int)$group_id . "
+                          AND gt.type = 2)";
+}
+$where_sql = implode(' AND ', $where);
+
+// ------------------------------------------------------------------
+// 3. Choose GROUP BY and title column
+// ------------------------------------------------------------------
+$select       = '';
+$join         = '';
+$group_by_sql = '';
+$title_col    = '';
+
+switch ($group_by) {
+    case 'group':
+        $join         = "LEFT JOIN glpi_groups_tickets gt ON (gt.tickets_id = glpi_tickets.id AND gt.type = 2)
+                         LEFT JOIN glpi_groups g ON (g.id = gt.groups_id)";
+        $select       = "IFNULL(g.name, 'No Group') AS group_name";
+        $group_by_sql = "GROUP BY gt.groups_id, g.name";
+        $title_col    = 'Support Group';
+        break;
+
+    case 'category':
+        $join         = "LEFT JOIN glpi_itilcategories ic ON (ic.id = glpi_tickets.itilcategories_id)";
+        $select       = "IFNULL(ic.name, 'No Category') AS group_name";
+        $group_by_sql = "GROUP BY glpi_tickets.itilcategories_id, ic.name";
+        $title_col    = 'Category';
+        break;
+
+    case 'priority':
+        $select       = "CASE glpi_tickets.priority
+                            WHEN 1 THEN 'Very Low' WHEN 2 THEN 'Low'
+                            WHEN 3 THEN 'Medium'   WHEN 4 THEN 'High'
+                            WHEN 5 THEN 'Very High' ELSE 'Unknown' END AS group_name";
+        $group_by_sql = "GROUP BY glpi_tickets.priority";
+        $title_col    = 'Priority';
+        break;
+
+    case 'status':
+        $select       = "CASE glpi_tickets.status
+                            WHEN 1 THEN 'New'      WHEN 2 THEN 'Assigned'
+                            WHEN 3 THEN 'Planned'  WHEN 4 THEN 'Pending'
+                            WHEN 5 THEN 'Solved'   WHEN 6 THEN 'Closed'
+                            ELSE 'Other' END AS group_name";
+        $group_by_sql = "GROUP BY glpi_tickets.status";
+        $title_col    = 'Status';
+        break;
+
+    case 'type':
+        $select       = "CASE glpi_tickets.type
+                            WHEN 1 THEN 'Incident' WHEN 2 THEN 'Request'
+                            ELSE 'Other' END AS group_name";
+        $group_by_sql = "GROUP BY glpi_tickets.type";
+        $title_col    = 'Ticket Type';
+        break;
+
+    case 'tech':
+    default:
+        $join         = "LEFT JOIN glpi_tickets_users tu ON (tu.tickets_id = glpi_tickets.id AND tu.type = 2)
+                         LEFT JOIN glpi_users u ON (u.id = tu.users_id)";
+        $select       = "IFNULL(u.name, 'Unassigned') AS group_name";
+        $group_by_sql = "GROUP BY tu.users_id, u.name";
+        $title_col    = 'Technician';
+        break;
+}
+
+// ------------------------------------------------------------------
+// 4. Main metrics query
+// ------------------------------------------------------------------
+$sql = "
+    SELECT
+        $select,
+        COUNT(glpi_tickets.id) AS total,
+        SUM(CASE WHEN glpi_tickets.status = 5 THEN 1 ELSE 0 END) AS solved,
+        SUM(CASE WHEN glpi_tickets.status = 6 THEN 1 ELSE 0 END) AS closed,
+        SUM(CASE WHEN glpi_tickets.status IN (5,6) THEN 1 ELSE 0 END) AS resolved,
+        SUM(CASE
+                WHEN ((glpi_tickets.solvedate IS NOT NULL AND glpi_tickets.solvedate <= glpi_tickets.time_to_resolve)
+                  OR  (glpi_tickets.closedate IS NOT NULL AND glpi_tickets.closedate <= glpi_tickets.time_to_resolve))
+                THEN 1 ELSE 0 END) AS sla_compliant,
+        SUM(CASE
+                WHEN (glpi_tickets.solvedate IS NOT NULL AND glpi_tickets.solvedate > glpi_tickets.time_to_resolve)
+                  OR (glpi_tickets.closedate IS NOT NULL AND glpi_tickets.closedate > glpi_tickets.time_to_resolve)
+                THEN 1 ELSE 0 END) AS late_done,
+        SUM(CASE
+                WHEN glpi_tickets.solvedate IS NULL
+                 AND glpi_tickets.closedate IS NULL
+                 AND NOW() > glpi_tickets.time_to_resolve
+                THEN 1 ELSE 0 END) AS breached_open,
+        AVG(IFNULL(TIMESTAMPDIFF(SECOND, glpi_tickets.date, glpi_tickets.takeintoaccountdate), 0)) AS avg_tto,
+        AVG(IFNULL(TIMESTAMPDIFF(SECOND, glpi_tickets.date,
+                                 IFNULL(glpi_tickets.solvedate, glpi_tickets.closedate)), 0)) AS avg_ttr,
+        SUM((SELECT COUNT(*) FROM glpi_itilfollowups f
+             WHERE f.itemtype = 'Ticket' AND f.items_id = glpi_tickets.id)) AS followups_count
+    FROM glpi_tickets
+    $join
+    WHERE $where_sql
+    $group_by_sql
+";
+
+$results = [];
+try {
+    $res = $DB->doQuery($sql);
+    if ($res) {
+        while ($row = $res->fetch_assoc()) {
+
+            $total      = (int)$row['total'];
+            $resolved   = (int)$row['resolved'];
+            $sla_ok     = (int)$row['sla_compliant'];
+            $followups  = (int)$row['followups_count'];
+            $avg_tto    = (int)$row['avg_tto'];
+            $avg_ttr    = (int)$row['avg_ttr'];
+
+            $resolution_rate = $total > 0 ? ($resolved / $total) : 0;
+            $sla_rate        = $total > 0 ? ($sla_ok  / $total) : 0;
+            $pending         = $total - $resolved;
+            $pending_score   = $total > 0 ? (1 - ($pending / $total)) : 0;
+            $followup_score  = $total > 0 ? min(1, ($followups / $total)) : 0;
+            $tto_eff         = $avg_tto > 0 ? max(0, 1 - ($avg_tto / 86400))  : 0;
+            $ttr_eff         = $avg_ttr > 0 ? max(0, 1 - ($avg_ttr / 172800)) : 0;
+
+            $perf = 0.35 * $sla_rate
+                  + 0.30 * $resolution_rate
+                  + 0.10 * $followup_score
+                  + 0.10 * $pending_score
+                  + 0.075 * $tto_eff
+                  + 0.075 * $ttr_eff;
+
+            $row['perf_index'] = round($perf * 100, 1);
+            $results[] = $row;
+        }
+    }
+} catch (\Throwable $e) {
+    echo "<div class='alert alert-danger'><b>SQL Error:</b> "
+        . htmlspecialchars($e->getMessage()) . "</div>";
+}
+
+// ------------------------------------------------------------------
+// 5. Sort in PHP (Performance column isn't in SQL)
+// ------------------------------------------------------------------
+usort($results, function ($a, $b) use ($sort_by, $sort_order) {
+    $map = [
+        'total'   => 'total',
+        'perf'    => 'perf_index',
+        'solved'  => 'solved',
+        'closed'  => 'closed',
+        'sla_ok'  => 'sla_compliant',
+        'sla_bad' => null, // computed below
+    ];
+    $key = $map[$sort_by] ?? 'total';
+
+    if ($key === null) {
+        $va = ($a['late_done'] + $a['breached_open']);
+        $vb = ($b['late_done'] + $b['breached_open']);
+    } else {
+        $va = $a[$key];
+        $vb = $b[$key];
+    }
+
+    if ($va == $vb) return 0;
+    if ($sort_order === 'ASC') return ($va < $vb) ? -1 : 1;
+    return ($va > $vb) ? -1 : 1;
+});
+
+function up_formatTime($seconds) {
+    if (!$seconds) return '0s';
+    $h = floor($seconds / 3600);
+    $m = floor(($seconds % 3600) / 60);
+    $s = $seconds % 60;
+    return ($h > 0 ? "{$h}h " : '') . ($m > 0 ? "{$m}m " : '') . ($s > 0 ? "{$s}s" : '');
+}
+?>
+
+<style>
+    .up-kpi-card { border-radius: 10px; border: none; box-shadow: 0 2px 6px rgba(0,0,0,.05); }
+    .up-kpi-card .card-body { padding: .75rem 1rem; }
+    .up-kpi-value { font-size: 1.5rem; font-weight: 700; line-height: 1.2; }
+    .up-kpi-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .5px; font-weight: 600; opacity: .85; }
+    .up-filter-bar { background: #fff; border-radius: 8px; padding: .75rem;
+                     border: 1px solid #e6e7e9; box-shadow: 0 1px 3px rgba(0,0,0,.02); }
+    .up-filter-bar label { font-size: .7rem; font-weight: 600; color: #6c757d;
+                           margin-bottom: .2rem; text-transform: uppercase; }
+    .up-filter-bar select, .up-filter-bar input { font-size: .8rem; height: 32px; padding: .2rem .5rem; }
+    .up-table th { font-size: .7rem; text-transform: uppercase; color: #6c757d;
+                   font-weight: 600; padding: .5rem; background: #f6f8fa; }
+    .up-table td { font-size: .8rem; padding: .4rem .5rem; vertical-align: middle; }
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
+
+<div class="container-fluid mt-2" id="up-dashboard">
+
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h3 class="m-0 text-primary fw-bold">
+            <i class="ti ti-chart-bar me-2"></i>KPI Report by <?= $title_col ?>
+        </h3>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-secondary" onclick="upExportCSV()"><i class="ti ti-file-text"></i> CSV</button>
+            <button class="btn btn-sm btn-outline-success" onclick="upExportXLSX()"><i class="ti ti-file-spreadsheet"></i> Excel</button>
+            <button class="btn btn-sm btn-outline-danger" onclick="upExportPDF()"><i class="ti ti-download"></i> PDF</button>
+        </div>
+    </div>
+
+    <form method="get" action="" class="up-filter-bar mb-3">
+        <div class="row g-2 align-items-end">
+
+            <div class="col-md-2"><label>Date From</label>
+                <input type="date" name="date_from" class="form-control" value="<?= $date_from ?>"></div>
+
+            <div class="col-md-2"><label>Date To</label>
+                <input type="date" name="date_to" class="form-control" value="<?= $date_to ?>"></div>
+
+            <div class="col-md-2"><label>Ticket Type</label>
+                <select name="ticket_type" class="form-select">
+                    <option value="">All</option>
+                    <option value="1" <?= $ticket_type === '1' ? 'selected' : '' ?>>Incident</option>
+                    <option value="2" <?= $ticket_type === '2' ? 'selected' : '' ?>>Request</option>
+                </select>
+            </div>
+
+            <div class="col-md-2"><label>Technician</label>
+                <select name="tech_id" class="form-select">
+                    <option value="">All</option>
+                    <?php foreach ($DB->request(['FROM' => 'glpi_users', 'WHERE' => ['is_active' => 1]]) as $u): ?>
+                        <option value="<?= (int)$u['id'] ?>" <?= $tech_id == $u['id'] ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($u['name']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="col-md-2"><label>Group</label>
+                <select name="group_id" class="form-select">
+                    <option value="">All</option>
+                    <?php foreach ($DB->request(['FROM' => 'glpi_groups', 'WHERE' => ['is_assign' => 1]]) as $g): ?>
+                        <option value="<?= (int)$g['id'] ?>" <?= $group_id == $g['id'] ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($g['name']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="col-md-2"><label>Category</label>
+                <select name="category" class="form-select">
+                    <option value="">All</option>
+                    <?php foreach ($DB->request(['FROM' => 'glpi_itilcategories']) as $c): ?>
+                        <option value="<?= (int)$c['id'] ?>" <?= $cat_id == $c['id'] ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($c['name']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="col-md-2"><label>Status</label>
+                <select name="status" class="form-select">
+                    <option value="">All</option>
+                    <option value="1" <?= $status === '1' ? 'selected' : '' ?>>New</option>
+                    <option value="2" <?= $status === '2' ? 'selected' : '' ?>>Assigned</option>
+                    <option value="5" <?= $status === '5' ? 'selected' : '' ?>>Solved</option>
+                    <option value="6" <?= $status === '6' ? 'selected' : '' ?>>Closed</option>
+                </select>
+            </div>
+
+            <div class="col-md-2"><label>Priority</label>
+                <select name="priority" class="form-select">
+                    <option value="">All</option>
+                    <option value="3" <?= $priority === '3' ? 'selected' : '' ?>>Medium</option>
+                    <option value="4" <?= $priority === '4' ? 'selected' : '' ?>>High</option>
+                    <option value="5" <?= $priority === '5' ? 'selected' : '' ?>>Very High</option>
+                </select>
+            </div>
+
+            <div class="col-md-2"><label>Group By</label>
+                <select name="group_by" class="form-select">
+                    <option value="tech"     <?= $group_by === 'tech'     ? 'selected' : '' ?>>Technician</option>
+                    <option value="group"    <?= $group_by === 'group'    ? 'selected' : '' ?>>Support Group</option>
+                    <option value="category" <?= $group_by === 'category' ? 'selected' : '' ?>>Category</option>
+                    <option value="priority" <?= $group_by === 'priority' ? 'selected' : '' ?>>Priority</option>
+                    <option value="status"   <?= $group_by === 'status'   ? 'selected' : '' ?>>Status</option>
+                    <option value="type"     <?= $group_by === 'type'     ? 'selected' : '' ?>>Ticket Type</option>
+                </select>
+            </div>
+
+            <div class="col-md-2"><label>Sort By</label>
+                <select name="sort_by" class="form-select">
+                    <option value="total"   <?= $sort_by === 'total'   ? 'selected' : '' ?>>Total Tickets</option>
+                    <option value="perf"    <?= $sort_by === 'perf'    ? 'selected' : '' ?>>Performance Index</option>
+                    <option value="solved"  <?= $sort_by === 'solved'  ? 'selected' : '' ?>>Solved</option>
+                    <option value="closed"  <?= $sort_by === 'closed'  ? 'selected' : '' ?>>Closed</option>
+                    <option value="sla_ok"  <?= $sort_by === 'sla_ok'  ? 'selected' : '' ?>>SLA Compliant</option>
+                    <option value="sla_bad" <?= $sort_by === 'sla_bad' ? 'selected' : '' ?>>SLA Non-Compliant</option>
+                </select>
+            </div>
+
+            <div class="col-md-2"><label>Order</label>
+                <select name="sort_order" class="form-select">
+                    <option value="DESC" <?= $sort_order === 'DESC' ? 'selected' : '' ?>>Descending</option>
+                    <option value="ASC"  <?= $sort_order === 'ASC'  ? 'selected' : '' ?>>Ascending</option>
+                </select>
+            </div>
+
+            <div class="col-md-2 d-flex gap-1">
+                <button type="submit" class="btn btn-primary w-100" style="height:32px;padding:0">
+                    <i class="ti ti-filter me-1"></i> Apply
+                </button>
+                <button type="button" class="btn btn-outline-danger w-50" style="height:32px;padding:0"
+                        onclick="upResetFilters()">
+                    <i class="ti ti-reload"></i>
+                </button>
+            </div>
+
+        </div>
+    </form>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <table class="table table-sm table-hover up-table mb-0" id="up-kpi-table">
+                <thead>
+                    <tr>
+                        <th><?= $title_col ?></th>
+                        <th class="text-end">Total</th>
+                        <th class="text-end text-primary">Solved</th>
+                        <th class="text-end text-primary">Closed</th>
+                        <th class="text-end text-blue">Resolution %</th>
+                        <th class="text-end text-red">SLA Breach</th>
+                        <th class="text-end text-green">SLA OK</th>
+                        <th class="text-end">Follow-ups</th>
+                        <th class="text-end fw-bold">Performance Index</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php if (empty($results)): ?>
+                    <tr><td colspan="9" class="text-center text-muted py-4">
+                        No data found for the selected filters.
+                    </td></tr>
+                <?php else: foreach ($results as $row):
+                    $total     = (int)$row['total'];
+                    $resolved  = (int)$row['resolved'];
+                    $sla_ok    = (int)$row['sla_compliant'];
+                    $sla_bad   = (int)$row['late_done'] + (int)$row['breached_open'];
+                    $followups = (int)$row['followups_count'];
+                    $perf      = $row['perf_index'];
+                    $resolution_rate = $total > 0 ? ($resolved / $total) : 0;
+                ?>
+                    <tr>
+                        <td class="fw-bold"><?= htmlspecialchars($row['group_name']) ?></td>
+                        <td class="text-end fw-bold"><?= $total ?></td>
+                        <td class="text-end text-primary"><?= (int)$row['solved'] ?></td>
+                        <td class="text-end text-primary"><?= (int)$row['closed'] ?></td>
+                        <td class="text-end text-blue"><?= round($resolution_rate * 100, 1) ?>%</td>
+                        <td class="text-end text-red"><?= $sla_bad ?></td>
+                        <td class="text-end text-green"><?= $sla_ok ?></td>
+                        <td class="text-end"><?= $followups ?></td>
+                        <td class="text-end fw-bold <?= $perf > 80 ? 'text-green' : ($perf > 50 ? 'text-orange' : 'text-red') ?>">
+                            <?= $perf ?>%
+                        </td>
+                    </tr>
+                <?php endforeach; endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function upResetFilters() {
+    window.location.href = "?date_from=<?= date('Y-m-01') ?>&date_to=<?= date('Y-m-d') ?>";
+}
+
+function upExportCSV() {
+    const rows = document.querySelectorAll('#up-kpi-table tr');
+    const csv  = [];
+    rows.forEach(r => {
+        const cols = r.querySelectorAll('td, th');
+        const out  = [];
+        cols.forEach(c => out.push('"' + c.innerText.replace(/(\r\n|\n|\r)/gm, ' ')
+                                                     .replace(/\s+/gm, ' ') + '"'));
+        csv.push(out.join(','));
+    });
+    const blob = new Blob([csv.join('\n')], {type: 'text/csv'});
+    const a    = document.createElement('a');
+    a.download = 'kpi_report.csv';
+    a.href     = URL.createObjectURL(blob);
+    document.body.appendChild(a); a.click(); a.remove();
+}
+
+function upExportXLSX() {
+    const wb = XLSX.utils.table_to_book(document.getElementById('up-kpi-table'), {sheet: 'KPI'});
+    XLSX.writeFile(wb, 'kpi_report.xlsx');
+}
+
+function upExportPDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('l', 'mm', 'a4');
+    doc.setFontSize(14);
+    doc.text('KPI Report - <?= $title_col ?>', 14, 15);
+
+    const headers = [];
+    document.querySelectorAll('#up-kpi-table thead th').forEach(th => headers.push(th.innerText.trim()));
+
+    const body = [];
+    document.querySelectorAll('#up-kpi-table tbody tr').forEach(tr => {
+        const row = [];
+        tr.querySelectorAll('td').forEach(td => row.push(td.innerText.trim()));
+        if (row.length) body.push(row);
+    });
+
+    doc.autoTable({
+        head: [headers],
+        body: body,
+        startY: 20,
+        theme: 'grid',
+        styles: { fontSize: 9, cellPadding: 3 },
+        headStyles: { fillColor: [32,107,196], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [246,248,250] }
+    });
+    doc.save('kpi_report.pdf');
+}
+</script>
+
+<?php
+Html::footer();

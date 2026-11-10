@@ -1,0 +1,774 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * cmdb plugin for GLPI
+ * Copyright (C) 2020-2026 by the cmdb Development Team.
+ *
+ * https://github.com/InfotelGLPI/cmdb
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of cmdb.
+ *
+ * cmdb is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * cmdb is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with cmdb. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Cmdb;
+
+use CommonDBTM;
+use CommonITILObject;
+use DbUtils;
+use Dropdown;
+use Html;
+use Plugin;
+use Session;
+use Toolbox;
+
+/**
+ * Class CI
+ */
+class CI extends CommonDBTM
+{
+    public static $rightname  = "plugin_cmdb_cis";
+    public $dohistory  = true;
+    protected $usenotepad = true;
+
+    /**
+     * Return the localized name of the current Type
+     *
+     * @return string
+     **/
+    public static function getTypeName($nb = 0)
+    {
+        return _n('Configuration Item', 'Configuration Items', $nb, 'cmdb');
+    }
+
+    /**
+     * Define tabs to display
+     *
+     * NB : Only called for existing object
+     *
+     * @param $options array
+     *     - withtemplate is a template view ?
+     *
+     * @return array containing the onglets
+     **/
+    public function defineTabs($options = [])
+    {
+
+        $ong = [];
+        $this->addDefaultFormTab($ong);
+        $this->addStandardTab('Notepad', $ong, $options);
+        $this->addStandardTab('Log', $ong, $options);
+
+        return $ong;
+    }
+
+    /**
+     * Get the Search options for the given Type
+     *
+     * This should be overloaded in Class
+     *
+     * @return an array of search options
+     **/
+    public function rawSearchOptions()
+    {
+
+        $tab = [];
+
+        $tab[] = [
+            'id'   => 'common',
+            'name' => self::getTypeName(2),
+        ];
+
+        $tab[] = [
+            'id'            => '1',
+            'table'         => $this->getTable(),
+            'field'         => 'name',
+            'name'          => __('Name'),
+            'datatype'      => 'itemlink',
+            'itemlink_type' => $this->getType(),
+        ];
+
+        $tab[] = [
+            'id'       => '2',
+            'table'    => 'glpi_plugin_cmdb_citypes',
+            'field'    => 'name',
+            'name'     => CIType::getTypeName(1),
+            'datatype' => 'specific',
+        ];
+
+        return $tab;
+    }
+
+    /**
+     * @param       $ID
+     * @param array $options
+     *
+     * @return bool
+     */
+    public function showForm($ID, $options = [])
+    {
+
+        $this->initForm($ID, $options);
+        $options["colspan"] = 1;
+        $this->showFormHeader($options);
+
+        echo "<tr class='tab_bg_1'>";
+        echo "<td>" . __('Name') . "</td>";
+        echo "<td>";
+        echo Html::input('name', ['value' => $this->fields['name'], 'size' => 40]);
+        echo "</td>";
+        echo "</tr>";
+
+        echo "<tr class='tab_bg_1 fieldCI'>";
+        echo "<td>" . CIType::getTypeName(1) . "</td>";
+        echo "<td>";
+        $idType = $this->setSelectCITypes($ID);
+        echo "</td>";
+        echo "</tr>";
+
+        $cifields = new CiFields();
+        if (!isset($this->fields["plugin_cmdb_citypes_id"])
+          || $this->fields["plugin_cmdb_citypes_id"] == "") {
+            $cifields->setFieldByType($idType, $ID);
+        } else {
+            $cifields->setFieldByType($this->fields["plugin_cmdb_citypes_id"], $ID);
+        }
+
+        $this->showFormButtons($options);
+
+        return true;
+    }
+
+    /**
+     * @param $id
+     *
+     * @return int|mixed
+     */
+    public function setSelectCITypes($id)
+    {
+        global $DB;
+        $tabCIType = [];
+
+        // CIType is entity-assigned, and every other listing of types in the plugin is scoped
+        // (Cmdb::showMenu(), CIType::dropdownTypes(), ajax/change_field.php). This one was not,
+        // so the form disclosed the names of the CI types of every entity of the instance to
+        // any holder of plugin_cmdb_cis. The is_recursive flag is mandatory, otherwise a
+        // recursive type declared in a parent entity would disappear from a child one.
+        $dbu      = new DbUtils();
+        $iterator = $DB->request([
+            'SELECT'   => ['name', 'id'],
+            'DISTINCT' => true,
+            'FROM'     => 'glpi_plugin_cmdb_citypes',
+            'WHERE'    => array_merge(
+                ['is_imported' => 0],
+                $dbu->getEntitiesRestrictCriteria('glpi_plugin_cmdb_citypes', '', '', true),
+            ),
+            'ORDER'    => 'id DESC']);
+
+        if (!isset($id) || $id == "") {
+            $id = -1;
+        }
+        $idType = -1;
+        foreach ($iterator as $data) {
+            $tabCIType[$data["id"]] = $data["name"];
+            if ($idType == -1) {
+                $idType = $data["id"];
+            }
+        }
+
+        $iterator = $DB->request([
+            'SELECT'   => 'plugin_cmdb_citypes_id',
+            'DISTINCT' => true,
+            'FROM'     => 'glpi_plugin_cmdb_cis',
+            'WHERE'    => ['id' => $id]]);
+
+        // DBmysqlIterator::next() returns void since GLPI 10: it only moves the cursor.
+        // Reading its return value left $idType null, so the dropdown fell back to its first
+        // entry (the newest CI type) instead of the type the CI actually has. Saving the form
+        // then changed the type, and post_updateItem() purges every custom value of the CI when
+        // the type changes. current() returns the row the cursor already points at.
+        if (count($iterator)) {
+            $data   = $iterator->current();
+            $idType = $data['plugin_cmdb_citypes_id'];
+        }
+        Dropdown::showFromArray("plugin_cmdb_citypes_id", $tabCIType, ["on_change" => "changeField(this,$id)",
+            "value"     => $idType]);
+        return $idType;
+    }
+
+
+    /**
+     * Prepare input datas for adding the item
+     *
+     * @param array $input datas used to add the item
+     *
+     * @return array the modified $input array
+     **/
+    public function prepareInputForAdd($input)
+    {
+        if ($input['name'] == '') {
+            Session::addMessageAfterRedirect(__('Invalid name !', 'cmdb'), true, ERROR);
+            return false;
+        }
+        return $this->checkCITypeInput($input);
+    }
+
+    /**
+     * Prepare input datas for updating the item
+     *
+     * @param array $input datas used to update the item
+     *
+     * @return array|false the modified $input array, or false to refuse the update
+     **/
+    public function prepareInputForUpdate($input)
+    {
+        return $this->checkCITypeInput($input);
+    }
+
+    /**
+     * Confront the posted CI type with the entities of the session.
+     *
+     * The dropdown built by setSelectCITypes() only protects what is displayed: the value comes
+     * back from the browser and used to be written as is, no prepareInputForUpdate() existed and
+     * prepareInputForAdd() only checked the name. Reload the type and confront its entity, the
+     * idiom ajax/change_field.php already applies. The is_recursive flag is mandatory, otherwise
+     * a recursive type declared in a parent entity would be refused from a child one.
+     *
+     * @param array $input datas being written
+     *
+     * @return array|false the untouched $input array, or false to refuse the write
+     */
+    private function checkCITypeInput($input)
+    {
+        // A write that does not carry the type — a rename from an inline edit, a massive action
+        // on another column — leaves the stored value alone and has nothing to confront.
+        if (!isset($input['plugin_cmdb_citypes_id'])) {
+            return $input;
+        }
+
+        $citype = new CIType();
+        if (!$citype->getFromDB((int) $input['plugin_cmdb_citypes_id'])
+            || !Session::haveAccessToEntity($citype->fields['entities_id'], $citype->fields['is_recursive'])) {
+            Session::addMessageAfterRedirect(
+                __("You don't have permission to perform this action."),
+                true,
+                ERROR,
+            );
+            return false;
+        }
+
+        return $input;
+    }
+
+    public function postAddCi($history, $item)
+    {
+
+        // plugin_cmdb_cis_id no longer exists: update-2.2.1.sql renamed it to items_id and
+        // added itemtype next to it. Writing the dead name left every value row with
+        // items_id = 0 and an empty itemtype, so CiFields::setFieldInput() and
+        // ImpactInfo::showInfos() — which both read on (items_id, itemtype) — found nothing,
+        // and CI::cleanDBonPurge() left the rows behind when the CI was purged.
+        $civalue           = new CiValues();
+        $input['items_id'] = $item->getID();
+        $input['itemtype'] = $item->getType();
+
+        // newfield is indexed by the cifields id the form rendered, but the keys come back
+        // from the browser untouched: a forged key created a value row bound to a field
+        // definition of another CI type. items_id and itemtype are imposed server side, so
+        // the row stays attached to this CI and nothing leaks, but no form ever reads it back
+        // — the reads join on the fields of the current type — and it is never cleaned up.
+        // Keep only the definitions that belong to the type of this CI, the same intersection
+        // post_updateItem() already applies to the "field" array.
+        $owned_fields = (new CiFields())->find([
+            'plugin_cmdb_citypes_id' => (int) ($item->fields['plugin_cmdb_citypes_id'] ?? 0),
+        ]);
+
+        foreach ($item->input["newfield"] as $key => $value) {
+            if (!isset($owned_fields[$key])) {
+                continue;
+            }
+            $input['value']                   = $value;
+            $input['plugin_cmdb_cifields_id'] = $key;
+            $civalue->add($input, [], $history);
+        }
+    }
+
+    /**
+     * @param int $history
+     */
+    public function post_addItem($history = 1)
+    {
+
+        if (isset($this->input["newfield"])) {
+            self::postAddCi($history, $this);
+        }
+    }
+
+    /**
+     * Actions done after the UPDATE of the item in the database
+     *
+     * @param boolean $history store changes history ? (default 1)
+     *
+     * @return void
+     **/
+    public function post_updateItem($history = 1)
+    {
+
+        if (isset($this->oldvalues["plugin_cmdb_citypes_id"])
+          && $this->oldvalues["plugin_cmdb_citypes_id"] != $this->fields['plugin_cmdb_citypes_id']) {
+            $id   = $this->fields['id'];
+            $temp = new CiValues();
+            $temp->deleteByCriteria(CiValues::getOwnerCriteria($this->getType(), $id), 1);
+
+            self::postAddCi($history, $this);
+        } else {
+            if (isset($this->input["field"])) {
+                // The form indexes these rows by their own civalues id and the browser posts
+                // it back untouched, so a forged id rewrote the value of any row of the
+                // table — including the custom fields of a CI in another entity. CiValues
+                // carries no entities_id, so checkEntity() cannot catch it, and update() on a
+                // bare id checks nothing else. Reload the set this CI actually owns and keep
+                // only the intersection.
+                $temp  = new CiValues();
+                $owned = $temp->find(CiValues::getOwnerCriteria($this->getType(), $this->getID()));
+                foreach ($this->input["field"] as $key => $value) {
+                    if (!isset($owned[$key])) {
+                        continue;
+                    }
+                    $temp->update(['value' => $value,
+                        'id'    => $key]);
+                }
+            }
+            if (isset($this->input["newfield"])) {
+                self::postAddCi($history, $this);
+            }
+        }
+    }
+
+
+    /**
+     * Actions done when item is deleted from the database
+     *
+     * @return nothing
+     **/
+    public function cleanDBonPurge()
+    {
+
+        $temp = new CiValues();
+        $temp->deleteByCriteria(CiValues::getOwnerCriteria($this->getType(), $this->fields['id']), 1);
+    }
+
+
+    /**
+     * @param $idCIType
+     * @param $id
+     *
+     * @return bool|false|object
+     */
+    public function getItem($idCIType, $id)
+    {
+        $dbu    = new DbUtils();
+        $citype = new CIType();
+        if ($citype->getFromDB($idCIType)) {
+            if ($citype->fields['is_imported']) {
+                $item = $dbu->getItemForItemtype($citype->fields['name']);
+                if (!$item->getFromDB($id)) {
+                    return false;
+                }
+            } else {
+                $item = $dbu->getItemForItemtype(CI::class);
+                if (!$item->getFromDB($id)) {
+                    return false;
+                }
+            }
+            return $item;
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * @param $idCIType
+     * @param $id
+     *
+     * @return bool
+     */
+    public function isInstalledOrActivatedOrNotDeleted($idCIType, $id)
+    {
+
+        $citype = new CIType();
+        if ($citype->getFromDB($idCIType)) {
+            $table = 'glpi_plugin_cmdb_cis';
+            if ($citype->fields['is_imported']) {
+                $dbu   = new DbUtils();
+                $table = $dbu->getTableForItemType($citype->fields['name']);
+            }
+            $splitTable = explode('_', $table);
+            if (in_array('plugin', $splitTable)) {
+                $namePlugin = $splitTable[2];
+                if (Plugin::isPluginActive($namePlugin)) {
+                    if ($item = $this->getItem($idCIType, $id)) {
+                        if ($item->isDeleted()) {
+                            return false;
+                        }
+                    } else {
+                        return false;
+                    }
+                } else {
+                    //                    if (!Plugin::isPluginActive($namePlugin)) {
+                    //                        $link_item = new PluginCmdbLink_Item();
+                    //                        $input     = ["plugin_cmdb_citypes_id_1" => $idCIType,
+                    //                                "plugin_cmdb_citypes_id_2" => $idCIType];
+                    //                        $link_item->deletebyCitype($input);
+                    //                    }
+                    return false;
+                }
+            } else {
+                if ($item = $this->getItem($idCIType, $id)) {
+                    if ($item->isDeleted()) {
+                        return false;
+                    }
+                } else {
+                    //                    $link_item = new PluginCmdbLink_Item();
+                    //                    $input     = ["plugin_cmdb_citypes_id_1" => $idCIType,
+                    //                             "items_id_1"               => $id,
+                    //                             "plugin_cmdb_citypes_id_2" => $idCIType,
+                    //                             "items_id_2"               => $id];
+                    //                    $link_item->deletebyItem($input);
+
+                    return false;
+                }
+            }
+        } else {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Returns true if the CI object is used in baseline_items
+     *
+     * @param $input
+     *
+     * @return bool
+     */
+    public function ciTypesUsed($input)
+    {
+        global $DB;
+        //TODO MAJ COEUR
+        if (isset($input["id"]) && isset($input['plugin_cmdb_citypes_id'])) {
+            $iterator = $DB->request(["FROM"  => 'glpi_plugin_cmdb_baselines_cis',
+                "WHERE" => ['items_id'               => $input['id'],
+                    'plugin_cmdb_citypes_id' => $input['plugin_cmdb_citypes_id']]]);
+            $dbu      = new DbUtils();
+            foreach ($iterator as $data) {
+                if ($dbu->countElementsInTable(
+                    'glpi_plugin_cmdb_baselines_items_items',
+                    ["OR" => ["plugin_cmdb_baselines_cis_id_1" => $data["id"]],
+                        ["plugin_cmdb_baselines_cis_id_2" => $data["id"]]],
+                ) > 0) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @param $idType
+     * @param $id
+     *
+     * @return string
+     */
+    public function getCIIcon($idType, $id)
+    {
+        global $CFG_GLPI;
+
+        $citype = new CIType();
+        $citype->getFromDB($idType);
+        $citype_doc = new CIType_Document();
+
+        if ($citype->fields['is_imported']) {
+            $dbu       = new DbUtils();
+            $table     = $dbu->getTableForItemType($citype->fields['name']);
+            $item      = $dbu->getItemForItemtype($citype->fields['name']);
+            $fieldType = substr($table, 5, -1) . "types_id";
+
+            if ($item->isField($fieldType)) {
+                $item->getFromDB($id);
+                $idType = $item->fields[$fieldType];
+
+                if ($citype_doc->getFromDBByCrit(['plugin_cmdb_citypes_id' => $citype->fields['id'],
+                    'types_id'               => $idType])) {
+                    return $CFG_GLPI['root_doc'] . "/plugins/cmdb/front/icon.send.php?idDoc=" .
+                      $citype_doc->fields['documents_id'] . "&type=pics";
+                } else {
+                    if ($citype_doc->getFromDBByCrit(['plugin_cmdb_citypes_id' => $citype->fields['id'],
+                        'types_id'               => 0])) {
+                        return $CFG_GLPI['root_doc'] . "/plugins/cmdb/front/icon.send.php?idDoc=" .
+                         $citype_doc->fields['documents_id'] . "&type=pics";
+                    } else {
+                        return $CFG_GLPI['root_doc'] . "/plugins/cmdb/pics/nothing.png";
+                    }
+                }
+            } else {
+                if ($citype_doc->getFromDBByCrit(['plugin_cmdb_citypes_id' => $citype->fields['id'],
+                    'types_id'               => 0])) {
+                    return $CFG_GLPI['root_doc'] . "/plugins/cmdb/front/icon.send.php?idDoc=" .
+                      $citype_doc->fields['documents_id'] . "&type=pics";
+                } else {
+                    return $CFG_GLPI['root_doc'] . "/plugins/cmdb/pics/nothing.png";
+                }
+            }
+        } else {
+            if ($citype_doc->getFromDBByCrit(['plugin_cmdb_citypes_id' => $citype->fields['id'],
+                'types_id'               => 0])) {
+                return $CFG_GLPI['root_doc'] . "/plugins/cmdb/front/icon.send.php?idDoc=" .
+                   $citype_doc->fields['documents_id'] . "&type=pics";
+            } else {
+                return $CFG_GLPI['root_doc'] . "/plugins/cmdb/pics/nothing.png";
+            }
+        }
+        return '';
+    }
+
+
+    /**
+     * @param $citype
+     * @param $id
+     *
+     * @return string
+     */
+    public function getDocumentItemId($citype, $id)
+    {
+        global $DB;
+
+        $citype_doc = new CIType_Document();
+
+        if ($citype->fields['is_imported']) {
+            $dbu       = new DbUtils();
+            $table     = $dbu->getTableForItemType($citype->fields['name']);
+            $item      = $dbu->getItemForItemtype($citype->fields['name']);
+            $fieldType = substr($table, 5, -1) . "types_id";
+
+            if ($item->isField($fieldType)) {
+                $item->getFromDB($id);
+                $idType = $item->fields[$fieldType];
+
+                if ($citype_doc->getFromDBByCrit(['plugin_cmdb_citypes_id' => $citype->fields['id'],
+                    'types_id'               => $idType])) {
+                    $iterator = $DB->request(['SELECT' => 'id',
+                        'FROM'   => 'glpi_documents_items',
+                        'WHERE'  => ['itemtype' => CIType::class,
+                            'items_id' => $citype_doc->fields['id']]]);
+
+                    // Same as setSelectCITypes(): next() moves the cursor and returns void, so
+                    // the four reads of this method returned null instead of the linked
+                    // document item. current() returns the first row of the result set.
+                    if (count($iterator)) {
+                        $data = $iterator->current();
+                        return $data['id'];
+                    }
+                } else {
+                    if ($citype_doc->getFromDBByCrit(['plugin_cmdb_citypes_id' => $citype->fields['id'],
+                        'types_id'               => 0])) {
+                        $iterator = $DB->request(['SELECT' => 'id',
+                            'FROM'   => 'glpi_documents_items',
+                            'WHERE'  => ['itemtype' => CIType::class,
+                                'items_id' => $citype_doc->fields['id']]]);
+
+                        if (count($iterator)) {
+                            $data = $iterator->current();
+                            return $data['id'];
+                        }
+                    }
+                }
+            } else {
+                if ($citype_doc->getFromDBByCrit(['plugin_cmdb_citypes_id' => $citype->fields['id'],
+                    'types_id'               => 0])) {
+                    $iterator = $DB->request(['SELECT' => 'id',
+                        'FROM'   => 'glpi_documents_items',
+                        'WHERE'  => ['itemtype' => CIType::class,
+                            'items_id' => $citype_doc->fields['id']]]);
+
+                    if (count($iterator)) {
+                        $data = $iterator->current();
+                        return $data['id'];
+                    }
+                }
+            }
+        } else {
+            if ($citype_doc->getFromDBByCrit(['plugin_cmdb_citypes_id' => $citype->fields['id'],
+                'types_id'               => 0])) {
+                $iterator = $DB->request(['SELECT' => 'id',
+                    'FROM'   => 'glpi_documents_items',
+                    'WHERE'  => ['itemtype' => CIType::class,
+                        'items_id' => $citype_doc->fields['id']]]);
+
+                if (count($iterator)) {
+                    $data = $iterator->current();
+                    return $data['id'];
+                }
+            }
+        }
+        return '';
+    }
+
+    /**
+     * @param $citype
+     * @param $id
+     *
+     * @return mixed|string
+     */
+    public function getTicket($citype, $id)
+    {
+
+        if ($citype->fields['is_imported']) {
+            $tablename = "glpi_tickets";
+            $itemtable = "glpi_items_tickets";
+
+            return countElementsInTable(
+                [$tablename, $itemtable],
+                ['FKEY'                  => [$tablename => 'id',
+                    $itemtable => 'tickets_id'],
+                    "$itemtable.itemtype"   => $citype->fields['name'],
+                    "$itemtable.items_id"   => $id,
+                    "$tablename.is_deleted" => 0,
+                    'NOT'                   => ["$tablename.status" => [CommonITILObject::SOLVED,
+                        CommonITILObject::CLOSED]]],
+            );
+        }
+        return 0;
+    }
+
+    /**
+     * @param $citype
+     * @param $id
+     *
+     * @return string
+     */
+    public function getLinkCI($citype, $id)
+    {
+        $type = $citype->fields['name'];
+        if ($citype->fields['is_imported']) {
+            return Toolbox::getItemTypeFormURL($type) . "?id=$id&forcetab=$type" . '$main';
+        } else {
+            return Toolbox::getItemTypeFormURL(CI::class) . "?id=$id&forcetab=" . CI::class . '$main';
+        }
+    }
+
+    /**
+     * @param $citype
+     * @param $id
+     *
+     * @return string
+     */
+    public function getLinkUrlReload($citype, $id)
+    {
+        $type = $citype->fields['name'];
+        if ($citype->fields['is_imported']) {
+            return Toolbox::getItemTypeFormURL($type) . "?id=$id&forcetab=" . CI_Cmdb::class . '$1';
+        } else {
+            return Toolbox::getItemTypeFormURL($this->getType()) . "?id=$id&forcetab=" . CI_Cmdb::class . '$1';
+        }
+    }
+
+    /**
+     * @param $citype
+     *
+     * @return mixed
+     */
+    public function getTypeName2($citype)
+    {
+        $nameType = $citype->fields['name'];
+        if ($citype->fields['is_imported']) {
+            $dbu      = new DbUtils();
+            $item     = $dbu->getItemForItemtype($citype->fields['name']);
+            $nameType = $item::getTypeName(1);
+        }
+        return $nameType;
+    }
+
+    /**
+     * @param $citype
+     * @param $id
+     *
+     * @return mixed
+     */
+    public function getNameCI($citype, $id)
+    {
+
+        $ci = new CI();
+
+        if ($citype->fields['is_imported']) {
+            $dbu = new DbUtils();
+            $ci  = $dbu->getItemForItemtype($citype->fields['name']);
+        }
+        $ci->getFromDB($id);
+
+        return $ci->getName();
+    }
+
+    /**
+     * @param $citype
+     * @param $id
+     *
+     * @return string
+     */
+    public function getSubTypeName($citype, $id)
+    {
+        if ($citype->fields['is_imported']) {
+            $dbu       = new DbUtils();
+            $table     = $dbu->getTableForItemType($citype->fields['name']);
+            $item      = $dbu->getItemForItemtype($citype->fields['name']);
+            $fieldType = substr($table, 5, -1) . "types_id";
+
+            if ($item->isField($fieldType)) {
+                $table_type = substr($table, 0, -1) . "types";
+                $itemtype   = $dbu->getItemTypeForTable($table_type);
+                $item->getFromDB($id);
+                if ($item->fields[$fieldType] != 0) {
+                    $item_type = $dbu->getItemForItemtype($itemtype);
+                    $item_type->getFromDB($item->fields[$fieldType]);
+                    return $item_type->fields['name'];
+                }
+            }
+        }
+        return '';
+    }
+
+    /**
+     * Get the standard massive actions which are forbidden
+     *
+     * @return array an array of massive actions
+     **@since 0.84
+     *
+     * This should be overloaded in Class
+     *
+     */
+    public function getForbiddenStandardMassiveAction()
+    {
+
+        $forbidden = parent::getForbiddenStandardMassiveAction();
+
+        $forbidden[] = 'update';
+
+        return $forbidden;
+    }
+}

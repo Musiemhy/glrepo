@@ -1,0 +1,395 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * satisfaction plugin for GLPI
+ * Copyright (C) 2018-2026 by the satisfaction Development Team.
+ *
+ * https://github.com/pluginsGLPI/satisfaction
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of satisfaction.
+ *
+ * satisfaction is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * satisfaction is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with satisfaction. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Satisfaction;
+
+use AllowDynamicProperties;
+use CommonGLPI;
+use DbUtils;
+use Dropdown;
+use Glpi\Application\View\TemplateRenderer;
+use Glpi\DBAL\QueryExpression;
+use GlpiPlugin\Mydashboard\Criteria;
+use GlpiPlugin\Mydashboard\Helper;
+use GlpiPlugin\Mydashboard\Html as MydashboardHtml;
+use GlpiPlugin\Mydashboard\Menu;
+use GlpiPlugin\Mydashboard\Widget;
+use Html;
+use Session;
+use Ticket;
+use TicketSatisfaction;
+
+/**
+ * Class Dashboard
+ */
+#[AllowDynamicProperties]
+class Dashboard extends CommonGLPI
+{
+    // Widget identifiers
+    public const SATISFACTION_SURVEY = 1;
+
+    // Icons
+    public const ICON_CIRCLE = 0;
+
+    // Periods
+    public const EMPTY_PERIOD = 0;
+    public const FIRST_TRIMESTER_PERIOD = 1;
+    public const SECOND_TRIMESTER_PERIOD = 2;
+    public const THIRD_TRIMESTER_PERIOD = 3;
+    public const FOURTH_TRIMESTER_PERIOD = 4;
+    public const YEAR_PERIOD = 5;
+
+    public const PERIOD_SELECTOR_HTML_ID = "period-selector";
+
+    /**
+     * Dashboard constructor.
+     *
+     * @param array $options
+     */
+    public function __construct($options = [])
+    {
+        $this->options = $options;
+        $this->interfaces = ["central"];
+    }
+
+    /**
+     * @return array
+     */
+    public function getWidgetsForItem()
+    {
+
+        $widgets = [
+            Menu::$HELPDESK => [
+
+                $this->getType() . self::SATISFACTION_SURVEY => ["title"   => __('Summary of satisfaction surveys', 'satisfaction'),
+                    "type"    => Widget::$KPI,
+                    "comment" => ""],
+            ],
+        ];
+
+        return $widgets;
+    }
+
+
+    public function getWidgetTitle($widgetId)
+    {
+        $result = "";
+        switch ($widgetId) {
+            case $this->getType() . self::SATISFACTION_SURVEY:
+                $result = __('Satisfaction survey', 'satisfaction');
+                break;
+        }
+        return $result;
+    }
+
+    /**
+     * Give name of period by id
+     * Or give all list if id is null
+     *
+     * @param null $idPeriod
+     * @return array|mixed|null
+     */
+    public function getPeriodNames($idPeriod = null)
+    {
+        $titles = [
+            self::EMPTY_PERIOD => "--",
+            self::FIRST_TRIMESTER_PERIOD => __('First Trimester', 'satisfaction'),
+            self::SECOND_TRIMESTER_PERIOD => __('Second Trimester', 'satisfaction'),
+            self::THIRD_TRIMESTER_PERIOD => __('Third Trimester', 'satisfaction'),
+            self::FOURTH_TRIMESTER_PERIOD => __('Fourth Trimester', 'satisfaction'),
+            self::YEAR_PERIOD => __('Year', 'satisfaction'),
+        ];
+
+        if (is_null($idPeriod)) {
+            return $titles;
+        } else {
+            return $titles[$idPeriod] ?? '';
+        }
+    }
+
+    /**
+     * Give the period interval of date
+     *
+     * @param $idPeriod
+     * @param null $year
+     * @return array
+     */
+    public function getDateIntervalForPeriod($idPeriod, $year)
+    {
+        $interval = [];
+
+        switch ($idPeriod) {
+            case self::FIRST_TRIMESTER_PERIOD:
+                $interval['begin'] = $year . '-01-01 00:00:00';
+                $interval['end'] = $year . '-03-31 00:00:00';
+                break;
+            case self::SECOND_TRIMESTER_PERIOD:
+                $interval['begin'] = $year . '-04-01 00:00:00';
+                $interval['end'] = $year . '-06-30 00:00:00';
+                break;
+            case self::THIRD_TRIMESTER_PERIOD:
+                $interval['begin'] = $year . '-07-01 00:00:00';
+                $interval['end'] = $year . '-09-30 00:00:00';
+                break;
+            case self::FOURTH_TRIMESTER_PERIOD:
+                $interval['begin'] = $year . '-10-01 00:00:00';
+                $interval['end'] = $year . '-12-31 00:00:00';
+                break;
+            case self::YEAR_PERIOD:
+            case null:
+                $interval['begin'] = $year . '-01-01 00:00:00';
+                $interval['end'] = $year . '-12-31 00:00:00';
+        }
+        return $interval;
+    }
+
+    /**
+     * @param $widgetId
+     *
+     * @return MydashboardHtml
+     */
+    public function getWidgetContentForItem($widgetId, $opt = [])
+    {
+        // The widget exposes survey KPIs: enforce the plugin right here rather
+        // than relying on the third-party dashboard plugin.
+        if (!Session::haveRight(Survey::$rightname, READ)) {
+            return new MydashboardHtml();
+        }
+
+        switch ($widgetId) {
+            case $this->getType() . self::SATISFACTION_SURVEY:
+                return self::satisfactionSurvey($widgetId, $opt);
+                break;
+        }
+    }
+
+    public function satisfactionSurvey($widgetId, $opt = [])
+    {
+        global $DB;
+
+        $criterias = ['begin', 'end', 'year', self::PERIOD_SELECTOR_HTML_ID];
+        $params    = ["criterias"   => $criterias,
+            "opt" => $opt];
+
+        // manageCriterias() is a static method of the Criteria class, not Helper:
+        // calling it on Helper raised a fatal "undefined method".
+        $default = Criteria::manageCriterias($params);
+
+        $period = $opt[self::PERIOD_SELECTOR_HTML_ID] ?? null;
+        // $opt is the incoming option set; the previous code read/wrote an
+        // undefined $options['opt'] wrapper, so the computed begin/end interval
+        // never reached the queries and $opt was clobbered to a partial array.
+        $year = $opt['year'] ?? date("Y");
+
+        // When period is chosen we set the interval of date with the year
+        if (is_null($period) || intval($period) !== self::EMPTY_PERIOD) {
+            $interval = self::getDateIntervalForPeriod($period, $year);
+
+            $opt['begin'] = $interval['begin'];
+            $opt['end']   = $interval['end'];
+
+            $opt[self::PERIOD_SELECTOR_HTML_ID] = self::EMPTY_PERIOD;
+        }
+
+        $widget = new MydashboardHtml();
+        $widget->setWidgetTitle(self::getWidgetTitle($widgetId));
+
+        $content = "";
+
+        // Recover survey associed to current entity
+        // Honours recursive surveys declared in a parent entity
+        if (Survey::getObjectForEntity($_SESSION['glpiactive_entity']) === false) {
+            $content = TemplateRenderer::getInstance()->render(
+                '@satisfaction/dashboard_satisfaction_survey.html.twig',
+                ['has_survey' => false],
+            );
+        } else {
+            // Values
+            $numberOfSurveys = 0;
+            $numberOfImpactedTickets = 0;
+            $numberSurveyNotAnswered = 0;
+            $numberSurveyAnswered = 0;
+            $globalSatisfaction = 0;
+
+            // Restrict aggregates to the active entity: satisfaction rows are scoped
+            // through their parent ticket's entity (GLPI does not scope queries by itself).
+            $sat_table    = TicketSatisfaction::getTable();
+            $ticket_table = Ticket::getTable();
+            $entity_join  = [
+                'LEFT JOIN' => [
+                    $ticket_table => [
+                        'ON' => [
+                            $ticket_table => 'id',
+                            $sat_table    => 'tickets_id',
+                        ],
+                    ],
+                ],
+            ];
+            $entity_where = (new DbUtils())->getEntitiesRestrictCriteria($ticket_table, '', '', true);
+
+            $date_where = [];
+            if (!empty($opt['begin'])) {
+                $date_where[] = [$sat_table . '.date_begin' => ['>=', new QueryExpression('DATE(' . $DB->quoteValue($opt['begin']) . ')')]];
+            }
+            if (!empty($opt['end'])) {
+                $date_where[] = [$sat_table . '.date_begin' => ['<', new QueryExpression('DATE(' . $DB->quoteValue($opt['end']) . ')')]];
+            }
+            $base_where = array_merge($date_where, $entity_where);
+
+            // Number of satisfaction surveys
+            $row = $DB->request([
+                'COUNT' => 'nb',
+                'FROM'  => $sat_table,
+                'LEFT JOIN' => $entity_join['LEFT JOIN'],
+                'WHERE' => $base_where,
+            ])->current();
+            $numberOfSurveys = $row ? (int) $row['nb'] : 0;
+
+            // Number of concerned tickets
+            $row = $DB->request([
+                'SELECT' => ['COUNT DISTINCT' => $sat_table . '.tickets_id AS nb'],
+                'FROM'   => $sat_table,
+                'LEFT JOIN' => $entity_join['LEFT JOIN'],
+                'WHERE'  => $base_where,
+            ])->current();
+            $numberOfImpactedTickets = $row ? (int) $row['nb'] : 0;
+
+            // Surveys not answered
+            $row = $DB->request([
+                'COUNT' => 'nb',
+                'FROM'  => $sat_table,
+                'LEFT JOIN' => $entity_join['LEFT JOIN'],
+                'WHERE' => array_merge($base_where, [$sat_table . '.date_answered' => null]),
+            ])->current();
+            $numberSurveyNotAnswered = $row ? (int) $row['nb'] : 0;
+
+            // Surveys answered
+            $row = $DB->request([
+                'SELECT' => ['COUNT DISTINCT' => $sat_table . '.tickets_id AS nb'],
+                'FROM'   => $sat_table,
+                'LEFT JOIN' => $entity_join['LEFT JOIN'],
+                'WHERE'  => array_merge($base_where, ['NOT' => [$sat_table . '.date_answered' => null]]),
+            ])->current();
+            $numberSurveyAnswered = $row ? (int) $row['nb'] : 0;
+
+            // Global satisfaction
+            $row = $DB->request([
+                'SELECT' => [new QueryExpression('AVG(' . $DB->quoteName($sat_table . '.satisfaction') . ') AS nb')],
+                'FROM'   => $sat_table,
+                'LEFT JOIN' => $entity_join['LEFT JOIN'],
+                'WHERE'  => array_merge($base_where, ['NOT' => [$sat_table . '.date_answered' => null]]),
+            ])->current();
+            $globalSatisfaction = round($row ? (float) $row['nb'] : 0, 1);
+
+            // Register the rateit JS asset (script registration stays in PHP); the
+            // rateit CSS <link> and the whole widget body are produced by Twig.
+            Html::requireJs('rateit');
+
+            $elements = [
+                [
+                    'color' => 'grey',
+                    'icon'  => 'fa-exclamation-circle',
+                    'title' => __('Number of surveys', 'satisfaction'),
+                    'value' => $numberOfSurveys,
+                ],
+                [
+                    'color' => 'grey',
+                    'icon'  => 'fa-id-card',
+                    'title' => __('Number of concerned tickets', 'satisfaction'),
+                    'value' => $numberOfImpactedTickets,
+                ],
+                [
+                    'color' => 'indianred',
+                    'icon'  => 'fa-times',
+                    'title' => __('Survey not answered', 'satisfaction'),
+                    'value' => $numberSurveyNotAnswered,
+                ],
+                [
+                    'color' => 'green',
+                    'icon'  => 'fa-check',
+                    'title' => __('Survey answered', 'satisfaction'),
+                    'value' => $numberSurveyAnswered,
+                ],
+            ];
+
+            $content = TemplateRenderer::getInstance()->render(
+                '@satisfaction/dashboard_satisfaction_survey.html.twig',
+                [
+                    'has_survey'          => true,
+                    'rateit_css'          => Html::css('public/lib/jquery.rateit.css'),
+                    'elements'            => $elements,
+                    'global_satisfaction' => $globalSatisfaction,
+                ],
+            );
+
+            $params = ["widgetId"  => $widgetId,
+                "name"      => str_replace(' ', '', self::getWidgetTitle($widgetId)),
+                "onsubmit"  => true,
+                "opt"       => $opt,
+                "default" => $default,
+                "criterias" => $criterias,
+                "export"    => false,
+                "canvas"    => false,
+                "nb"        => 1];
+
+            $graphHeader = Helper::getGraphHeader($params);
+
+            self::addPeriodCriteriaToGraphHeader($graphHeader);
+
+            $widget->setWidgetHeader($graphHeader);
+        }
+
+        $widget->setWidgetHtmlContent($content);
+        $widget->toggleWidgetRefresh();
+        return $widget;
+    }
+
+    /**
+     * Only works with submit button in $graphHeader
+     *
+     * @param $graphHeader
+     */
+    public function addPeriodCriteriaToGraphHeader(&$graphHeader)
+    {
+        $submitPos = strpos($graphHeader, "<button type='submit'");
+        $graphBeforeSubmit = substr($graphHeader, 0, $submitPos);
+        $graphAfterSubmit = substr($graphHeader, $submitPos, strlen($graphHeader) - 1);
+
+        $dropdown = Dropdown::showFromArray(self::PERIOD_SELECTOR_HTML_ID, self::getPeriodNames(), ['display' => false]);
+
+        $period = "<span class='md-widgetcrit'>";
+        $period .= __('Periods', 'satisfaction');
+        $period .= "&nbsp;";
+        $period .= $dropdown;
+        $period .= "</span>";
+        $period .= "<br><br>";
+
+        $graphHeader = $graphBeforeSubmit . $period . $graphAfterSubmit;
+    }
+}

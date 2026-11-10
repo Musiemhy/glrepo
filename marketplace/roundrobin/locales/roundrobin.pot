@@ -1,0 +1,159 @@
+# RoundRobin plugin for GLPI — translation template
+# Copyright (C) initiativa s.r.l.
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: RoundRobin plugin for GLPI\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-05-09 12:00+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "RoundRobin Settings"
+msgstr ""
+
+msgid "Enable Group Round Robin Ticket Assignment for each ITILCategory"
+msgstr ""
+
+msgid "Assign also to the original Group:"
+msgstr ""
+
+msgid "Yes"
+msgstr ""
+
+msgid "No"
+msgstr ""
+
+msgid "ITILCategory"
+msgstr ""
+
+msgid "Group"
+msgstr ""
+
+msgid "Members #"
+msgstr ""
+
+msgid "Setting"
+msgstr ""
+
+msgid "Enabled"
+msgstr ""
+
+msgid "Disabled"
+msgstr ""
+
+msgid "Save"
+msgstr ""
+
+msgid "Cancel"
+msgstr ""
+
+msgid "New tickets pick the next technician from the category technician group."
+msgstr ""
+
+msgid "RoundRobin"
+msgstr ""
+
+msgid "N/A"
+msgstr ""
+
+msgid "Group assignment behaviour"
+msgstr ""
+
+msgid "Assign the rotated technician plus the technician group linked to the category when checked."
+msgstr ""
+
+msgid "Categories & technician groups"
+msgstr ""
+
+msgid "Search…"
+msgstr ""
+
+msgid "No ITIL categories found."
+msgstr ""
+
+msgid "Assign a technician group on the ITIL category first."
+msgstr ""
+
+msgid "General options"
+msgstr ""
+
+msgid "Also assign tickets to this category's technician group"
+msgstr ""
+
+msgid "ITIL categories"
+msgstr ""
+
+msgid "Round-robin is available only when a technician group is set on the category."
+msgstr ""
+
+msgid "ITIL category"
+msgstr ""
+
+msgid "Technician group"
+msgstr ""
+
+msgid "Active members"
+msgstr ""
+
+msgid "No technician group assigned"
+msgstr ""
+
+msgid "Enable"
+msgstr ""
+
+msgid "Assign a technician group to the ITIL category first."
+msgstr ""
+
+msgid "No changes were made."
+msgstr ""
+
+msgid "Configuration saved."
+msgstr ""
+
+msgid "Category settings saved."
+msgstr ""
+
+msgid "Assign a technician group to the ITIL category first, then enable round-robin here."
+msgstr ""
+
+msgid "Settings"
+msgstr ""
+
+msgid "No group assigned"
+msgstr ""
+
+msgid "Select all"
+msgstr ""
+
+msgid "Search for category or group"
+msgstr ""
+
+msgid "Member filter"
+msgstr ""
+
+msgid "Show all"
+msgstr ""
+
+msgid "With active members only"
+msgstr ""
+
+msgid "Without members"
+msgstr ""
+
+msgid "Search categories or groups"
+msgstr ""
+
+msgid "Search"
+msgstr ""
+
+msgid "Search categories or groups…"
+msgstr ""
+
+msgid "No categories match your search."
+msgstr ""

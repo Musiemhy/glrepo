@@ -1,0 +1,1985 @@
+<?php
+
+include('../../../inc/includes.php');
+
+Session::checkLoginUser();
+
+if (!Session::haveRight('ticket', READ)) {
+    Html::displayErrorAndDie(__('You do not have permission to view ticket data.'));
+}
+
+require_once __DIR__ . '/../inc/menu.class.php';
+
+global $DB, $CFG_GLPI;
+
+
+/*
+ * ============================================================
+ * HELPERS
+ * ============================================================
+ */
+
+function up_h($value): string
+{
+    return htmlspecialchars(
+        (string)$value,
+        ENT_QUOTES | ENT_SUBSTITUTE,
+        'UTF-8'
+    );
+}
+
+
+function up_safe_date($value, string $default): string
+{
+    if (!is_string($value) || $value === '') {
+        return $default;
+    }
+
+    $time = strtotime($value);
+
+    if ($time === false) {
+        return $default;
+    }
+
+    return date('Y-m-d', $time);
+}
+
+
+function up_minutes_between($start, $end): ?int
+{
+    if (empty($start) || empty($end)) {
+        return null;
+    }
+
+    $start_ts = strtotime($start);
+    $end_ts   = strtotime($end);
+
+    if ($start_ts === false || $end_ts === false) {
+        return null;
+    }
+
+    if ($end_ts < $start_ts) {
+        return null;
+    }
+
+    return (int)floor(($end_ts - $start_ts) / 60);
+}
+
+
+function up_minutes_to_text(?int $minutes): string
+{
+    if ($minutes === null) {
+        return '-';
+    }
+
+    if ($minutes < 60) {
+        return $minutes . 'm';
+    }
+
+    $days = intdiv($minutes, 1440);
+    $minutes %= 1440;
+
+    $hours = intdiv($minutes, 60);
+    $mins  = $minutes % 60;
+
+    $parts = [];
+
+    if ($days > 0) {
+        $parts[] = $days . 'd';
+    }
+
+    if ($hours > 0) {
+        $parts[] = $hours . 'h';
+    }
+
+    if ($mins > 0) {
+        $parts[] = $mins . 'm';
+    }
+
+    if (!$parts) {
+        return '0m';
+    }
+
+    return implode(' ', $parts);
+}
+
+
+function up_status_name($status): string
+{
+    $status = (int)$status;
+
+    $names = [
+        1 => __('New'),
+        2 => __('Processing (assigned)'),
+        3 => __('Processing (planned)'),
+        4 => __('Pending'),
+        5 => __('Solved'),
+        6 => __('Closed'),
+    ];
+
+    return $names[$status] ?? __('Unknown');
+}
+
+
+function up_priority_name($priority): string
+{
+    $priority = (int)$priority;
+
+    $names = [
+        1 => __('Very low'),
+        2 => __('Low'),
+        3 => __('Medium'),
+        4 => __('High'),
+        5 => __('Very high'),
+        6 => __('Major'),
+    ];
+
+    return $names[$priority] ?? __('Unknown');
+}
+
+
+function up_user_name($firstname, $realname, int $id = 0): string
+{
+    $name = trim(
+        (string)$firstname . ' ' . (string)$realname
+    );
+
+    if ($name !== '') {
+        return $name;
+    }
+
+    if ($id > 0) {
+        return __('User') . ' #' . $id;
+    }
+
+    return __('Unknown technician');
+}
+
+
+/*
+ * ============================================================
+ * FILTERS
+ * ============================================================
+ */
+
+$date_from = up_safe_date(
+    $_GET['date_from'] ?? '',
+    date('Y-m-01')
+);
+
+$date_to = up_safe_date(
+    $_GET['date_to'] ?? '',
+    date('Y-m-d')
+);
+
+if ($date_from > $date_to) {
+    $tmp       = $date_from;
+    $date_from = $date_to;
+    $date_to   = $tmp;
+}
+
+$date_to_exclusive = date(
+    'Y-m-d',
+    strtotime($date_to . ' +1 day')
+);
+
+
+$technician_id = isset($_GET['technician_id'])
+    ? (int)$_GET['technician_id']
+    : 0;
+
+$group_id = isset($_GET['group_id'])
+    ? (int)$_GET['group_id']
+    : 0;
+
+$category_id = isset($_GET['category_id'])
+    ? (int)$_GET['category_id']
+    : 0;
+
+$status_id = isset($_GET['status_id'])
+    ? (int)$_GET['status_id']
+    : 0;
+
+$priority_id = isset($_GET['priority_id'])
+    ? (int)$_GET['priority_id']
+    : 0;
+
+
+/*
+ * ============================================================
+ * GROUP MEMBERS
+ * ============================================================
+ */
+
+$group_user_ids = [];
+
+if ($group_id > 0) {
+    $group_iterator = $DB->request([
+        'SELECT' => [
+            'users_id'
+        ],
+        'FROM' => 'glpi_groups_users',
+        'WHERE' => [
+            'groups_id' => $group_id
+        ]
+    ]);
+
+    foreach ($group_iterator as $group_user) {
+        $uid = (int)($group_user['users_id'] ?? 0);
+
+        if ($uid > 0) {
+            $group_user_ids[] = $uid;
+        }
+    }
+}
+
+
+/*
+ * ============================================================
+ * TICKET ASSIGNMENTS
+ *
+ * Important:
+ * We use glpi_tickets_users.users_id directly.
+ * This avoids depending on an aliased technician_id
+ * returned by the GLPI query builder.
+ * ============================================================
+ */
+
+$criteria = [
+    'SELECT' => [
+        'glpi_tickets_users' => [
+            'users_id',
+            'tickets_id'
+        ],
+        'glpi_tickets' => [
+            'id',
+            'name',
+            'type',
+            'status',
+            'priority',
+            'itilcategories_id',
+            'date',
+            'solvedate',
+            'closedate',
+            'time_to_resolve'
+        ]
+    ],
+
+    'FROM' => 'glpi_tickets_users',
+
+    'INNER JOIN' => [
+        'glpi_tickets' => [
+            'ON' => [
+                'glpi_tickets_users' => 'tickets_id',
+                'glpi_tickets' => 'id'
+            ]
+        ]
+    ],
+
+    'WHERE' => [
+        'glpi_tickets_users.type' => 2,
+        'glpi_tickets.is_deleted' => 0,
+        'glpi_tickets.date' => [
+            '>=',
+            $date_from . ' 00:00:00'
+        ]
+    ],
+
+    'ORDER' => [
+        'glpi_tickets.date ASC'
+    ]
+];
+
+
+$criteria['WHERE'][] = [
+    'glpi_tickets.date' => [
+        '<',
+        $date_to_exclusive . ' 00:00:00'
+    ]
+];
+
+
+if ($technician_id > 0) {
+    $criteria['WHERE']['glpi_tickets_users.users_id'] = $technician_id;
+}
+
+if ($category_id > 0) {
+    $criteria['WHERE']['glpi_tickets.itilcategories_id'] = $category_id;
+}
+
+
+if ($status_id > 0) {
+    $criteria['WHERE']['glpi_tickets.status'] = $status_id;
+}
+
+
+if ($priority_id > 0) {
+    $criteria['WHERE']['glpi_tickets.priority'] = $priority_id;
+}
+
+
+if (!empty($group_user_ids)) {
+    $criteria['WHERE']['glpi_tickets_users.users_id'] = $group_user_ids;
+}
+
+
+/*
+ * ============================================================
+ * DATA STRUCTURES
+ * ============================================================
+ */
+
+$rows = [];
+
+$all_ticket_ids = [];
+
+$ticket_technicians = [];
+
+$ticket_data = [];
+
+$technician_ids = [];
+
+
+/*
+ * ============================================================
+ * READ ASSIGNED TICKETS
+ * ============================================================
+ */
+
+$ticket_iterator = $DB->request($criteria);
+
+
+foreach ($ticket_iterator as $ticket) {
+
+    $uid = (int)($ticket['users_id'] ?? 0);
+
+    $ticket_id = (int)($ticket['id'] ?? 0);
+
+    if ($uid <= 0 || $ticket_id <= 0) {
+        continue;
+    }
+
+    $technician_ids[$uid] = $uid;
+
+    $all_ticket_ids[$ticket_id] = $ticket_id;
+
+    if (!isset($ticket_technicians[$ticket_id])) {
+        $ticket_technicians[$ticket_id] = [];
+    }
+
+    $ticket_technicians[$ticket_id][$uid] = $uid;
+
+    $ticket_data[$ticket_id] = [
+        'id'              => $ticket_id,
+        'name'            => $ticket['name'] ?? '',
+        'type'            => (int)($ticket['type'] ?? 0),
+        'status'          => (int)($ticket['status'] ?? 0),
+        'priority'        => (int)($ticket['priority'] ?? 0),
+        'category_id'     => (int)($ticket['itilcategories_id'] ?? 0),
+        'date'            => $ticket['date'] ?? null,
+        'solvedate'       => $ticket['solvedate'] ?? null,
+        'closedate'       => $ticket['closedate'] ?? null,
+        'time_to_resolve' => $ticket['time_to_resolve'] ?? null
+    ];
+}
+
+
+/*
+ * ============================================================
+ * LOAD TECHNICIAN INFORMATION SEPARATELY
+ * ============================================================
+ */
+
+$technicians = [];
+
+if (!empty($technician_ids)) {
+
+    $user_iterator = $DB->request([
+        'SELECT' => [
+            'id',
+            'firstname',
+            'realname'
+        ],
+
+        'FROM' => 'glpi_users',
+
+        'WHERE' => [
+            'id' => array_values($technician_ids)
+        ],
+
+        'ORDER' => [
+            'realname ASC',
+            'firstname ASC'
+        ]
+    ]);
+
+    foreach ($user_iterator as $user) {
+
+        $uid = (int)($user['id'] ?? 0);
+
+        if ($uid <= 0) {
+            continue;
+        }
+
+        $technicians[$uid] = [
+            'id'        => $uid,
+            'firstname' => $user['firstname'] ?? '',
+            'realname'  => $user['realname'] ?? ''
+        ];
+    }
+}
+
+
+/*
+ * ============================================================
+ * INITIALIZE TECHNICIAN ROWS
+ * ============================================================
+ */
+
+foreach ($technician_ids as $uid) {
+
+    $firstname = $technicians[$uid]['firstname'] ?? '';
+
+    $realname = $technicians[$uid]['realname'] ?? '';
+
+    $rows[$uid] = [
+        'technician_id'       => $uid,
+        'technician_name'     => up_user_name(
+            $firstname,
+            $realname,
+            $uid
+        ),
+
+        'assigned'            => 0,
+        'written'             => 0,
+        'followups'           => 0,
+
+        'new'                 => 0,
+        'processing'          => 0,
+        'pending'             => 0,
+        'solved'              => 0,
+        'closed'              => 0,
+
+        'resolved_closed'     => 0,
+
+        'resolution_rate'     => 0,
+
+        'sla_total'           => 0,
+        'sla_compliant'       => 0,
+        'sla_breaches'        => 0,
+        'sla_compliance'      => 0,
+
+        'tto_total_minutes'   => 0,
+        'tto_count'           => 0,
+
+        'ttr_total_minutes'   => 0,
+        'ttr_count'           => 0,
+
+        'ticket_ids'          => []
+    ];
+}
+
+
+/*
+ * ============================================================
+ * PROCESS TICKETS
+ * ============================================================
+ */
+
+foreach ($ticket_data as $ticket_id => $ticket) {
+
+    $assigned_users = $ticket_technicians[$ticket_id] ?? [];
+
+    foreach ($assigned_users as $uid) {
+
+        if (!isset($rows[$uid])) {
+            continue;
+        }
+
+        $rows[$uid]['assigned']++;
+
+        $rows[$uid]['ticket_ids'][$ticket_id] = $ticket_id;
+
+
+        /*
+         * Status
+         */
+
+        switch ((int)$ticket['status']) {
+
+            case 1:
+                $rows[$uid]['new']++;
+                break;
+
+            case 2:
+            case 3:
+                $rows[$uid]['processing']++;
+                break;
+
+            case 4:
+                $rows[$uid]['pending']++;
+                break;
+
+            case 5:
+                $rows[$uid]['solved']++;
+                $rows[$uid]['resolved_closed']++;
+                break;
+
+            case 6:
+                $rows[$uid]['closed']++;
+                $rows[$uid]['resolved_closed']++;
+                break;
+        }
+
+
+        /*
+         * TTR
+         */
+
+        $resolution_date = null;
+
+        if (!empty($ticket['solvedate'])) {
+            $resolution_date = $ticket['solvedate'];
+        } elseif (!empty($ticket['closedate'])) {
+            $resolution_date = $ticket['closedate'];
+        }
+
+        if ($resolution_date !== null) {
+
+            $ttr = up_minutes_between(
+                $ticket['date'],
+                $resolution_date
+            );
+
+            if ($ttr !== null) {
+
+                $rows[$uid]['ttr_total_minutes'] += $ttr;
+
+                $rows[$uid]['ttr_count']++;
+            }
+        }
+
+
+        /*
+         * SLA
+         */
+
+        if (!empty($ticket['time_to_resolve'])) {
+
+            $rows[$uid]['sla_total']++;
+
+            $deadline = strtotime(
+                $ticket['time_to_resolve']
+            );
+
+            $completed = null;
+
+            if ($resolution_date !== null) {
+                $completed = strtotime($resolution_date);
+            }
+
+            if ($deadline !== false) {
+
+                if (
+                    $completed !== null
+                    && $completed !== false
+                    && $completed <= $deadline
+                ) {
+                    $rows[$uid]['sla_compliant']++;
+                } elseif (
+                    $completed !== null
+                    && $completed !== false
+                    && $completed > $deadline
+                ) {
+                    $rows[$uid]['sla_breaches']++;
+                } elseif (
+                    $completed === null
+                    && time() > $deadline
+                ) {
+                    $rows[$uid]['sla_breaches']++;
+                }
+            }
+        }
+    }
+}
+
+
+/*
+ * ============================================================
+ * FOLLOW-UPS
+ * ============================================================
+ */
+
+$followup_first = [];
+
+$followup_iterator = null;
+
+if (!empty($all_ticket_ids)) {
+
+    $followup_iterator = $DB->request([
+        'SELECT' => [
+            'items_id',
+            'users_id',
+            'date'
+        ],
+
+        'FROM' => 'glpi_itilfollowups',
+
+        'WHERE' => [
+            'itemtype' => 'Ticket',
+            'items_id' => array_values($all_ticket_ids)
+        ],
+
+        'ORDER' => [
+            'date ASC'
+        ]
+    ]);
+}
+
+
+if ($followup_iterator !== null) {
+
+    foreach ($followup_iterator as $followup) {
+
+        $ticket_id = (int)($followup['items_id'] ?? 0);
+
+        $followup_user_id = (int)($followup['users_id'] ?? 0);
+
+        $followup_date = $followup['date'] ?? null;
+
+        if (
+            $ticket_id <= 0
+            || $followup_user_id <= 0
+            || empty($followup_date)
+        ) {
+            continue;
+        }
+
+        /*
+         * Only count follow-ups written by a technician
+         * who is assigned to this ticket.
+         */
+
+        if (
+            !isset($ticket_technicians[$ticket_id])
+            || !isset(
+                $ticket_technicians[$ticket_id][$followup_user_id]
+            )
+        ) {
+            continue;
+        }
+
+        if (!isset($rows[$followup_user_id])) {
+            continue;
+        }
+
+
+        /*
+         * Total technician follow-ups
+         */
+
+        $rows[$followup_user_id]['followups']++;
+
+
+        /*
+         * First response
+         */
+
+        if (!isset($followup_first[$ticket_id])) {
+
+            $followup_first[$ticket_id] = [
+                'user_id' => $followup_user_id,
+                'date'    => $followup_date
+            ];
+        }
+
+
+        /*
+         * Written ticket
+         *
+         * Count once per technician/ticket.
+         */
+
+        $written_key =
+            $followup_user_id . ':' . $ticket_id;
+
+        if (
+            !isset(
+                $rows[$followup_user_id]['written_ticket_keys']
+            )
+        ) {
+            $rows[$followup_user_id]['written_ticket_keys'] = [];
+        }
+
+        $rows[$followup_user_id]['written_ticket_keys'][$ticket_id] = true;
+    }
+}
+
+
+/*
+ * ============================================================
+ * TTO
+ * ============================================================
+ */
+
+foreach ($followup_first as $ticket_id => $response) {
+
+    $uid = (int)$response['user_id'];
+
+    if (
+        !isset($rows[$uid])
+        || !isset($ticket_data[$ticket_id])
+    ) {
+        continue;
+    }
+
+    $tto = up_minutes_between(
+        $ticket_data[$ticket_id]['date'],
+        $response['date']
+    );
+
+    if ($tto !== null) {
+
+        $rows[$uid]['tto_total_minutes'] += $tto;
+
+        $rows[$uid]['tto_count']++;
+    }
+}
+
+
+/*
+ * ============================================================
+ * FINALIZE KPI VALUES
+ * ============================================================
+ */
+
+$total_assigned = 0;
+$total_written = 0;
+$total_followups = 0;
+$total_resolved_closed = 0;
+$total_sla = 0;
+$total_sla_compliant = 0;
+$total_sla_breaches = 0;
+$total_tto_minutes = 0;
+$total_tto_count = 0;
+$total_ttr_minutes = 0;
+$total_ttr_count = 0;
+
+$status_summary = [
+    1 => 0,
+    2 => 0,
+    3 => 0,
+    4 => 0,
+    5 => 0,
+    6 => 0
+];
+
+
+foreach ($rows as $uid => &$row) {
+
+    $row['written'] = isset(
+        $row['written_ticket_keys']
+    )
+        ? count($row['written_ticket_keys'])
+        : 0;
+
+
+    if ($row['assigned'] > 0) {
+
+        $row['resolution_rate'] =
+            round(
+                (
+                    $row['resolved_closed']
+                    / $row['assigned']
+                ) * 100,
+                1
+            );
+    }
+
+
+    if ($row['sla_total'] > 0) {
+
+        $row['sla_compliance'] =
+            round(
+                (
+                    $row['sla_compliant']
+                    / $row['sla_total']
+                ) * 100,
+                1
+            );
+    }
+
+
+    $row['avg_tto'] = null;
+
+    if ($row['tto_count'] > 0) {
+
+        $row['avg_tto'] =
+            (int)round(
+                $row['tto_total_minutes']
+                / $row['tto_count']
+            );
+    }
+
+
+    $row['avg_ttr'] = null;
+
+    if ($row['ttr_count'] > 0) {
+
+        $row['avg_ttr'] =
+            (int)round(
+                $row['ttr_total_minutes']
+                / $row['ttr_count']
+            );
+    }
+
+
+    $total_assigned += $row['assigned'];
+
+    $total_written += $row['written'];
+
+    $total_followups += $row['followups'];
+
+    $total_resolved_closed +=
+        $row['resolved_closed'];
+
+    $total_sla += $row['sla_total'];
+
+    $total_sla_compliant +=
+        $row['sla_compliant'];
+
+    $total_sla_breaches +=
+        $row['sla_breaches'];
+
+    $total_tto_minutes +=
+        $row['tto_total_minutes'];
+
+    $total_tto_count +=
+        $row['tto_count'];
+
+    $total_ttr_minutes +=
+        $row['ttr_total_minutes'];
+
+    $total_ttr_count +=
+        $row['ttr_count'];
+
+
+    foreach ($row['ticket_ids'] as $tid) {
+
+        if (!isset($ticket_data[$tid])) {
+            continue;
+        }
+
+        $status = (int)$ticket_data[$tid]['status'];
+
+        if (isset($status_summary[$status])) {
+            $status_summary[$status]++;
+        }
+    }
+}
+
+unset($row);
+
+
+/*
+ * ============================================================
+ * OVERALL KPIs
+ * ============================================================
+ */
+
+$overall_resolution_rate = 0;
+
+if ($total_assigned > 0) {
+
+    $overall_resolution_rate =
+        round(
+            (
+                $total_resolved_closed
+                / $total_assigned
+            ) * 100,
+            1
+        );
+}
+
+
+$overall_sla_compliance = 0;
+
+if ($total_sla > 0) {
+
+    $overall_sla_compliance =
+        round(
+            (
+                $total_sla_compliant
+                / $total_sla
+            ) * 100,
+            1
+        );
+}
+
+
+$overall_avg_tto = null;
+
+if ($total_tto_count > 0) {
+
+    $overall_avg_tto =
+        (int)round(
+            $total_tto_minutes
+            / $total_tto_count
+        );
+}
+
+
+$overall_avg_ttr = null;
+
+if ($total_ttr_count > 0) {
+
+    $overall_avg_ttr =
+        (int)round(
+            $total_ttr_minutes
+            / $total_ttr_count
+        );
+}
+
+
+/*
+ * ============================================================
+ * FILTER LISTS
+ * ============================================================
+ */
+
+$groups = $DB->request([
+    'SELECT' => [
+        'id',
+        'name'
+    ],
+
+    'FROM' => 'glpi_groups',
+
+    'ORDER' => [
+        'name ASC'
+    ]
+]);
+
+
+$users = $DB->request([
+    'SELECT' => [
+        'id',
+        'firstname',
+        'realname'
+    ],
+
+    'FROM' => 'glpi_users',
+
+    'WHERE' => [
+        'is_deleted' => 0
+    ],
+
+    'ORDER' => [
+        'realname ASC',
+        'firstname ASC'
+    ]
+]);
+
+
+$categories = $DB->request([
+    'SELECT' => [
+        'id',
+        'completename'
+    ],
+
+    'FROM' => 'glpi_itilcategories',
+
+    'ORDER' => [
+        'completename ASC'
+    ]
+]);
+
+
+/*
+ * ============================================================
+ * HTML
+ * ============================================================
+ */
+
+Html::header(
+    __('User Performance KPI', 'userperformance'),
+    $_SERVER['PHP_SELF'],
+    'tools'
+);
+
+?>
+
+<style>
+
+.up-wrapper {
+    padding: 20px;
+}
+
+.up-title {
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.up-subtitle {
+    color: #666;
+    margin-bottom: 20px;
+}
+
+.up-filter {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 18px;
+    margin-bottom: 20px;
+}
+
+.up-filter-grid {
+    display: grid;
+    grid-template-columns:
+        repeat(auto-fit, minmax(190px, 1fr));
+    gap: 14px;
+}
+
+.up-field label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.up-field input,
+.up-field select {
+    width: 100%;
+    min-height: 38px;
+    padding: 6px 8px;
+}
+
+.up-actions {
+    margin-top: 15px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.up-btn {
+    display: inline-block;
+    padding: 8px 16px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background: #f5f5f5;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.up-btn-primary {
+    background: #1677ff;
+    color: white;
+    border-color: #1677ff;
+}
+
+.up-kpi-grid {
+    display: grid;
+    grid-template-columns:
+        repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    margin-bottom: 22px;
+}
+
+.up-kpi {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 18px;
+}
+
+.up-kpi-label {
+    color: #666;
+    font-size: 13px;
+    margin-bottom: 8px;
+}
+
+.up-kpi-value {
+    font-size: 28px;
+    font-weight: 700;
+}
+
+.up-kpi-help {
+    margin-top: 5px;
+    color: #777;
+    font-size: 12px;
+}
+
+.up-section {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 18px;
+    margin-bottom: 22px;
+}
+
+.up-section h2 {
+    margin-top: 0;
+    margin-bottom: 5px;
+}
+
+.up-section-description {
+    color: #666;
+    margin-bottom: 15px;
+}
+
+.up-table-wrapper {
+    overflow-x: auto;
+}
+
+.up-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 1100px;
+}
+
+.up-table th,
+.up-table td {
+    border-bottom: 1px solid #e5e5e5;
+    padding: 9px 10px;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.up-table th {
+    background: #f7f7f7;
+    font-weight: 700;
+}
+
+.up-number {
+    text-align: right !important;
+}
+
+.up-status-grid {
+    display: grid;
+    grid-template-columns:
+        repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+}
+
+.up-status {
+    border: 1px solid #ddd;
+    border-radius: 7px;
+    padding: 14px;
+}
+
+.up-status-name {
+    font-size: 13px;
+    color: #666;
+}
+
+.up-status-value {
+    font-size: 24px;
+    font-weight: 700;
+}
+
+@media print {
+
+    .up-filter,
+    .up-actions {
+        display: none !important;
+    }
+
+    .up-wrapper {
+        padding: 0;
+    }
+
+    .up-section {
+        border: 0;
+    }
+
+}
+
+</style>
+
+
+<div class="up-wrapper">
+
+    <div class="up-title">
+        <?= __('User Performance KPI', 'userperformance') ?>
+    </div>
+
+    <div class="up-subtitle">
+        <?= __('Technician workload, productivity, response time, resolution and SLA performance.', 'userperformance') ?>
+    </div>
+
+
+    <!-- =====================================================
+         FILTERS
+         ====================================================== -->
+
+    <div class="up-filter">
+
+        <form method="get"
+              action="<?= up_h($_SERVER['PHP_SELF']) ?>">
+
+            <div class="up-filter-grid">
+
+                <div class="up-field">
+
+                    <label>
+                        <?= __('Date from') ?>
+                    </label>
+
+                    <input
+                        type="date"
+                        name="date_from"
+                        value="<?= up_h($date_from) ?>"
+                    >
+
+                </div>
+
+
+                <div class="up-field">
+
+                    <label>
+                        <?= __('Date to') ?>
+                    </label>
+
+                    <input
+                        type="date"
+                        name="date_to"
+                        value="<?= up_h($date_to) ?>"
+                    >
+
+                </div>
+
+
+                <div class="up-field">
+
+                    <label>
+                        <?= __('Technician') ?>
+                    </label>
+
+                    <select name="technician_id">
+
+                        <option value="0">
+                            <?= __('All technicians') ?>
+                        </option>
+
+                        <?php foreach ($users as $user): ?>
+
+                            <?php
+                            $uid = (int)$user['id'];
+
+                            $uname = up_user_name(
+                                $user['firstname'] ?? '',
+                                $user['realname'] ?? '',
+                                $uid
+                            );
+                            ?>
+
+                            <option
+                                value="<?= $uid ?>"
+                                <?= $technician_id === $uid
+                                    ? 'selected'
+                                    : '' ?>
+                            >
+                                <?= up_h($uname) ?>
+                            </option>
+
+                        <?php endforeach; ?>
+
+                    </select>
+
+                </div>
+
+
+                <div class="up-field">
+
+                    <label>
+                        <?= __('Group') ?>
+                    </label>
+
+                    <select name="group_id">
+
+                        <option value="0">
+                            <?= __('All groups') ?>
+                        </option>
+
+                        <?php foreach ($groups as $group): ?>
+
+                            <option
+                                value="<?= (int)$group['id'] ?>"
+                                <?= $group_id === (int)$group['id']
+                                    ? 'selected'
+                                    : '' ?>
+                            >
+                                <?= up_h($group['name']) ?>
+                            </option>
+
+                        <?php endforeach; ?>
+
+                    </select>
+
+                </div>
+
+
+                <div class="up-field">
+
+                    <label>
+                        <?= __('Category') ?>
+                    </label>
+
+                    <select name="category_id">
+
+                        <option value="0">
+                            <?= __('All categories') ?>
+                        </option>
+
+                        <?php foreach ($categories as $category): ?>
+
+                            <option
+                                value="<?= (int)$category['id'] ?>"
+                                <?= $category_id === (int)$category['id']
+                                    ? 'selected'
+                                    : '' ?>
+                            >
+                                <?= up_h($category['completename']) ?>
+                            </option>
+
+                        <?php endforeach; ?>
+
+                    </select>
+
+                </div>
+
+
+                <div class="up-field">
+
+                    <label>
+                        <?= __('Status') ?>
+                    </label>
+
+                    <select name="status_id">
+
+                        <option value="0">
+                            <?= __('All statuses') ?>
+                        </option>
+
+                        <?php for ($s = 1; $s <= 6; $s++): ?>
+
+                            <option
+                                value="<?= $s ?>"
+                                <?= $status_id === $s
+                                    ? 'selected'
+                                    : '' ?>
+                            >
+                                <?= up_h(up_status_name($s)) ?>
+                            </option>
+
+                        <?php endfor; ?>
+
+                    </select>
+
+                </div>
+
+
+                <div class="up-field">
+
+                    <label>
+                        <?= __('Priority') ?>
+                    </label>
+
+                    <select name="priority_id">
+
+                        <option value="0">
+                            <?= __('All priorities') ?>
+                        </option>
+
+                        <?php for ($p = 1; $p <= 6; $p++): ?>
+
+                            <option
+                                value="<?= $p ?>"
+                                <?= $priority_id === $p
+                                    ? 'selected'
+                                    : '' ?>
+                            >
+                                <?= up_h(up_priority_name($p)) ?>
+                            </option>
+
+                        <?php endfor; ?>
+
+                    </select>
+
+                </div>
+
+            </div>
+
+
+            <div class="up-actions">
+
+                <button
+                    type="submit"
+                    class="up-btn up-btn-primary"
+                >
+                    <?= __('Apply filters') ?>
+                </button>
+
+
+                <a
+                    class="up-btn"
+                    href="<?= up_h($_SERVER['PHP_SELF']) ?>"
+                >
+                    <?= __('Reset') ?>
+                </a>
+
+
+                <button
+                    type="button"
+                    class="up-btn"
+                    onclick="window.print()"
+                >
+                    <?= __('Print / PDF') ?>
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+
+    <!-- =====================================================
+         KPI CARDS
+         ====================================================== -->
+
+    <div class="up-kpi-grid">
+
+        <div class="up-kpi">
+
+            <div class="up-kpi-label">
+                <?= __('Assigned Tickets') ?>
+            </div>
+
+            <div class="up-kpi-value">
+                <?= number_format($total_assigned) ?>
+            </div>
+
+            <div class="up-kpi-help">
+                <?= __('Tickets assigned to technicians') ?>
+            </div>
+
+        </div>
+
+
+        <div class="up-kpi">
+
+            <div class="up-kpi-label">
+                <?= __('Written Tickets') ?>
+            </div>
+
+            <div class="up-kpi-value">
+                <?= number_format($total_written) ?>
+            </div>
+
+            <div class="up-kpi-help">
+                <?= __('Assigned tickets with technician follow-up') ?>
+            </div>
+
+        </div>
+
+
+        <div class="up-kpi">
+
+            <div class="up-kpi-label">
+                <?= __('Follow-ups') ?>
+            </div>
+
+            <div class="up-kpi-value">
+                <?= number_format($total_followups) ?>
+            </div>
+
+            <div class="up-kpi-help">
+                <?= __('Technician follow-up entries') ?>
+            </div>
+
+        </div>
+
+
+        <div class="up-kpi">
+
+            <div class="up-kpi-label">
+                <?= __('Resolved / Closed') ?>
+            </div>
+
+            <div class="up-kpi-value">
+                <?= number_format($total_resolved_closed) ?>
+            </div>
+
+            <div class="up-kpi-help">
+                <?= number_format($overall_resolution_rate, 1) ?>%
+                <?= __('resolution rate') ?>
+            </div>
+
+        </div>
+
+
+        <div class="up-kpi">
+
+            <div class="up-kpi-label">
+                <?= __('SLA Compliance') ?>
+            </div>
+
+            <div class="up-kpi-value">
+                <?= number_format($overall_sla_compliance, 1) ?>%
+            </div>
+
+            <div class="up-kpi-help">
+                <?= number_format($total_sla_breaches) ?>
+                <?= __('SLA breaches') ?>
+            </div>
+
+        </div>
+
+
+        <div class="up-kpi">
+
+            <div class="up-kpi-label">
+                <?= __('Average TTO') ?>
+            </div>
+
+            <div class="up-kpi-value">
+                <?= up_h(
+                    up_minutes_to_text($overall_avg_tto)
+                ) ?>
+            </div>
+
+            <div class="up-kpi-help">
+                <?= __('Time to first technician response') ?>
+            </div>
+
+        </div>
+
+
+        <div class="up-kpi">
+
+            <div class="up-kpi-label">
+                <?= __('Average TTR') ?>
+            </div>
+
+            <div class="up-kpi-value">
+                <?= up_h(
+                    up_minutes_to_text($overall_avg_ttr)
+                ) ?>
+            </div>
+
+            <div class="up-kpi-help">
+                <?= __('Ticket opening to resolution') ?>
+            </div>
+
+        </div>
+
+
+        <div class="up-kpi">
+
+            <div class="up-kpi-label">
+                <?= __('Pending') ?>
+            </div>
+
+            <div class="up-kpi-value">
+                <?= number_format($status_summary[4] ?? 0) ?>
+            </div>
+
+            <div class="up-kpi-help">
+                <?= __('Currently pending tickets') ?>
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         STATUS SUMMARY
+         ====================================================== -->
+
+    <div class="up-section">
+
+        <h2>
+            <?= __('Ticket Status Summary') ?>
+        </h2>
+
+        <div class="up-section-description">
+            <?= __('Current status distribution for assigned tickets in the selected period.', 'userperformance') ?>
+        </div>
+
+
+        <div class="up-status-grid">
+
+            <?php for ($s = 1; $s <= 6; $s++): ?>
+
+                <?php if ($s === 3): ?>
+                    <?php continue; ?>
+                <?php endif; ?>
+
+                <div class="up-status">
+
+                    <div class="up-status-name">
+                        <?= up_h(up_status_name($s)) ?>
+                    </div>
+
+                    <div class="up-status-value">
+                        <?= number_format(
+                            $status_summary[$s] ?? 0
+                        ) ?>
+                    </div>
+
+                </div>
+
+            <?php endfor; ?>
+
+        </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         TECHNICIAN PERFORMANCE
+         ====================================================== -->
+
+    <div class="up-section">
+
+        <h2>
+            <?= __('Technician Performance') ?>
+        </h2>
+
+        <div class="up-section-description">
+            <?= __('Operational KPIs for the selected period and filters.', 'userperformance') ?>
+        </div>
+
+
+        <div class="up-table-wrapper">
+
+            <table class="up-table">
+
+                <thead>
+
+                    <tr>
+
+                        <th>
+                            <?= __('Technician') ?>
+                        </th>
+
+                        <th class="up-number">
+                            <?= __('Assigned') ?>
+                        </th>
+
+                        <th class="up-number">
+                            <?= __('Written') ?>
+                        </th>
+
+                        <th class="up-number">
+                            <?= __('Follow-ups') ?>
+                        </th>
+
+                        <th class="up-number">
+                            <?= __('New') ?>
+                        </th>
+
+                        <th class="up-number">
+                            <?= __('Processing') ?>
+                        </th>
+
+                        <th class="up-number">
+                            <?= __('Pending') ?>
+                        </th>
+
+                        <th class="up-number">
+                            <?= __('Solved') ?>
+                        </th>
+
+                        <th class="up-number">
+                            <?= __('Closed') ?>
+                        </th>
+
+                        <th class="up-number">
+                            <?= __('Resolution Rate') ?>
+                        </th>
+
+                        <th class="up-number">
+                            <?= __('SLA Compliance') ?>
+                        </th>
+
+                        <th class="up-number">
+                            <?= __('SLA Breaches') ?>
+                        </th>
+
+                        <th>
+                            <?= __('Avg TTO') ?>
+                        </th>
+
+                        <th>
+                            <?= __('Avg TTR') ?>
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+
+                <tbody>
+
+                    <?php if (empty($rows)): ?>
+
+                        <tr>
+
+                            <td colspan="14">
+
+                                <?= __('No technician data found for the selected filters.') ?>
+
+                            </td>
+
+                        </tr>
+
+                    <?php else: ?>
+
+                        <?php foreach ($rows as $row): ?>
+
+                            <tr>
+
+                                <td>
+                                    <strong>
+                                        <?= up_h(
+                                            $row['technician_name']
+                                        ) ?>
+                                    </strong>
+                                </td>
+
+                                <td class="up-number">
+                                    <?= number_format(
+                                        $row['assigned']
+                                    ) ?>
+                                </td>
+
+                                <td class="up-number">
+                                    <?= number_format(
+                                        $row['written']
+                                    ) ?>
+                                </td>
+
+                                <td class="up-number">
+                                    <?= number_format(
+                                        $row['followups']
+                                    ) ?>
+                                </td>
+
+                                <td class="up-number">
+                                    <?= number_format(
+                                        $row['new']
+                                    ) ?>
+                                </td>
+
+                                <td class="up-number">
+                                    <?= number_format(
+                                        $row['processing']
+                                    ) ?>
+                                </td>
+
+                                <td class="up-number">
+                                    <?= number_format(
+                                        $row['pending']
+                                    ) ?>
+                                </td>
+
+                                <td class="up-number">
+                                    <?= number_format(
+                                        $row['solved']
+                                    ) ?>
+                                </td>
+
+                                <td class="up-number">
+                                    <?= number_format(
+                                        $row['closed']
+                                    ) ?>
+                                </td>
+
+                                <td class="up-number">
+                                    <?= number_format(
+                                        $row['resolution_rate'],
+                                        1
+                                    ) ?>%
+                                </td>
+
+                                <td class="up-number">
+                                    <?= number_format(
+                                        $row['sla_compliance'],
+                                        1
+                                    ) ?>%
+                                </td>
+
+                                <td class="up-number">
+                                    <?= number_format(
+                                        $row['sla_breaches']
+                                    ) ?>
+                                </td>
+
+                                <td>
+                                    <?= up_h(
+                                        up_minutes_to_text(
+                                            $row['avg_tto']
+                                        )
+                                    ) ?>
+                                </td>
+
+                                <td>
+                                    <?= up_h(
+                                        up_minutes_to_text(
+                                            $row['avg_ttr']
+                                        )
+                                    ) ?>
+                                </td>
+
+                            </tr>
+
+                        <?php endforeach; ?>
+
+                    <?php endif; ?>
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         DEFINITIONS
+         ====================================================== -->
+
+    <div class="up-section">
+
+        <h2>
+            <?= __('KPI Definitions') ?>
+        </h2>
+
+
+        <div class="up-table-wrapper">
+
+            <table class="up-table">
+
+                <tbody>
+
+                    <tr>
+
+                        <th>
+                            <?= __('Assigned Tickets') ?>
+                        </th>
+
+                        <td>
+                            <?= __('Number of tickets assigned to the technician.') ?>
+                        </td>
+
+                    </tr>
+
+
+                    <tr>
+
+                        <th>
+                            <?= __('Written Tickets') ?>
+                        </th>
+
+                        <td>
+                            <?= __('Number of assigned tickets where the technician created at least one follow-up.') ?>
+                        </td>
+
+                    </tr>
+
+
+                    <tr>
+
+                        <th>
+                            <?= __('Follow-ups') ?>
+                        </th>
+
+                        <td>
+                            <?= __('Total number of follow-up entries written by the technician.') ?>
+                        </td>
+
+                    </tr>
+
+
+                    <tr>
+
+                        <th>
+                            <?= __('Resolution Rate') ?>
+                        </th>
+
+                        <td>
+                            <?= __('Solved plus Closed tickets divided by Assigned tickets.') ?>
+                        </td>
+
+                    </tr>
+
+
+                    <tr>
+
+                        <th>
+                            <?= __('SLA Compliance') ?>
+                        </th>
+
+                        <td>
+                            <?= __('Tickets completed within their configured TTR deadline compared with tickets having an SLA deadline.') ?>
+                        </td>
+
+                    </tr>
+
+
+                    <tr>
+
+                        <th>
+                            <?= __('TTO') ?>
+                        </th>
+
+                        <td>
+                            <?= __('Time from ticket opening to the first technician follow-up.') ?>
+                        </td>
+
+                    </tr>
+
+
+                    <tr>
+
+                        <th>
+                            <?= __('TTR') ?>
+                        </th>
+
+                        <td>
+                            <?= __('Time from ticket opening to ticket resolution.') ?>
+                        </td>
+
+                    </tr>
+
+
+                    <tr>
+
+                        <th>
+                            <?= __('SLA Breach') ?>
+                        </th>
+
+                        <td>
+                            <?= __('Ticket completed after the configured TTR deadline, or an unresolved ticket whose deadline has passed.') ?>
+                        </td>
+
+                    </tr>
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<?php
+
+Html::footer();

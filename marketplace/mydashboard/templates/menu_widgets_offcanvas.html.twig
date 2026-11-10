@@ -1,0 +1,51 @@
+{#
+ # -------------------------------------------------------------------------
+ # mydashboard plugin for GLPI
+ # Copyright (C) 2016-2026 by the mydashboard Development Team.
+ #
+ # https://github.com/InfotelGLPI/mydashboard
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of mydashboard.
+ #
+ # mydashboard is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # mydashboard is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with mydashboard. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+<div class="offcanvas offcanvas-end" tabindex="-1" id="md-widget-offcanvas"
+     aria-labelledby="md-wd-oc-label">
+    <div class="offcanvas-header border-bottom">
+        <h5 class="offcanvas-title" id="md-wd-oc-label">{{ __('Availables widgets', 'mydashboard') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"
+                aria-label="{{ __('Close') }}"></button>
+    </div>
+    <div class="offcanvas-body p-2">
+        {# Filled by public/lib/md-fuzzysearch.js #}
+        <div id="md-fuzzysearch">
+            <input type="text" class="md-home-trigger-fuzzy form-control"
+                   placeholder="{{ __('Find a widget', 'mydashboard') }}">
+            <ul class="results list-group mt-2"></ul>
+        </div>
+        <div class="mt-2">
+            {% if categories is not empty %}
+                {{ include('@mydashboard/widgetlist_accordion.html.twig', {
+                    'accordion_id': 'md-wd-accordion',
+                    'categories': categories,
+                }, with_context = false) }}
+            {% endif %}
+        </div>
+    </div>
+</div>

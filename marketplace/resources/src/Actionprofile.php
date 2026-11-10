@@ -1,0 +1,112 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * resources plugin for GLPI
+ * Copyright (C) 2015-2026 by the resources Development Team.
+ *
+ * https://github.com/InfotelGLPI/resources
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of resources.
+ *
+ * resources is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * resources is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with resources. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Resources;
+
+use CommonDBTM;
+use DBConnection;
+use Dropdown;
+use Glpi\Application\View\TemplateRenderer;
+use Migration;
+
+/**
+ * Class Actionprofile
+ */
+
+
+
+class Actionprofile extends CommonDBTM
+{
+    public static $rightname = 'plugin_resources';
+    public $dohistory = true;
+
+    /**
+     * Add an action authorization to profile
+     * @param   $profiles_id
+     * @param   $canedit
+     *
+     */
+    public static function addAction($profiles_id, $canedit)
+    {
+        if (!$canedit) {
+            return;
+        }
+
+        $actionprofile = new self();
+        $actions_id = [];
+        if ($actionprofile->getFromDBByCrit(['profiles_id' => $profiles_id])) {
+            $actions_id = json_decode($actionprofile->fields['actions_id']);
+        }
+
+        $temp = Resource_Change::getAllActions(false);
+        unset($temp[0]);
+
+        $params = [
+            "name" => 'actions_id',
+            'entity' => $_SESSION['glpiactive_entity'],
+            "display" => false,
+            "multiple" => true,
+            "width" => '200px',
+            'values' => $actions_id,
+            'display_emptychoice' => true,
+        ];
+
+        $dropdown = Dropdown::showFromArray("actions_id", $temp, $params);
+
+        TemplateRenderer::getInstance()->display('@resources/profile_authorization_form.html.twig', [
+            'profiles_id' => $profiles_id,
+            'form_action' => PLUGIN_RESOURCES_WEBDIR . "/front/actionprofile.form.php",
+            'title'       => __('Action authorization', 'resources'),
+            'label'       => __('Available actions', 'resources'),
+            'dropdown'    => $dropdown,
+            'submit_name' => 'addAction',
+        ]);
+    }
+
+    public static function install(Migration $migration)
+    {
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+        $table  = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $query = "CREATE TABLE `$table` (
+                        `id`           int {$default_key_sign} NOT NULL auto_increment,
+                        `actions_id`  varchar(255) NOT NULL DEFAULT '0',
+                        `profiles_id` int {$default_key_sign} NOT NULL DEFAULT '0',
+                        PRIMARY KEY (`id`)
+               ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
+
+            $DB->doQuery($query);
+        }
+    }
+}

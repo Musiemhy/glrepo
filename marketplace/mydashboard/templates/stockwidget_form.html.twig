@@ -1,0 +1,122 @@
+{#
+ # -------------------------------------------------------------------------
+ # mydashboard plugin for GLPI
+ # Copyright (C) 2016-2026 by the mydashboard Development Team.
+ #
+ # https://github.com/InfotelGLPI/mydashboard
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of mydashboard.
+ #
+ # mydashboard is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # mydashboard is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with mydashboard. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{% extends 'generic_show_form.html.twig' %}
+{% import 'components/form/fields_macros.html.twig' as fields %}
+
+{% block form_fields %}
+    {% set rand = random() %}
+
+    {{ fields.textField(
+        'name',
+        item.fields['name'],
+        __('Name'),
+        field_options
+    ) }}
+
+    {% if itemtype_label is not null %}
+        {{ fields.readOnlyField(
+            '',
+            itemtype_label,
+            __('Item type'),
+            field_options
+        ) }}
+        {{ fields.hiddenField('itemtype', item.fields['itemtype']) }}
+    {% else %}
+        {{ fields.dropdownItemTypes(
+            'itemtype',
+            item.fields['itemtype'],
+            __('Item type'),
+            field_options|merge({
+                'types': itemtypes,
+                'rand': rand,
+                'required': item.isNewItem(),
+            })
+        ) }}
+        {# The types and statuses offered depend on the chosen item type #}
+        {% for target, endpoint in {'show_types': 'dropdownType.php', 'show_statuses': 'dropdownStatus.php'} %}
+            {% do call('Ajax::updateItemOnSelectEvent', [
+                'dropdown_itemtype' ~ rand,
+                target ~ rand,
+                ajax_url ~ endpoint,
+                {'itemtype': '__VALUE__', 'fieldname': 'types'}
+            ]) %}
+        {% endfor %}
+    {% endif %}
+
+    {% set types_field %}
+        {% if types is not null %}
+            {{ fields.dropdownArrayField(
+                'types',
+                null,
+                types,
+                '',
+                field_options|merge({
+                    'multiple': true,
+                    'values': selected_types,
+                    'include_field': false,
+                })
+            ) }}
+        {% endif %}
+    {% endset %}
+    {{ fields.ajaxField('show_types' ~ rand, types_field, __('Type'), field_options) }}
+
+    {% set states_field %}
+        {% if states is not null %}
+            {{ fields.dropdownArrayField(
+                'states',
+                null,
+                states,
+                '',
+                field_options|merge({
+                    'multiple': true,
+                    'values': selected_states,
+                    'include_field': false,
+                })
+            ) }}
+        {% endif %}
+    {% endset %}
+    {{ fields.ajaxField('show_statuses' ~ rand, states_field, __('Item state'), field_options) }}
+
+    {{ fields.dropdownWebIcons(
+        'icon',
+        item.fields['icon'],
+        __('Icon'),
+        field_options
+    ) }}
+
+    {{ fields.dropdownNumberField(
+        'alarm_threshold',
+        item.fields['alarm_threshold'],
+        __('Alert threshold'),
+        field_options|merge({
+            'min': 1,
+            'max': 100,
+            'step': 1,
+        })
+    ) }}
+{% endblock %}

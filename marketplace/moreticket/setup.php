@@ -1,0 +1,167 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * moreticket plugin for GLPI
+ * Copyright (C) 2015-2026 by the moreticket Development Team.
+ *
+ * https://github.com/InfotelGLPI/moreticket
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of moreticket.
+ *
+ * moreticket is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * moreticket is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with moreticket. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use Glpi\Plugin\Hooks;
+use GlpiPlugin\Moreticket\CloseTicket;
+use GlpiPlugin\Moreticket\Config;
+use GlpiPlugin\Moreticket\NotificationTicket;
+use GlpiPlugin\Moreticket\Profile;
+use GlpiPlugin\Moreticket\Solution;
+use GlpiPlugin\Moreticket\Ticket;
+use GlpiPlugin\Moreticket\TicketFollowup;
+use GlpiPlugin\Moreticket\TicketTask;
+use GlpiPlugin\Moreticket\WaitingTicket;
+
+define('PLUGIN_MORETICKET_VERSION', '1.8.12');
+
+global $CFG_GLPI;
+
+
+if (!defined("PLUGIN_MORETICKET_DIR")) {
+    define("PLUGIN_MORETICKET_DIR", Plugin::getPhpDir("moreticket"));
+    $root = $CFG_GLPI['root_doc'] . '/plugins/moreticket';
+    define("PLUGIN_MORETICKET_WEBDIR", $root);
+}
+
+// Init the hooks of the plugins -Needed
+function plugin_init_moreticket()
+{
+    global $PLUGIN_HOOKS;
+
+    $PLUGIN_HOOKS[Hooks::ADD_CSS]['moreticket'][] = 'css/moreticket.css';
+    $PLUGIN_HOOKS[Hooks::CHANGE_PROFILE]['moreticket'] = [Profile::class, 'initProfile'];
+
+    // Outside the session/right tests below on purpose: a ticket may be purged by a profile
+    // that holds no moreticket right at all, and the child rows have to go with it either way.
+    $PLUGIN_HOOKS[Hooks::PRE_ITEM_PURGE]['moreticket']['Ticket'] = 'plugin_pre_item_purge_moreticket';
+
+    if (Session::getLoginUserID()) {
+        Plugin::registerClass(Profile::class, ['addtabon' => 'Profile']);
+
+        $config = new Config();
+        $PLUGIN_HOOKS[Hooks::ADD_JAVASCRIPT]['moreticket'][] = "scripts/moreticket.js";
+        $PLUGIN_HOOKS[Hooks::ADD_JAVASCRIPT]['moreticket'][] = "scripts/config.js";
+        if ($config->useDurationSolution() == true) {
+            $PLUGIN_HOOKS[Hooks::PRE_ITEM_ADD]['moreticket']
+                = ['ITILSolution' => [Solution::class, 'beforeAdd']];
+        }
+
+        if (Session::haveRight("plugin_moreticket", UPDATE)
+            || Session::haveRight("plugin_moreticket_justification", READ)) {
+            if ((
+                $config->useWaiting() == true
+                || $config->useSolution() == true
+                //                      || $config->useQuestion() == true
+                || $config->useUrgency() == true
+                || $config->useDurationSolution() == true
+            )) {
+                $PLUGIN_HOOKS[Hooks::ADD_JAVASCRIPT]['moreticket'][] = 'scripts/moreticket_load_scripts.js.php';
+            }
+            $PLUGIN_HOOKS[Hooks::CONFIG_PAGE]['moreticket'] = 'front/config.form.php';
+
+            $PLUGIN_HOOKS[Hooks::ITEM_EMPTY]['moreticket'] = ['Ticket' => [Ticket::class, 'emptyTicket']];
+        }
+
+        // Registered outside the right test above, deliberately. What follows is not a
+        // feature offered to a profile, it is what the plugin owes every ticket: the
+        // mandatory waiting reason and urgency justification, the closing record, the
+        // automatic switch to WAITING, the notifications. Conditioning the registration on
+        // the rights of whoever happens to be logged in made the controls opposable to the
+        // holders of those rights alone -- everybody else went through untouched -- and left
+        // the child rows a colleague had created unmaintained on their updates. Each hook
+        // still does nothing when its own feature is switched off in the configuration.
+        $PLUGIN_HOOKS[Hooks::POST_PREPAREADD]['moreticket'] = [
+            'TicketTask' => [TicketTask::class, 'beforeAdd'],
+            'ITILFollowup' => [TicketFollowup::class, 'beforeAdd'],
+        ];
+
+        $PLUGIN_HOOKS[Hooks::PRE_ITEM_UPDATE]['moreticket']['Ticket'] = [Ticket::class, 'beforeUpdate'];
+        $PLUGIN_HOOKS[Hooks::ITEM_UPDATE]['moreticket']['Ticket'] = [Ticket::class, 'afterUpdate'];
+
+        $PLUGIN_HOOKS[Hooks::PRE_ITEM_ADD]['moreticket']['Ticket'] = [Ticket::class, 'beforeAdd'];
+        $PLUGIN_HOOKS[Hooks::ITEM_ADD]['moreticket']['Ticket'] = [Ticket::class, 'afterAdd'];
+
+        $PLUGIN_HOOKS[Hooks::ITEM_ADD]['moreticket']['Document'] = [Ticket::class, 'afterAddDocument'];
+        $PLUGIN_HOOKS[Hooks::ITEM_UPDATE]['moreticket']['TicketValidation'] = [Ticket::class, 'afterUpdateValidation'];
+        $PLUGIN_HOOKS[Hooks::ITEM_ADD]['moreticket']['TicketTask'] = [TicketTask::class, 'afterAddTask'];
+        $PLUGIN_HOOKS[Hooks::ITEM_ADD]['moreticket']['ITILFollowup'] = [
+            [Ticket::class, 'afterAddFollowupTech'],
+            [NotificationTicket::class, 'afterAddFollowup'],
+        ];
+
+        //            $PLUGIN_HOOKS['item_add']['moreticket']['ITILFollowup'] = [NotificationTicket::class, 'afterAddFollowup'];
+
+        // Comfort setting, not a confidentiality one: the stylesheet hides the duration in
+        // the timeline, it does not keep it from being sent. The value stays in the page
+        // source, in the search options, in the CSV and PDF exports and in the API, and
+        // nothing here could change that -- the field belongs to core TicketTask. The label
+        // in Profile::getAllRights() says "display only" for that reason; promising more
+        // would take filtering the task itself, which is not this plugin's to do.
+        if (Session::haveRight("plugin_moreticket_hide_task_duration", READ)) {
+            $PLUGIN_HOOKS[Hooks::ADD_CSS]['moreticket'][] = 'css/hide_task_duration.css';
+        }
+
+        if (Session::haveRight('plugin_moreticket', READ)) {
+            Plugin::registerClass(WaitingTicket::class, ['addtabon' => 'Ticket']);
+            Plugin::registerClass(CloseTicket::class, ['addtabon' => 'Ticket']);
+        }
+
+        $PLUGIN_HOOKS[Hooks::POST_ITEM_FORM]['moreticket'] = 'plugin_moreticket_post_item_form';
+        $PLUGIN_HOOKS[Hooks::PRE_ITEM_FORM]['moreticket'] = 'plugin_moreticket_pre_item_form';
+    }
+}
+
+// Get the name and the version of the plugin - Needed
+/**
+ * @return array
+ */
+function plugin_version_moreticket()
+{
+    return [
+        'name' => __('More ticket', 'moreticket'),
+        'version' => PLUGIN_MORETICKET_VERSION,
+        'author' => "<a href='https//blogglpi.infotel.com'>Infotel</a>, Xavier CAILLAUD",
+        'homepage' => "https://github.com/InfotelGLPI/moreticket",
+        'license' => 'GPLv3+',
+        'requirements' => [
+            'glpi' => [
+                'min' => '11.0',
+                'max' => '12.0',
+                'dev' => false,
+            ],
+        ],
+    ];
+}
+
+function plugin_moreticket_geturl(): string
+{
+    /** @var array $CFG_GLPI */
+    global $CFG_GLPI;
+    return sprintf('%s/plugins/moreticket/', $CFG_GLPI['url_base']);
+}

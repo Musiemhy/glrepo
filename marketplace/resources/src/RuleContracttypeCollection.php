@@ -1,0 +1,83 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * resources plugin for GLPI
+ * Copyright (C) 2015-2026 by the resources Development Team.
+ *
+ * https://github.com/InfotelGLPI/resources
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of resources.
+ *
+ * resources is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * resources is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with resources. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Resources;
+
+use RuleCollection;
+use Session;
+
+/**
+ * Class RuleContracttypeCollection
+ */
+class RuleContracttypeCollection extends RuleCollection
+{
+    public static $rightname = 'plugin_resources_rule';
+
+    // From RuleCollection
+    public $stop_on_first_match = true;
+    public $menu_option = 'contracttypes';
+
+    /**
+     * Get title used in list of rules
+     *
+     * @return string of the rule collection
+     **/
+    public function getTitle()
+    {
+        return __('Assignment rule of fields to a contract type', 'resources');
+    }
+
+    /**
+     * RuleContracttypeCollection constructor.
+     *
+     * @param int $entity
+     */
+    public function __construct($entity = 0)
+    {
+        $this->entity = $entity;
+    }
+
+    /**
+     * @return bool
+     */
+    public function showInheritedTab()
+    {
+        return Session::haveRightsOr(self::$rightname, [CREATE, UPDATE, DELETE]) && ($this->entity);
+    }
+
+    /**
+     * @return bool
+     */
+    public function showChildrensTab()
+    {
+        return Session::haveRightsOr(self::$rightname, [CREATE, UPDATE, DELETE]) && (count(
+            $_SESSION['glpiactiveentities'],
+        ) > 1);
+    }
+}

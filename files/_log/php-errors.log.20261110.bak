@@ -1,0 +1,726 @@
+[2026-11-09 10:50:48] glpi.WARNING:   *** Warning: Undefined array key "entities_id" at Ticket.php line 1287
+  Backtrace :
+  ./marketplace/behaviors/src/Ticket.php:1287        
+  ./marketplace/behaviors/src/Common.php:94          GlpiPlugin\Behaviors\Ticket::onNewTicket()
+  ./src/Plugin.php:1826                              GlpiPlugin\Behaviors\Common::postInit()
+  ./src/Plugin.php:432                               Plugin::doHook()
+  ...tener/PostBootListener/InitializePlugins.php:70 Plugin->init()
+  ...ymfony/event-dispatcher/EventDispatcher.php:268 Glpi\Kernel\Listener\PostBootListener\InitializePlugins->onPostBoot()
+  ...ymfony/event-dispatcher/EventDispatcher.php:220 Symfony\Component\EventDispatcher\EventDispatcher::Symfony\Component\EventDispatcher\{closure}()
+  ...symfony/event-dispatcher/EventDispatcher.php:56 Symfony\Component\EventDispatcher\EventDispatcher->callListeners()
+  ./src/Glpi/Kernel/Kernel.php:180                   Symfony\Component\EventDispatcher\EventDispatcher->dispatch()
+  ./vendor/symfony/http-kernel/Kernel.php:201        Glpi\Kernel\Kernel->boot()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 10:50:58] glpi.WARNING:   *** Warning: Undefined array key "entities_id" at Ticket.php line 1287
+  Backtrace :
+  ./marketplace/behaviors/src/Ticket.php:1287        
+  ./marketplace/behaviors/src/Common.php:94          GlpiPlugin\Behaviors\Ticket::onNewTicket()
+  ./src/Plugin.php:1826                              GlpiPlugin\Behaviors\Common::postInit()
+  ./src/Plugin.php:432                               Plugin::doHook()
+  ...tener/PostBootListener/InitializePlugins.php:70 Plugin->init()
+  ...ymfony/event-dispatcher/EventDispatcher.php:268 Glpi\Kernel\Listener\PostBootListener\InitializePlugins->onPostBoot()
+  ...ymfony/event-dispatcher/EventDispatcher.php:220 Symfony\Component\EventDispatcher\EventDispatcher::Symfony\Component\EventDispatcher\{closure}()
+  ...symfony/event-dispatcher/EventDispatcher.php:56 Symfony\Component\EventDispatcher\EventDispatcher->callListeners()
+  ./src/Glpi/Kernel/Kernel.php:180                   Symfony\Component\EventDispatcher\EventDispatcher->dispatch()
+  ./vendor/symfony/http-kernel/Kernel.php:201        Glpi\Kernel\Kernel->boot()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 10:51:34] glpi.WARNING:   *** Warning: Undefined array key "entities_id" at Ticket.php line 1287
+  Backtrace :
+  ./marketplace/behaviors/src/Ticket.php:1287        
+  ./marketplace/behaviors/src/Common.php:94          GlpiPlugin\Behaviors\Ticket::onNewTicket()
+  ./src/Plugin.php:1826                              GlpiPlugin\Behaviors\Common::postInit()
+  ./src/Plugin.php:432                               Plugin::doHook()
+  ...tener/PostBootListener/InitializePlugins.php:70 Plugin->init()
+  ...ymfony/event-dispatcher/EventDispatcher.php:268 Glpi\Kernel\Listener\PostBootListener\InitializePlugins->onPostBoot()
+  ...ymfony/event-dispatcher/EventDispatcher.php:220 Symfony\Component\EventDispatcher\EventDispatcher::Symfony\Component\EventDispatcher\{closure}()
+  ...symfony/event-dispatcher/EventDispatcher.php:56 Symfony\Component\EventDispatcher\EventDispatcher->callListeners()
+  ./src/Glpi/Kernel/Kernel.php:180                   Symfony\Component\EventDispatcher\EventDispatcher->dispatch()
+  ./vendor/symfony/http-kernel/Kernel.php:201        Glpi\Kernel\Kernel->boot()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:01:04] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at requests.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/requests.php:2      
+  ./plugins/servicecatalog/front/requests.php:2      include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:01:04] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at requests.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/requests.php:2      
+  ./plugins/servicecatalog/front/requests.php:2      include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:01:11] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at requests.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/requests.php:2      
+  ./plugins/servicecatalog/front/requests.php:2      include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:01:11] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at requests.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/requests.php:2      
+  ./plugins/servicecatalog/front/requests.php:2      include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:01:16] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:01:16] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:01:24] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:01:24] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:01:40] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at requests.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/requests.php:2      
+  ./plugins/servicecatalog/front/requests.php:2      include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:01:40] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at requests.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/requests.php:2      
+  ./plugins/servicecatalog/front/requests.php:2      include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:02:23] glpi.WARNING:   *** Warning: Undefined array key "entities_id" at Ticket.php line 1287
+  Backtrace :
+  ./marketplace/behaviors/src/Ticket.php:1287        
+  ./marketplace/behaviors/src/Common.php:94          GlpiPlugin\Behaviors\Ticket::onNewTicket()
+  ./src/Plugin.php:1826                              GlpiPlugin\Behaviors\Common::postInit()
+  ./src/Plugin.php:432                               Plugin::doHook()
+  ...tener/PostBootListener/InitializePlugins.php:70 Plugin->init()
+  ...ymfony/event-dispatcher/EventDispatcher.php:268 Glpi\Kernel\Listener\PostBootListener\InitializePlugins->onPostBoot()
+  ...ymfony/event-dispatcher/EventDispatcher.php:220 Symfony\Component\EventDispatcher\EventDispatcher::Symfony\Component\EventDispatcher\{closure}()
+  ...symfony/event-dispatcher/EventDispatcher.php:56 Symfony\Component\EventDispatcher\EventDispatcher->callListeners()
+  ./src/Glpi/Kernel/Kernel.php:180                   Symfony\Component\EventDispatcher\EventDispatcher->dispatch()
+  ./vendor/symfony/http-kernel/Kernel.php:201        Glpi\Kernel\Kernel->boot()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:05:29] glpi.WARNING:   *** User Warning: No email address is defined in configuration. at Config.php line 1969
+  Backtrace :
+  ./src/Config.php:1969                              
+  ./src/NotificationTarget.php:1356                  Config::getEmailSender()
+  ./src/NotificationTemplate.php:637                 NotificationTarget->getSender()
+  ./src/NotificationEventAbstract.php:102            NotificationTemplate->getDataToSend()
+  ./src/NotificationEvent.php:203                    NotificationEventAbstract::raise()
+  ./src/CommonITILActor.php:342                      NotificationEvent::raiseEvent()
+  ./src/CommonDBTM.php:1407                          CommonITILActor->post_addItem()
+  ./src/CommonITILObject.php:9720                    CommonDBTM->add()
+  ./src/CommonITILObject.php:2478                    CommonITILObject->updateActors()
+  ./src/Ticket.php:1455                              CommonITILObject->post_updateItem()
+  ./src/CommonDBTM.php:1830                          Ticket->post_updateItem()
+  ./front/ticket.form.php:90                         CommonDBTM->update()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:05:30] glpi.WARNING:   *** User Warning: No email address is defined in configuration. at Config.php line 1969
+  Backtrace :
+  ./src/Config.php:1969                              
+  ./src/NotificationTarget.php:1356                  Config::getEmailSender()
+  ./src/NotificationTemplate.php:637                 NotificationTarget->getSender()
+  ./src/NotificationEventAbstract.php:102            NotificationTemplate->getDataToSend()
+  ./src/NotificationEvent.php:203                    NotificationEventAbstract::raise()
+  ./src/CommonITILActor.php:342                      NotificationEvent::raiseEvent()
+  ./src/CommonDBTM.php:1407                          CommonITILActor->post_addItem()
+  ./src/CommonITILObject.php:9720                    CommonDBTM->add()
+  ./src/CommonITILObject.php:2478                    CommonITILObject->updateActors()
+  ./src/Ticket.php:1455                              CommonITILObject->post_updateItem()
+  ./src/CommonDBTM.php:1830                          Ticket->post_updateItem()
+  ./front/ticket.form.php:90                         CommonDBTM->update()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:05:41] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:05:41] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:07:33] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:07:33] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:11:13] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:11:13] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:11:18] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:11:18] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:14:21] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:14:21] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:14:27] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at requests.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/requests.php:2      
+  ./plugins/servicecatalog/front/requests.php:2      include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:14:27] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at requests.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/requests.php:2      
+  ./plugins/servicecatalog/front/requests.php:2      include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:14:41] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:14:41] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:14:53] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at requests.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/requests.php:2      
+  ./plugins/servicecatalog/front/requests.php:2      include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:14:54] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at requests.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/requests.php:2      
+  ./plugins/servicecatalog/front/requests.php:2      include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:15:57] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:15:57] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:16:04] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at requests.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/requests.php:2      
+  ./plugins/servicecatalog/front/requests.php:2      include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:16:04] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at requests.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/requests.php:2      
+  ./plugins/servicecatalog/front/requests.php:2      include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:26:31] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:26:31] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:26:42] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at requests.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/requests.php:2      
+  ./plugins/servicecatalog/front/requests.php:2      include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:26:42] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at requests.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/requests.php:2      
+  ./plugins/servicecatalog/front/requests.php:2      include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:27:07] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:27:07] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:33:57] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at requests.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/requests.php:2      
+  ./plugins/servicecatalog/front/requests.php:2      include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:33:57] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at requests.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/requests.php:2      
+  ./plugins/servicecatalog/front/requests.php:2      include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:34:03] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at requests.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/requests.php:2      
+  ./plugins/servicecatalog/front/requests.php:2      include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:34:03] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at requests.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/requests.php:2      
+  ./plugins/servicecatalog/front/requests.php:2      include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:34:06] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at requests.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/requests.php:2      
+  ./plugins/servicecatalog/front/requests.php:2      include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:34:06] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at requests.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/requests.php:2      
+  ./plugins/servicecatalog/front/requests.php:2      include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:37:46] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:37:46] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:39:21] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:39:21] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:39:25] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at requests.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/requests.php:2      
+  ./plugins/servicecatalog/front/requests.php:2      include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:39:25] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at requests.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/requests.php:2      
+  ./plugins/servicecatalog/front/requests.php:2      include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:42:54] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:42:54] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at incidents.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/incidents.php:2     
+  ./plugins/servicecatalog/front/incidents.php:2     include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:43:20] glpi.WARNING:   *** Warning: include(../../../inc/includes.php): Failed to open stream: No such file or directory at requests.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/requests.php:2      
+  ./plugins/servicecatalog/front/requests.php:2      include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-09 13:43:20] glpi.WARNING:   *** Warning: include(): Failed opening '../../../inc/includes.php' for inclusion (include_path='.:/usr/share/pear:/usr/share/php') at requests.php line 2
+  Backtrace :
+  ./plugins/servicecatalog/front/requests.php:2      
+  ./plugins/servicecatalog/front/requests.php:2      include()
+  ./front/plugin_servicecatalog.php:17               require()
+  ...Glpi/Controller/LegacyFileLoadController.php:64 require()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\LegacyFileLoadController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+

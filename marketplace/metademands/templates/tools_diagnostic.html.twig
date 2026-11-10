@@ -1,0 +1,148 @@
+{#
+ # -------------------------------------------------------------------------
+ # metademands plugin for GLPI
+ # Copyright (C) 2018-2026 by the metademands Development Team.
+ #
+ # https://github.com/InfotelGLPI/metademands
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of metademands.
+ #
+ # metademands is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # metademands is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{#
+ # One card per diagnostic. Each card either lists the offending fields in a single table or
+ # states that nothing was found; the legacy markup opened a <tr>/<td> per section and never
+ # closed it, which left the browser to guess the structure.
+ #}
+
+<div class="card mb-3">
+    <div class="card-header">
+        <h3 class="card-title">{{ __('Metademands global status', 'metademands') }}</h3>
+    </div>
+    <div class="card-body">
+        {{ global_status_form|raw }}
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-header">
+        <h3 class="card-title">{{ __('Duplicates fields options', 'metademands') }}</h3>
+        {% if duplicates_has %}
+            <span class="badge bg-outline-danger ms-2">{{ duplicates_rows|length }}</span>
+        {% endif %}
+    </div>
+    {% if duplicates_has %}
+        <div class="table-responsive">
+            <table class="table card-table">
+                <thead>
+                    <tr>
+                        <th style="width: 50%">{{ __('Field') }}</th>
+                        <th>{{ _n('Meta-Demand', 'Meta-Demands', 1, 'metademands') }}</th>
+                        <th>{{ __('Number of duplicates', 'metademands') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in duplicates_rows %}
+                        <tr>
+                            <td>{{ row.field_link|raw }}</td>
+                            <td>{{ row.meta_name }}</td>
+                            <td>{{ row.nbr }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="card-body">
+            <span class="badge bg-outline-success">{{ __('No duplicates founded', 'metademands') }}</span>
+        </div>
+    {% endif %}
+</div>
+
+<div class="card mb-3">
+    <div class="card-header">
+        <h3 class="card-title">{{ __('Empty fields options', 'metademands') }}</h3>
+        {% if empty_options_has %}
+            <span class="badge bg-outline-danger ms-2">{{ empty_options_rows|length }}</span>
+        {% endif %}
+    </div>
+    {% if empty_options_has %}
+        <div class="table-responsive">
+            <table class="table card-table">
+                <thead>
+                    <tr>
+                        <th style="width: 50%">{{ __('Field') }}</th>
+                        <th>{{ _n('Meta-Demand', 'Meta-Demands', 1, 'metademands') }}</th>
+                        <th class="text-center"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in empty_options_rows %}
+                        <tr>
+                            <td>{{ row.field_link|raw }}</td>
+                            <td>{{ row.meta_name }}</td>
+                            <td class="text-center">{{ row.purge_form|raw }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="card-body">
+            <span class="badge bg-outline-success">{{ __('No empty field options founded', 'metademands') }}</span>
+        </div>
+    {% endif %}
+</div>
+
+{% if ranks_fields_found %}
+    <div class="card mb-3">
+        <div class="card-header">
+            <h3 class="card-title">{{ __('Ranks problem with fields', 'metademands') }}</h3>
+            {% if ranks_has %}
+                <span class="badge bg-outline-danger ms-2">{{ ranks_rows|length }}</span>
+            {% endif %}
+        </div>
+        {% if ranks_has %}
+            <div class="table-responsive">
+                <table class="table card-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50%">{{ __('Field') }}</th>
+                            <th>{{ _n('Meta-Demand', 'Meta-Demands', 1, 'metademands') }}</th>
+                            <th class="text-end"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in ranks_rows %}
+                            <tr>
+                                <td>{{ row.field_link|raw }}</td>
+                                <td>{{ row.meta_name }}</td>
+                                <td class="text-end">{{ row.fix_form|raw }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="card-body">
+                <span class="badge bg-outline-success">{{ __('No problems with ranks found', 'metademands') }}</span>
+            </div>
+        {% endif %}
+    </div>
+{% endif %}

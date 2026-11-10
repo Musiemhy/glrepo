@@ -1,0 +1,77 @@
+{#
+ # -------------------------------------------------------------------------
+ # manageentities plugin for GLPI
+ # Copyright (C) 2017-2026 by the manageentities Development Team.
+ #
+ # https://github.com/InfotelGLPI/manageentities
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of manageentities.
+ #
+ # manageentities is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # manageentities is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with manageentities. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+<div class="card mt-3">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="ti ti-users me-2"></i>
+            {{ _n('Current stakeholder', 'Current stakeholders', 2, 'manageentities') }}
+            <span class="badge bg-secondary-lt ms-1">{{ entries|length }}</span>
+        </h3>
+    </div>
+    <div class="card-body p-0">
+        {# Read by public/scripts/interventionstakeholder.js (delete and AJAX refresh) #}
+        <table class="table table-hover table-sm card-table" id="list_stakeholders{{ id_to_use }}"
+               data-me-url="{{ ajax_url }}"
+               data-me-contractdays-id="{{ id_to_use }}"
+               data-me-empty-label="{{ __('No stakeholders have been affected yet.', 'manageentities') }}"
+               data-me-delete-label="{{ __('Delete', 'manageentities') }}"
+               data-me-confirm-label="{{ __('This action is irreversible. Continue ?', 'manageentities') }}">
+            <thead>
+                <tr>
+                    <th>{{ __('User') }}</th>
+                    <th>{{ __('Affected to', 'manageentities') }}</th>
+                    {% if can_create %}<th></th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% if entries|length > 0 %}
+                    {% for entry in entries %}
+                    <tr id="{{ entry.row_id }}">
+                        <td><a href="{{ entry.user_url }}" target="_blank">{{ entry.user_name }}</a></td>
+                        {# The id is targeted by the JS refreshing the number of days after an update #}
+                        <td><span id="td_user_id{{ entry.stakeholder_id }}">{{ entry.nb_days }}&nbsp;{{ _n('Day', 'Days', 2) }}</span></td>
+                        {% if can_create %}
+                        <td class="text-end">
+                            <i title="{{ __('Delete', 'manageentities') }}" class="ti ti-trash pointer"
+                               data-me-stakeholder-delete="{{ entry.stakeholder_id }}"></i>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr id="empty_stakeholders{{ id_to_use }}">
+                        <td colspan="{{ can_create ? 3 : 2 }}" class="text-muted p-3">
+                            {{ __('No stakeholders have been affected yet.', 'manageentities') }}
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+

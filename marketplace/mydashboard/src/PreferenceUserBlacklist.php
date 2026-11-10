@@ -1,0 +1,237 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * mydashboard plugin for GLPI
+ * Copyright (C) 2016-2026 by the mydashboard Development Team.
+ *
+ * https://github.com/InfotelGLPI/mydashboard
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of mydashboard.
+ *
+ * mydashboard is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * mydashboard is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with mydashboard. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Mydashboard;
+
+use CommonDBTM;
+use DBConnection;
+use Glpi\Application\View\TemplateRenderer;
+use Migration;
+use Plugin;
+use Session;
+
+/**
+ * Preference_User_Blacklist is the class that handles plugins blacklist for a User
+ * An user can disable the display of widgets of some plugins (because it doesn't need widgets of this plugin for example)
+ */
+class PreferenceUserBlacklist extends CommonDBTM
+{
+    /**
+     * Show a form to blacklist some plugins for Dashboard
+     * @param int $user_id , id of the user concerned
+     * @return bool
+     */
+    public function showUserForm($user_id)
+    {
+        global $PLUGIN_HOOKS;
+
+        //We don't display this form in helpdesk interface
+        if (Session::getCurrentInterface() != 'central') {
+            return false;
+        }
+
+        //If there is plugin hooked to dashboard
+        if (isset($PLUGIN_HOOKS['mydashboard'])) {
+            $blacklist = $this->getBlacklistForUser($user_id);
+
+            //Every plugins can be blacklisted by user, by default every plugins
+            $rows = [];
+            foreach ($PLUGIN_HOOKS['mydashboard'] as $pluginname => $x) {
+                if (!Plugin::isPluginActive($pluginname)) {
+                    continue;
+                }
+                $rows[] = [
+                    'label' => $this->getLocalName($pluginname),
+                    // "pn" prefix read back by save()
+                    'name' => "pn" . $pluginname,
+                    'value' => isset($blacklist[$pluginname]) ? 0 : 1,
+                ];
+            }
+
+            TemplateRenderer::getInstance()->display('@mydashboard/preferenceuserblacklist_form.html.twig', [
+                'form_action' => PLUGIN_MYDASHBOARD_WEBDIR . '/front/preferenceuserblacklist.form.php',
+                'rows' => $rows,
+                'user_id' => Session::getLoginUserID(),
+            ]);
+        }
+    }
+
+    /**
+     * Save a black list from the form
+     * @param array $post , values
+     */
+    public function save($post)
+    {
+
+        // IDOR guard: this is a per-user preference. Never trust $post['id'] as the
+        // target user (an attacker could rewrite another user's blacklist); always
+        // key on the authenticated session user. The form's hidden "id" is ignored.
+        $user_id = (int) Session::getLoginUserID();
+        if (!empty($post) && $user_id > 0) {
+            $currentblacklist = $this->getBlacklistForUser($user_id);
+            $newblacklist = [];
+            foreach ($post as $key => $value) {
+                if ($key == "id") {
+                    continue;
+                }
+                if (substr($key, 0, 2) == "pn" && $value == 0) {
+                    $newblacklist[] = substr($key, 2);
+                }
+            }
+            //to_delete contains names of the plugins that will no longer be blacklisted
+            $to_delete = self::arrayDiffEmulation($currentblacklist, $newblacklist);
+            //newblacklist contains names of the plugins newly blacklisted
+            $newblacklist = self::arrayDiffEmulation($newblacklist, $currentblacklist);
+            //We store new blacklist
+            foreach ($newblacklist as $plugin_name) {
+                $this->saveItem($user_id, $plugin_name);
+            }
+            //We remove no longer blacklisted
+            foreach ($to_delete as $delete_blacklist_item) {
+                $this->deleteByCriteria(['users_id' => $user_id, 'plugin_name' => $delete_blacklist_item]);
+            }
+        }
+    }
+
+    /**
+     * Save an item correponding to a blacklisting of a plugin for an user
+     * @param int $user_id , id of user
+     * @param string $plugin_name , name of the plugin
+     */
+    private function saveItem($user_id, $plugin_name)
+    {
+        global $DB;
+
+        $iterator = $DB->request([
+            'SELECT'    => [
+                '*',
+            ],
+            'FROM'      => 'glpi_plugin_mydashboard_preferenceuserblacklists',
+            'WHERE'     => [
+                'users_id'  => $user_id,
+                'plugin_name' => $plugin_name,
+            ],
+        ]);
+
+        if (count($iterator) == 0) {
+            $this->add(['users_id' => $user_id, 'plugin_name' => $plugin_name]);
+        }
+    }
+
+
+
+    /**
+     * Get an array of plugin names that are blacklisted by user
+     * @param int $user_id
+     * @return array of string
+     */
+    public function getBlacklistForUser($user_id)
+    {
+        global $DB;
+
+        $iterator = $DB->request([
+            'SELECT'    => [
+                'plugin_name',
+            ],
+            'FROM'      => 'glpi_plugin_mydashboard_preferenceuserblacklists',
+            'WHERE'     => [
+                'users_id'  => $user_id,
+            ],
+        ]);
+        $tab = [];
+        if (count($iterator) > 0) {
+            foreach ($iterator as $row) {
+                $tab[$row['plugin_name']] = $row['plugin_name'];
+            }
+        }
+
+        return $tab;
+    }
+
+    /**
+     * Get the localized name for a plugin
+     * @param string $plugin_name
+     * @return string
+     */
+    private function getLocalName($plugin_name)
+    {
+        $infos = Plugin::getInfo($plugin_name);
+
+        return isset($infos['name']) ? $infos['name'] : $plugin_name;
+    }
+
+    /**
+     * Replacement of array_diff, normally faster
+     * @param array $arrayFrom
+     * @param array $arrayAgainst
+     * @return array, $arrayFrom - $arrayAgainst
+     */
+    public static function arrayDiffEmulation($arrayFrom, $arrayAgainst)
+    {
+        $arrayAgainst = array_flip($arrayAgainst);
+
+        foreach ($arrayFrom as $key => $value) {
+            if (isset($arrayAgainst[$value])) {
+                unset($arrayFrom[$key]);
+            }
+        }
+
+        return $arrayFrom;
+    }
+
+    public static function install(Migration $migration)
+    {
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+        $table  = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $query = "CREATE TABLE `$table` (
+                        `id` int {$default_key_sign} NOT NULL auto_increment,
+                        `users_id`    int {$default_key_sign} NOT NULL COMMENT 'RELATION to glpi_users(id)',
+                        `plugin_name` varchar(255) NOT NULL,
+                        PRIMARY KEY (`id`)
+               ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
+
+            $DB->doQuery($query);
+
+        }
+    }
+
+    public static function uninstall()
+    {
+        global $DB;
+
+        $DB->dropTable(self::getTable(), true);
+
+    }
+}

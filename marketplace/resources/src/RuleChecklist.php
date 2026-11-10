@@ -1,0 +1,237 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * resources plugin for GLPI
+ * Copyright (C) 2015-2026 by the resources Development Team.
+ *
+ * https://github.com/InfotelGLPI/resources
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of resources.
+ *
+ * resources is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * resources is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with resources. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Resources;
+
+use Html;
+use Rule;
+use Session;
+
+/**
+ * Rule class store all informations about a GLPI rule :
+ *   - description
+ *   - criterias
+ *   - actions
+ *
+ **/
+class RuleChecklist extends Rule
+{
+    public static $rightname = 'plugin_resources_rule';
+
+    // From Rule
+    public $can_sort = true;
+
+    /**
+     * Get title used in rule
+     *
+     * @return string of the rule
+     **/
+    public function getTitle()
+    {
+        return Resource::getTypeName(2) . " " . Checklist::getTypeName(1);
+    }
+
+    /**
+     * Have I the global right to "view" the Object
+     *
+     * Default is true and check entity if the objet is entity assign
+     *
+     * May be overloaded if needed
+     *
+     * @return
+     **/
+    public static function canView(): bool
+    {
+        return Session::haveRight(self::$rightname, READ);
+    }
+
+    /**
+     * Have I the global right to "create" the Object
+     * May be overloaded if needed (ex KnowbaseItem)
+     *
+     * @return
+     **/
+    public static function canCreate(): bool
+    {
+        return Session::haveRightsOr(self::$rightname, [CREATE, UPDATE, DELETE]);
+    }
+
+    /**
+     * @return bool
+     */
+    public function maybeRecursive()
+    {
+        return true;
+    }
+
+
+    /**
+     * @return bool
+     */
+    public function isEntityAssign()
+    {
+        return true;
+    }
+
+    /**
+     * Can I change recursive flag to false
+     * check if there is "linked" object in another entity
+     *
+     * May be overloaded if needed
+     *
+     * @return
+     **/
+    public function canUnrecurs()
+    {
+        return true;
+    }
+
+    /**
+     * Get maximum number of Actions of the Rule (0 = unlimited)
+     *
+     * @return int maximum number of actions
+     **/
+    public function maxActionsCount()
+    {
+        return count($this->getActions());
+    }
+
+    /**
+     * Function used to add specific params before rule processing
+     *
+     * @param $params parameters
+     **/
+    public function addSpecificParamsForPreview($params)
+    {
+        if (!isset($params["entities_id"])) {
+            $params["entities_id"] = $_SESSION["glpiactive_entity"];
+        }
+        return $params;
+    }
+
+    /**
+     * @return array
+     */
+    public function getCriterias()
+    {
+        $criterias = [];
+
+        $criterias['plugin_resources_contracttypes_id']['name'] = ContractType::getTypeName(1);
+        $criterias['plugin_resources_contracttypes_id']['type'] = 'dropdownContractType';
+
+        $criterias['plugin_resources_contracttypes_id']['allow_condition'] = [Rule::PATTERN_IS, Rule::PATTERN_IS_NOT];
+
+        $criterias['checklist_type']['name'] = __('Checklist type', 'resources');
+        $criterias['checklist_type']['type'] = 'dropdownChecklistType';
+
+        $criterias['checklist_type']['allow_condition'] = [Rule::PATTERN_IS, Rule::PATTERN_IS_NOT];
+
+        return $criterias;
+    }
+
+    /**
+     * Display item used to select a pattern for a criteria
+     *
+     * @param $name      criteria name
+     * @param $ID        the given criteria
+     * @param $condition condition used
+     * @param $value     the pattern (DEFAULT '')
+     * @param $test      Is to test rule ? (false by default)
+     **/
+    public function displayCriteriaSelectPattern($name, $ID, $condition, $value = "", $test = false)
+    {
+        $Checklist = new Checklist();
+        $ContractType = new ContractType();
+
+        $crit = $this->getCriteria($ID);
+        $display = false;
+        if (isset($crit['type'])
+            && ($test || $condition == Rule::PATTERN_IS || $condition == Rule::PATTERN_IS_NOT)) {
+            switch ($crit['type']) {
+                case "dropdownChecklistType":
+                    $Checklist->dropdownChecklistType($name);
+                    $display = true;
+                    break;
+                case "dropdownContractType":
+                    $ContractType->dropdownContractType($name);
+                    $display = true;
+                    break;
+            }
+        }
+
+        if ($condition == Rule::PATTERN_EXISTS || $condition == Rule::PATTERN_DOES_NOT_EXISTS) {
+            echo Html::hidden($name, ['value' => 1]);
+            $display = true;
+        }
+
+        if (!$display) {
+            Html::input($name, ['value' => $value, 'size' => 70]);
+        }
+    }
+
+    /**
+     * Return a value associated with a pattern associated to a criteria to display it
+     *
+     * @param $ID the given criteria
+     * @param $condition condition used
+     * @param $pattern the pattern
+     **/
+    public function getCriteriaDisplayPattern($ID, $condition, $pattern)
+    {
+        if (($condition == Rule::PATTERN_IS || $condition == Rule::PATTERN_IS_NOT)) {
+            $crit = $this->getCriteria($ID);
+            if (isset($crit['type'])) {
+                switch ($crit['type']) {
+                    case "dropdownChecklistType":
+                        $Checklist = new Checklist();
+                        return $Checklist->getChecklistType($pattern);
+                    case "dropdownContractType":
+                        $ContractType = new ContractType();
+                        return $ContractType->getContractTypeName($pattern);
+                }
+            }
+        }
+        return $pattern;
+    }
+
+    /**
+     * @return array
+     */
+    public function getActions()
+    {
+        $actions = [];
+
+        $actions['checklists_id']['name'] = __('Checklist action', 'resources');
+        $actions['checklists_id']['table'] = 'glpi_plugin_resources_checklistconfigs';
+        $actions['checklists_id']['type'] = 'dropdown';
+        $actions['checklists_id']['force_actions'] = ['assign'];
+
+        return $actions;
+    }
+}

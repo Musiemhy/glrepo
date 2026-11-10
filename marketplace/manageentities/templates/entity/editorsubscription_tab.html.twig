@@ -1,0 +1,122 @@
+{#
+ # -------------------------------------------------------------------------
+ # manageentities plugin for GLPI
+ # Copyright (C) 2017-2026 by the manageentities Development Team.
+ #
+ # https://github.com/InfotelGLPI/manageentities
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of manageentities.
+ #
+ # manageentities is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # manageentities is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with manageentities. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{# Search and "expired only" filter: public/scripts/editorsubscription-tab.js #}
+<div class="card mt-3" data-me-sub-tab>
+    <div class="card-header d-flex align-items-center gap-2">
+        <h3 class="card-title">
+            <i class="ti ti-certificate me-2"></i>
+            {{ __('Publisher subscriptions', 'manageentities') }}
+            {% set total_count   = rows|length %}
+            {% set expired_count = rows|filter(r => r.end_date_expired)|length %}
+            {% if total_count > 0 %}
+                <span class="badge bg-secondary-lt ms-2">{{ total_count }}</span>
+            {% endif %}
+            {% if expired_count > 0 %}
+                <span class="badge bg-danger-lt ms-1" title="{{ __('Expired subscriptions', 'manageentities') }}">
+                    <i class="ti ti-clock-exclamation me-1"></i>{{ expired_count }}
+                </span>
+            {% endif %}
+        </h3>
+        <div class="card-options ms-auto d-flex gap-2">
+            <div class="input-group input-group-sm" style="width: 220px;">
+                <span class="input-group-text"><i class="ti ti-search"></i></span>
+                <input type="text" class="form-control" placeholder="{{ __('Search') }}" data-me-sub-search>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-warning" data-me-sub-expired aria-pressed="false"
+                    title="{{ __('Show expired subscriptions only', 'manageentities') }}">
+                <i class="ti ti-clock-exclamation me-1"></i>{{ __('Expired only', 'manageentities') }}
+            </button>
+            <a href="{{ export_url }}" class="btn btn-sm btn-outline-secondary"
+               data-me-sub-export="{{ {'all': export_url, 'expired': export_url ~ '&sub_expired=1'}|json_encode }}">
+                <i class="ti ti-table-export me-1"></i>{{ __('Export CSV', 'manageentities') }}
+            </a>
+            {% if can_edit %}
+            <a href="{{ wizard_url }}" class="btn btn-sm btn-outline-success">
+                <i class="ti ti-plus me-1"></i>{{ __('Create subscription', 'manageentities') }}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card-body p-0">
+        {% if rows|length > 0 %}
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>{{ _n('Entity', 'Entities', 1) }}</th>
+                        <th>{{ __('Publisher customer account ID', 'manageentities') }}</th>
+                        <th>{{ __('Referenced name at the publisher', 'manageentities') }}</th>
+                        <th class="text-center">{{ __('Type', 'manageentities') }}</th>
+                        <th>{{ __('Subscription level', 'manageentities') }}</th>
+                        <th>{{ __('Start date', 'manageentities') }}</th>
+                        <th>{{ __('End date', 'manageentities') }} <i class="ti ti-sort-ascending ms-1 text-muted" title="{{ __('Sorted by oldest end date first', 'manageentities') }}"></i></th>
+                        {% if can_edit %}<th></th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                    <tr data-expired="{{ row.end_date_expired ? '1' : '0' }}">
+                        <td>{{ row.entity_completename ?: '—' }}</td>
+                        <td>{{ row.customer_account_id ?: '—' }}</td>
+                        <td>{{ row.name ?: '—' }}</td>
+                        <td class="text-center">
+                            {% if row.cloud_client %}
+                                <span class="badge bg-info-lt"><i class="ti ti-cloud me-1"></i>{{ __('Cloud', 'manageentities') }}</span>
+                            {% else %}
+                                <span class="badge bg-success-lt"><i class="ti ti-certificate me-1"></i>{{ __('Editor', 'manageentities') }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ row.level_name ?: '—' }}</td>
+                        <td>{{ row.begin_date ? row.begin_date|date('d/m/Y') : '—' }}</td>
+                        <td class="{% if row.end_date_expired %}text-danger fw-bold{% endif %}">
+                            {{ row.end_date ? row.end_date|date('d/m/Y') : '—' }}
+                            {% if row.end_date_expired %}<i class="ti ti-alert-circle ms-1"></i>{% endif %}
+                        </td>
+                        {% if can_edit %}
+                        <td class="text-end">
+                            <a href="{{ wizard_url }}?entities_id={{ row.entities_id }}"
+                               class="btn btn-sm btn-outline-primary">
+                                <i class="ti ti-pencil me-1"></i>{{ __('Edit') }}
+                            </a>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-3 text-muted">
+            <i class="ti ti-info-circle me-1"></i>
+            {{ __('No publisher subscription recorded for this entity.', 'manageentities') }}
+        </div>
+        {% endif %}
+    </div>
+</div>
+

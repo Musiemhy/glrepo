@@ -1,0 +1,296 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * purchaserequest plugin for GLPI
+ * Copyright (C) 2021-2026 by the purchaserequest Development Team.
+ *
+ * https://github.com/InfotelGLPI/purchaserequest
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of purchaserequest.
+ *
+ * purchaserequest is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * purchaserequest is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with purchaserequest. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use GlpiPlugin\Purchaserequest\Config;
+use GlpiPlugin\Purchaserequest\NotificationTargetPurchaseRequest;
+use GlpiPlugin\Purchaserequest\Profile;
+use GlpiPlugin\Purchaserequest\PurchaseRequest;
+use GlpiPlugin\Purchaserequest\PurchaseRequestState;
+use GlpiPlugin\Purchaserequest\Threshold;
+use GlpiPlugin\Purchaserequest\Validation;
+
+/**
+ * Plugin install process
+ *
+ * @return boolean
+ */
+function plugin_purchaserequest_install()
+{
+    global $DB;
+
+    $migration = new Migration(PLUGIN_PURCHASEREQUEST_VERSION);
+    $classes   = [NotificationTargetPurchaseRequest::class,
+        PurchaseRequest::class,
+        Config::class,
+        Threshold::class,
+        Validation::class,
+        PurchaseRequestState::class];
+
+    foreach ($classes as $class) {
+        call_user_func([$class, 'install'], $migration);
+    }
+
+    $migration->executeMigration();
+
+    //DisplayPreferences Migration
+    $classes = ['PluginPurchaserequestPurchaserequest' => PurchaseRequest::class];
+
+    foreach ($classes as $old => $new) {
+        $displayusers = $DB->request([
+            'SELECT' => [
+                'users_id',
+            ],
+            'DISTINCT' => true,
+            'FROM' => 'glpi_displaypreferences',
+            'WHERE' => [
+                'itemtype' => $old,
+            ],
+        ]);
+
+        if (count($displayusers) > 0) {
+            foreach ($displayusers as $displayuser) {
+                $iterator = $DB->request([
+                    'SELECT' => [
+                        'num',
+                        'id',
+                    ],
+                    'FROM' => 'glpi_displaypreferences',
+                    'WHERE' => [
+                        'itemtype' => $old,
+                        'users_id' => $displayuser['users_id'],
+                        'interface' => 'central',
+                    ],
+                ]);
+
+                if (count($iterator) > 0) {
+                    foreach ($iterator as $data) {
+                        $iterator2 = $DB->request([
+                            'SELECT' => [
+                                'id',
+                            ],
+                            'FROM' => 'glpi_displaypreferences',
+                            'WHERE' => [
+                                'itemtype' => $new,
+                                'users_id' => $displayuser['users_id'],
+                                'num' => $data['num'],
+                                'interface' => 'central',
+                            ],
+                        ]);
+                        if (count($iterator2) > 0) {
+                            foreach ($iterator2 as $dataid) {
+                                $DB->delete('glpi_displaypreferences', ['id' => $dataid['id']]);
+                            }
+                        } else {
+                            $DB->update(
+                                'glpi_displaypreferences',
+                                ['itemtype' => $new],
+                                ['id' => $data['id']],
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Profile::initProfile();
+    Profile::createFirstAccess($_SESSION['glpiactiveprofile']['id']);
+
+    return true;
+}
+
+/**
+ * Plugin uninstall process
+ *
+ * @return boolean
+ */
+function plugin_purchaserequest_uninstall()
+{
+
+
+    $classes   = [NotificationTargetPurchaseRequest::class,
+        PurchaseRequest::class,
+        Config::class,
+        Threshold::class,
+        Validation::class,
+        PurchaseRequestState::class];
+    foreach ($classes as $class) {
+        call_user_func([$class, 'uninstall']);
+    }
+
+    //Delete rights associated with the plugin. getAllRights() must be called
+    // with $all = true, otherwise only the main right is returned and the
+    // secondary rights (_validate, _config) registered at install stay behind
+    // in glpi_profilerights for every profile.
+    $profileRight = new ProfileRight();
+    foreach (Profile::getAllRights(true) as $right) {
+        $profileRight->deleteByCriteria(['name' => $right['field']]);
+    }
+
+    return true;
+}
+
+/* define dropdown tables to be manage in GLPI : */
+function plugin_purchaserequest_getDropdown()
+{
+    /* table => name */
+    if (Plugin::isPluginActive("purchaserequest")) {
+        return [PurchaseRequestState::class => __("Purchase request status", "purchaserequest")];
+    } else {
+        return [];
+    }
+}
+
+/* define dropdown relations */
+function plugin_purchaserequest_getDatabaseRelations()
+{
+
+    if (Plugin::isPluginActive("purchaserequest")) {
+        return ["glpi_entities"                                     => ["glpi_plugin_purchaserequest_purchaserequests" => "entities_id"],
+            "glpi_profiles"                                     => ["glpi_plugin_purchaserequest_profiles" => "profiles_id"],
+            "glpi_users"                                        => ["glpi_plugin_purchaserequest_purchaserequests" => "users_id",
+                "glpi_plugin_purchaserequest_purchaserequests" => "users_id_validate",
+                "glpi_plugin_purchaserequest_purchaserequests" => "users_id_creator"],
+            "glpi_groups"                                       => ["glpi_plugin_purchaserequest_purchaserequests" => "groups_id"],
+            "glpi_tickets"                                      => ["glpi_plugin_purchaserequest_purchaserequests" => "tickets_id"],
+            //              "glpi_plugin_purchaserequest_purchaserequeststates" => [
+            //                 "glpi_plugin_purchaserequest_purchaserequests" => "plugin_purchaserequest_purchaserequeststates_id"]
+        ];
+    } else {
+        return [];
+    }
+}
+
+function plugin_purchaserequest_addSelect($type, $ID, $num)
+{
+
+    $searchopt = Search::getOptions($type);
+    $table     = $searchopt[$ID]["table"];
+    $field     = $searchopt[$ID]["field"];
+
+    if ($table == "glpi_plugin_purchaserequest_purchaserequests"
+       && $field == "types_id") {
+        return "`$table`.`itemtype`, `$table`.`$field` AS `ITEM_$num`, ";
+    } else {
+        return "";
+    }
+}
+
+/* display custom fields in the search */
+function plugin_purchaserequest_giveItem($type, $ID, $data, $num)
+{
+    global $CFG_GLPI;
+
+    $searchopt = Search::getOptions($type);
+    $table     = $searchopt[$ID]["table"];
+    $field     = $searchopt[$ID]["field"];
+    $dbu       = new DbUtils();
+    switch ($table . '.' . $field) {
+        /* display associated items with order */
+        case "glpi_plugin_purchaserequest_purchaserequests.types_id":
+            // Resolve the *Type class through class_exists() instead of building a
+            // filesystem path from the stored itemtype. The itemtype column is not
+            // constrained to a whitelist on write, so concatenating it into a path
+            // handed to file_exists() would turn a forged value (e.g. "../../..")
+            // into a file-existence oracle. class_exists() cannot be steered outside
+            // the autoloadable classes and never touches an attacker-controlled path.
+            $itemtype   = $data['raw']["itemtype"] ?? '';
+            $type_class = '';
+            if ($itemtype === 'PluginOrderOther') {
+                $type_class = 'PluginOrderOtherType';
+            } elseif ($itemtype !== '') {
+                $type_class = $itemtype . 'Type';
+            }
+            if ($type_class !== '' && class_exists($type_class)) {
+                // giveItem hook output is injected verbatim in the search HTML: escape
+                // the raw dropdown name (stored XSS via a renamed *Type).
+                return htmlescape(Dropdown::getDropdownName(
+                    $dbu->getTableForItemType($type_class),
+                    $data['raw']["ITEM_" . $num],
+                ));
+            } else {
+                return " ";
+            }
+            break;
+        case "glpi_plugin_purchaserequest_purchaserequests.plugin_order_orders_id":
+            $order = new PluginOrderOrder();
+            if ($order->getFromDB($data['raw']["ITEM_" . $num])) {
+                return $order->getLink();
+            } else {
+                return " ";
+            }
+
+            break;
+    }
+}
+
+
+function plugin_purchaserequest_getAddSearchOptions($itemtype)
+{
+
+    $sopt = [];
+
+    if ($itemtype == 'Ticket') {
+        if (Session::haveRight('plugin_purchaserequest_purchaserequest', READ)) {
+            $sopt[22227]['table']         = 'glpi_plugin_purchaserequest_purchaserequests';
+            $sopt[22227]['field']         = 'id';
+            $sopt[22227]['name']          = _x('quantity', 'Number of purchase request', 'purchaserequest');
+            $sopt[22227]['forcegroupby']  = true;
+            $sopt[22227]['usehaving']     = true;
+            $sopt[22227]['datatype']      = 'count';
+            $sopt[22227]['massiveaction'] = false;
+            $sopt[22227]['joinparams']    = ['jointype' => 'child'];
+        }
+    }
+    return $sopt;
+}
+
+/**
+ * @param $type
+ * @param $ID
+ * @param $data
+ * @param $num
+ *
+ * @return string
+ */
+function plugin_purchaserequest_displayConfigItem($type, $ID, $data, $num)
+{
+
+    $searchopt = Search::getOptions($type);
+    $table     = $searchopt[$ID]["table"];
+    $field     = $searchopt[$ID]["field"];
+
+    switch ($table . '.' . $field) {
+        case "glpi_plugin_purchaserequest_purchaserequests.status":
+            $status_color = CommonITILValidation::getStatusColor($data[$num][0]['name']);
+            return " class=\"shadow-none\" style=\"background-color:" . $status_color . ";\" ";
+            break;
+    }
+    return "";
+}

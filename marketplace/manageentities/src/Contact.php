@@ -1,0 +1,202 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * manageentities plugin for GLPI
+ * Copyright (C) 2017-2026 by the manageentities Development Team.
+ *
+ * https://github.com/InfotelGLPI/manageentities
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of manageentities.
+ *
+ * manageentities is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * manageentities is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with manageentities. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Manageentities;
+
+use CommonDBTM;
+use DBConnection;
+use Glpi\Application\View\TemplateRenderer;
+use Html;
+use Migration;
+use Session;
+
+class Contact extends CommonDBTM
+{
+    public static $rightname = 'plugin_manageentities';
+
+    public static function canView(): bool
+    {
+        return Session::haveRight(self::$rightname, READ);
+    }
+
+    public static function canCreate(): bool
+    {
+        return Session::haveRightsOr(self::$rightname, [CREATE, UPDATE, DELETE]);
+    }
+
+    /**
+     * Add a contact ba default
+     *
+     * @param  $contacts_id
+     * @param  $entities_id
+     *
+     * @global  $DB
+     *
+     */
+    public function addContactByDefault($contacts_id, $entities_id)
+    {
+        $contacts = $this->find(['entities_id' => $entities_id]);
+
+        if (count($contacts) > 0) {
+            foreach ($contacts as $data) {
+                $this->update(['is_default' => 0, 'id' => $data["id"]]);
+            }
+        }
+        $this->update(['is_default' => 1, 'id' => $contacts_id]);
+    }
+
+    /**
+     *
+     * @param  $instID
+     *
+     * @global  $DB
+     */
+    public function prepareInputForAdd($input)
+    {
+        $entities_id = (int) ($input['entities_id'] ?? -1);
+        $contacts_id = (int) ($input['contacts_id'] ?? 0);
+        if (!Session::haveAccessToEntity($entities_id) || $contacts_id <= 0) {
+            return false;
+        }
+        // The picker only lists contacts visible from the entity (its own ones or recursive
+        // ones of an ancestor): the posted value is not bound by it, so replay that scope
+        $visible = countElementsInTable('glpi_contacts', [
+            'id'         => $contacts_id,
+            'is_deleted' => 0,
+        ] + getEntitiesRestrictCriteria('glpi_contacts', '', $entities_id, true));
+        if ($visible === 0) {
+            return false;
+        }
+        $input['entities_id'] = $entities_id;
+        $input['contacts_id'] = $contacts_id;
+
+        return $input;
+    }
+
+    public function buildContactsForTemplate(array $instID, string $root_doc): array
+    {
+        global $DB;
+
+        $iterator = $DB->request([
+            'SELECT'   => [
+                'glpi_contacts.*',
+                $this->getTable() . '.contacts_id',
+                $this->getTable() . '.is_default',
+            ],
+            'FROM'     => $this->getTable(),
+            'LEFT JOIN' => [
+                'glpi_contacts' => [
+                    'ON' => [
+                        $this->getTable() => 'contacts_id',
+                        'glpi_contacts'   => 'id',
+                    ],
+                ],
+            ],
+            'WHERE'   => [
+                'glpi_contacts.is_deleted'          => 0,
+                $this->getTable() . '.entities_id'  => $instID,
+            ],
+            'ORDERBY' => ['glpi_contacts.name'],
+        ]);
+
+        $contacts = [];
+        foreach ($iterator as $data) {
+            $contacts[] = [
+                'link_id'      => $data['contacts_id'],
+                'url'          => $root_doc . '/front/contact.form.php?id=' . $data['id'],
+                'name'         => htmlspecialchars($data['name']),
+                'firstname'    => htmlspecialchars($data['firstname']),
+                'phone'        => $data['phone'] ?? '',
+                'mobile'       => $data['mobile'] ?? '',
+                'email'        => $data['email'] ?? '',
+                'contact_type' => \Dropdown::getDropdownName('glpi_contacttypes', $data['contacttypes_id']),
+                'is_default'   => (bool) $data['is_default'],
+            ];
+        }
+        return $contacts;
+    }
+
+    public function showContacts($instID)
+    {
+        global $CFG_GLPI;
+
+        $can_edit  = $this->canCreate();
+        $is_single = count($instID) === 1;
+        $interface = Session::getCurrentInterface();
+
+        $entity_action_url = PLUGIN_MANAGEENTITIES_WEBDIR . '/front/entity.php';
+
+        $contacts = $this->buildContactsForTemplate($instID, $CFG_GLPI['root_doc']);
+
+
+        TemplateRenderer::getInstance()->display(
+            '@manageentities/entity/contacts_card.html.twig',
+            [
+                'entity_id'            => $_SESSION['glpiactive_entity'],
+                'entity_action_url'    => $entity_action_url,
+                'contact_form_url'     => $CFG_GLPI['root_doc'] . '/front/contact.form.php',
+                'contacts'             => $contacts,
+                'can_edit_contacts'    => $can_edit,
+                'is_single'            => $is_single,
+                'interface'            => $interface,
+            ],
+        );
+    }
+
+    public static function install(Migration $migration)
+    {
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+        $table  = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $query = "CREATE TABLE `$table` (
+                        `id` int {$default_key_sign} NOT NULL auto_increment,
+                        `contacts_id` int {$default_key_sign} NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_contacts (id)',
+                        `entities_id` int {$default_key_sign} NOT NULL DEFAULT '0',
+                        `is_default` tinyint NOT NULL DEFAULT '0',
+                        PRIMARY KEY  (`id`),
+                        UNIQUE KEY `unicity` (`entities_id`),
+                        KEY `entities_id` (`entities_id`)
+               ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
+
+            $DB->doQuery($query);
+        }
+    }
+
+    public static function uninstall()
+    {
+        global $DB;
+
+        $DB->dropTable(self::getTable(), true);
+    }
+}

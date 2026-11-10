@@ -1,0 +1,86 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# feonsu <feonsu@gmail.com>, 2023
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-05-14 02:33+0000\n"
+"PO-Revision-Date: 2018-02-20 13:00+0000\n"
+"Last-Translator: feonsu <feonsu@gmail.com>, 2023\n"
+"Language-Team: Slovak (Slovakia) (https://app.transifex.com/teclib/teams/28042/sk_SK/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: sk_SK\n"
+"Plural-Forms: nplurals=4; plural=(n % 1 == 0 && n == 1 ? 0 : n % 1 == 0 && n >= 2 && n <= 4 ? 1 : n % 1 != 0 ? 2: 3);\n"
+
+#: templates/export_template.html.twig
+msgid "Asset export ref : "
+msgstr "Referencia exportu majetku:"
+
+#: templates/export_template.html.twig
+msgid "Signature"
+msgstr "Podpis"
+
+#: templates/export.html.twig
+msgid "Generate new export"
+msgstr "Generovať nový report"
+
+#: templates/config.html.twig
+msgid "Configuration"
+msgstr ""
+
+#: templates/config.html.twig
+msgid "Footer text"
+msgstr "Text päty"
+
+#: templates/config.html.twig inc/config.class.php:96
+msgid "Landscape"
+msgstr "Na šírku"
+
+#: templates/config.html.twig inc/config.class.php:97
+msgid "Portrait"
+msgstr "Na výšku"
+
+#: templates/config.html.twig
+msgid "Orientation"
+msgstr "Orientácia"
+
+#: templates/config.html.twig
+msgid "Format"
+msgstr "Formát"
+
+#: setup.php:100 inc/export.class.php:46 inc/config.class.php:48
+msgid "Used items export"
+msgstr "Export používaných položiek"
+
+#: front/export.form.php:41
+msgid "PDF successfully generated."
+msgstr "PDF bolo úspešne vygenerované."
+
+#: inc/export.class.php:163
+msgid "Reference number of export"
+msgstr "Referenčné číslo exportu"
+
+#: inc/export.class.php:164
+msgid "Date of export"
+msgstr "Dátum exportu"
+
+#: inc/export.class.php:165
+msgid "Author of export"
+msgstr "Autor exportu"
+
+#: inc/export.class.php:166
+msgid "Export document"
+msgstr "Dokument exportu"
+
+#: inc/export.class.php:285
+msgid "Used-Items-Export"
+msgstr "Export-používaných-položiek"

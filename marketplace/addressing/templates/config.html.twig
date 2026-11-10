@@ -1,0 +1,111 @@
+{#
+ # -------------------------------------------------------------------------
+ # addressing plugin for GLPI
+ # Copyright (C) 2016-2026 by the addressing Development Team.
+ #
+ # https://github.com/pluginsGLPI/addressing
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of addressing.
+ #
+ # addressing is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # addressing is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with addressing. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{% import "components/form/fields_macros.html.twig" as fields %}
+
+{% set field_options = {'label_class': 'col-4', 'input_class': 'col-8', 'full_width': false} %}
+
+{# The core header already opens the <form> and the #mainformtable div, and the core
+   buttons template below closes both while emitting the CSRF token, the id field and
+   the Save button. The form declared here was nested inside that one, which browsers
+   drop: the submitted form was therefore the outer one, left open and without a token
+   by a template that included the header but not the buttons. Its action attribute also
+   read an {{ action }} variable that showForm() never passed. #}
+{{ include('components/form/header.html.twig') }}
+<div class="card">
+    <div class="card-body">
+
+                <div class="hr-text">
+                    <i class="fa-2x ti ti-report-analytics"></i>
+                    <span>{{ __('Display', 'addressing') }}</span>
+                </div>
+                <div class="row">
+                    {{ fields.sliderField(
+                        'alloted_ip',
+                        config["alloted_ip"],
+                        __('Assigned IP', 'addressing'),
+                        field_options
+                    ) }}
+
+                    {{ fields.sliderField(
+                        'free_ip',
+                        config["free_ip"],
+                        __('Free IP', 'addressing'),
+                        field_options
+                    ) }}
+
+                    {{ fields.sliderField(
+                        'double_ip',
+                        config["double_ip"],
+                        __('Same IP', 'addressing'),
+                        field_options
+                    ) }}
+
+                    {{ fields.sliderField(
+                        'reserved_ip',
+                        config["reserved_ip"],
+                        __('Reserved IP', 'addressing'),
+                        field_options
+                    ) }}
+
+                    {{ fields.sliderField(
+                        'use_ping',
+                        is_cloud ? 0 : config["use_ping"],
+                        __('Use Ping on IP ranges', 'addressing'),
+                        field_options|merge({'disabled': is_cloud})
+                    ) }}
+            </div>
+
+            {% if not is_cloud %}
+            <div class="hr-text">
+                <i class="fa-2x ti ti-terminal-2"></i>
+                <span>{{ __('System for ping', 'addressing') }}</span>
+            </div>
+            <div class="row">
+
+                {% set tab = {0: __('Linux ping', 'addressing'),
+                    1:  __('Windows', 'addressing'),
+                    2: __('Linux fping', 'addressing'),
+                    3: __('BSD ping', 'addressing'),
+                    4:  __('MacOSX ping', 'addressing')} %}
+
+                {{ fields.dropdownArrayField(
+                    'used_system',
+                    config["used_system"],
+                    tab,
+                    __('System for ping', 'addressing'),
+                    field_options
+                ) }}
+
+            </div>
+            {% endif %}
+
+            <div class="hr mt-3 mb-3"></div>
+    </div>
+</div>
+{# candel: a configuration row is neither deleted nor put in the trashbin. #}
+{{ include('components/form/buttons.html.twig', {'params': {'candel': false}}) }}

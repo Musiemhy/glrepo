@@ -1,0 +1,1409 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * metademands plugin for GLPI
+ * Copyright (C) 2018-2026 by the metademands Development Team.
+ *
+ * https://github.com/InfotelGLPI/metademands
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of metademands.
+ *
+ * metademands is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * metademands is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Metademands\Fields;
+
+use CommonDBTM;
+use DbUtils;
+use DropdownTranslation;
+use Glpi\Application\View\TemplateRenderer;
+use Glpi\RichText\RichText;
+use GlpiPlugin\Metademands\Condition;
+use GlpiPlugin\Resources\Resource;
+use Html;
+use Location;
+use GlpiPlugin\Metademands\Field;
+use GlpiPlugin\Metademands\FieldOption;
+use GlpiPlugin\Metademands\FieldParameter;
+use GlpiPlugin\Metademands\Metademand;
+use GlpiPlugin\Metademands\MetademandTask;
+use Session;
+use User;
+use UserCategory;
+use UserTitle;
+
+/**
+ * Dropdown Class
+ *
+ **/
+class Dropdown extends CommonDBTM
+{
+    public const CLASSIC_DISPLAY = 0;
+    public const SPLITTED_DISPLAY = 1;
+    public const BLOCK_DISPLAY = 2;
+    /**
+     * Return the localized name of the current Type
+     * Should be overloaded in each new class
+     *
+     * @param integer $nb Number of items
+     *
+     * @return string
+     **/
+    public static function getTypeName($nb = 0)
+    {
+        return __('Dropdown');
+    }
+
+    public static function getLocations(
+        $entities_id = 0,
+        int $root_items_id = 0,
+        int $location_depth = 0
+    ) {
+        /** @var DBmysql $DB */
+        global $DB;
+
+        // Build entity restriction
+        $entity_criteria = getEntitiesRestrictCriteria(
+            'glpi_locations',
+            '',
+            $entities_id,
+            true,
+        );
+
+        $locations = [];
+        $locations[] = [
+            'id' => 0,
+            'name' => \Dropdown::EMPTY_VALUE,
+            'locations_id' => 0,
+        ];
+        foreach (
+            /** @phpstan-ignore-next-line */
+            $DB->request([
+                'FROM' => Location::getTable(),
+                'WHERE' => $entity_criteria,
+            ]) as $location
+        ) {
+            $location['name'] = DropdownTranslation::getTranslatedValue(
+                $location['id'],
+                Location::class,
+                'name',
+                $_SESSION['glpilanguage'],
+            ) ?: $location['name'];
+            $locations[$location['id']] = $location;
+        }
+        uasort($locations, function ($a, $b) {
+            return $a['name'] <=> $b['name'];
+        });
+
+        $locs = self::buildLocationTree($locations, $root_items_id, $location_depth);
+
+        return $locs;
+    }
+
+    public static function buildLocationTree(array $locations, int $root_items_id = 0, int $location_depth = 0)
+    {
+        $indexed = [];
+        foreach ($locations as $loc) {
+            $indexed[$loc['id']] = $loc + ['children' => []];
+        }
+
+        foreach ($indexed as &$loc) {
+            if ($loc['locations_id'] && isset($indexed[$loc['locations_id']])) {
+                $indexed[$loc['locations_id']]['children'][] = &$loc;
+            }
+        }
+        unset($loc);
+
+        if ($root_items_id > 0 && isset($indexed[$root_items_id])) {
+            $result = [];
+            foreach ($indexed[$root_items_id]['children'] as $child) {
+                $result[$child['name']] = self::transformNode($child, $location_depth, 1);
+            }
+            return $result;
+        }
+
+        $roots = array_filter($indexed, fn($loc) => $loc['locations_id'] == 0);
+        $result = [];
+
+        foreach ($roots as $root) {
+            $result[$root['name']] = self::transformNode($root, $location_depth, 1);
+        }
+
+        return $result;
+    }
+
+    public static function transformNode($node, int $location_depth = 0, int $current_depth = 1)
+    {
+        // If depth limit reached, expose node as a leaf (selectable, no sub-levels shown)
+        $depth_reached = $location_depth > 0 && $current_depth >= $location_depth;
+
+        if (empty($node['children']) || $depth_reached) {
+            return [$node['id'] => $node['name']];
+        }
+
+        $result = [];
+
+        foreach ($node['children'] as $child) {
+            $child_depth_reached = $location_depth > 0 && ($current_depth + 1) >= $location_depth;
+            if (empty($child['children']) || $child_depth_reached) {
+                $result[$child['id']] = $child['name'];
+            } else {
+                $result[$child['name']] = self::transformNode($child, $location_depth, $current_depth + 1);
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * Cascading location selector. Returns its markup instead of printing it: the only
+     * caller concatenates the result into the field it is building, so the legacy `echo`
+     * pushed the selector out of that field and ahead of it.
+     *
+     * @param array $opt
+     *
+     * @return string
+     */
+    public static function locationDropdown($opt)
+    {
+        $root_items_id  = (int) ($opt['root_items_id'] ?? 0);
+        $location_depth = (int) ($opt['location_depth'] ?? 0);
+        $locations      = self::getLocations($_SESSION['glpiactiveentities'], $root_items_id, $location_depth);
+        $name           = $opt['name'];
+        $id             = $opt['fields_id'];
+
+        // Everything below is interpolated into a <script>: a location name or a stored
+        // value carrying `</script>` would otherwise close the block early. Only HEX_TAG
+        // and HEX_AMP, the quote flags would break the JS literals.
+        $locations_json = json_encode($locations, JSON_HEX_TAG | JSON_HEX_AMP);
+        $value_json     = json_encode((string) $opt['value'], JSON_HEX_TAG | JSON_HEX_AMP);
+        $id_json        = json_encode((string) $id, JSON_HEX_TAG | JSON_HEX_AMP);
+
+        return TemplateRenderer::getInstance()->render(
+            '@metademands/fields/field_location_chained.html.twig',
+            [
+                'name'        => $name,
+                'id'          => $id,
+                'is_required' => !empty($opt['required']),
+                'script_src'  => Html::script(PLUGIN_METADEMANDS_WEBDIR . "/lib/cascading-dropdowns/jquery.chained.selects.js"),
+                'script_html' => Html::scriptBlock("function loadSplittedLocations() {
+                            $('#' + {$id_json} + '-dropdown').chainedSelects({
+                                placeholder: '',
+                                data: {$locations_json},
+                                loggingEnabled: false,
+                                selectedKey: {$value_json},
+                                autoSelectSingleOptions: true,
+                                onSelectedCallback: function (id) {
+                                    document.getElementById({$id_json}).value = id;
+                                },
+                            });
+                        }
+
+                        $(document).ready(function () {
+                            loadSplittedLocations();
+                        });
+                     "),
+                'hidden_html' => Html::hidden($name, ['id' => $id]),
+            ],
+        );
+    }
+
+
+    public static function showWizardField($data, $namefield, $value, $on_order, $itilcategories_id)
+    {
+
+        $metademand = new Metademand();
+        $metademand->getFromDB($data['plugin_metademands_metademands_id']);
+
+        $field = "";
+
+        $opt = ['value'     => $value,
+            'entity'    => $_SESSION['glpiactiveentities'],
+            'name'      => $namefield . "[" . $data['id'] . "]",
+            'display'   => false,
+            //                    'width' => '400px'
+        ];
+        if (isset($data['is_mandatory']) && $data['is_mandatory'] == 1) {
+            $opt['specific_tags'] = ['required' => ($data['is_mandatory'] == 1 ? "required" : "")];
+        }
+        //        if (!($item = getItemForItemtype($data['item']))) {
+        //            break;
+        //        }
+
+        switch ($data['item']) {
+            case "Location" :
+                if ($data['link_to_user'] > 0) {
+                    // The included endpoint prints the field: capture it and let the template
+                    // own the input-group wrapper, which two distant `echo` used to open and close.
+                    ob_start();
+                    $_POST['field']        = $namefield . "[" . $data['id'] . "]";
+                    $_POST['locations_id'] = $value;
+                    $fieldUser             = new Field();
+                    $fieldUser->getFromDBByCrit(['id'   => $data['link_to_user'],
+                        'type' => "dropdown_object",
+                        'item' => User::getType()]);
+
+                    $fieldparameter            = new FieldParameter();
+                    if (isset($fieldUser->fields['id'])
+                        && $fieldparameter->getFromDBByCrit(['plugin_metademands_fields_id' => $fieldUser->fields['id']])) {
+
+                        $_POST['users_id']        = (isset($fieldparameter->fields['default_use_id_requester'])
+                            && $fieldparameter->fields['default_use_id_requester'] == 0) ? 0 : Session::getLoginUserID();
+
+                        if (empty($_POST['users_id'])) {
+                            $user = new User();
+                            $user->getFromDB(Session::getLoginUserID());
+                            $_POST['users_id'] = ($fieldparameter->fields['default_use_id_requester_supervisor'] == 0) ? 0 : ($user->fields['users_id_supervisor'] ?? 0);
+                        }
+                    }
+
+                    $_POST['id_fielduser'] = $data['link_to_user'];
+                    $_POST['fields_id']    = $data['id'];
+                    $_POST['display_type']    = $data['display_type'];
+                    $_POST['metademands_id']    = $data['plugin_metademands_metademands_id'];
+                    if ($data['is_mandatory'] == 1) {
+                        $_POST['is_mandatory'] = 1;
+                    }
+                    include(PLUGIN_METADEMANDS_DIR . "/ajax/ulocationUpdate.php");
+                    $field .= TemplateRenderer::getInstance()->render(
+                        '@metademands/fields/field_input_group.html.twig',
+                        [
+                            'id'      => 'location_user' . $data['link_to_user'] . $data['id'],
+                            'content' => ob_get_clean(),
+                        ],
+                    );
+                } else {
+                    $options['name']    = $namefield . "[" . $data['id'] . "]";
+                    $options['width']    = "400px";
+                    $options['display'] = false;
+                    $options['display_type'] = $data['display_type'];
+                    if ($data['is_mandatory'] == 1) {
+                        $options['specific_tags'] = ['required' => ($data['is_mandatory'] == 1 ? "required" : "")];
+                    }
+                    //TODO Error if mode basket : $value good value - not $_SESSION['plugin_metademands'][$data['plugin_metademands_metademands_id']]['fields'][$data['id']]
+                    $options['value'] = $_SESSION['plugin_metademands'][$data['plugin_metademands_metademands_id']]['fields'][$data['id']] ?? 0;
+
+                    if ($data["display_type"] == self::CLASSIC_DISPLAY) {
+                        $root_items_id  = (int) ($data['root_items_id'] ?? 0);
+                        $location_depth = (int) ($data['location_depth'] ?? 0);
+                        $allowed_ids = null;
+                        if ($root_items_id > 0) {
+                            $dbu = new DbUtils();
+                            $sons = $dbu->getSonsOf(Location::getTable(), $root_items_id);
+                            unset($sons[$root_items_id]);
+                            $allowed_ids = array_keys($sons);
+                        }
+                        if ($location_depth > 0) {
+                            global $DB;
+                            $root_level = 0;
+                            if ($root_items_id > 0) {
+                                $row = $DB->request([
+                                    'SELECT' => ['level'],
+                                    'FROM'   => Location::getTable(),
+                                    'WHERE'  => ['id' => $root_items_id],
+                                ])->current();
+                                $root_level = (int) ($row['level'] ?? 0);
+                            }
+                            $max_level = $root_level + $location_depth;
+                            $depth_ids = [];
+                            foreach ($DB->request([
+                                'SELECT' => ['id'],
+                                'FROM'   => Location::getTable(),
+                                'WHERE'  => ['level' => ['<=', $max_level]],
+                            ]) as $row) {
+                                $depth_ids[] = $row['id'];
+                            }
+                            $allowed_ids = ($allowed_ids !== null)
+                                ? array_values(array_intersect($allowed_ids, $depth_ids))
+                                : $depth_ids;
+                        }
+                        if ($allowed_ids !== null) {
+                            $options['condition'] = ['id' => $allowed_ids];
+                        }
+                        $field            .= Location::dropdown($options);
+                    } else {
+                        $opt['value']          = $value;
+                        $opt['fields_id']      = $_POST['fields_id'] ?? $data['id'];
+                        $opt['required']       = ($data['is_mandatory'] == 1 ? "required" : "");
+                        $opt['root_items_id']  = (int) ($data['root_items_id'] ?? 0);
+                        $opt['location_depth'] = (int) ($data['location_depth'] ?? 0);
+                        $field .= self::locationDropdown($opt);
+                    }
+                }
+                break;
+
+            case "UserTitle" :
+                if ($data['link_to_user'] > 0) {
+                    // The included endpoint prints the field: capture it and let the template
+                    // own the input-group wrapper, which two distant `echo` used to open and close.
+                    ob_start();
+                    $_POST['field']        = $namefield . "[" . $data['id'] . "]";
+                    $_POST['fields_id']    = $data['id'];
+                    $_POST['usertitles_id'] = $value;
+                    $fieldUser             = new Field();
+                    $fieldUser->getFromDBByCrit(['id'   => $data['link_to_user'],
+                        'type' => "dropdown_object",
+                        'item' => User::getType()]);
+
+                    $fieldparameter            = new FieldParameter();
+                    if (isset($fieldUser->fields['id']) && $fieldparameter->getFromDBByCrit(['plugin_metademands_fields_id' => $fieldUser->fields['id']])) {
+                        $_POST['users_id']        = (isset($fieldparameter->fields['default_use_id_requester'])
+                            && $fieldparameter->fields['default_use_id_requester'] == 0) ? 0 : Session::getLoginUserID();
+
+                        if (empty($_POST['users_id'])) {
+                            $user = new User();
+                            $user->getFromDB(Session::getLoginUserID());
+                            $_POST['users_id'] = ($fieldparameter->fields['default_use_id_requester_supervisor'] == 0) ? 0 : ($user->fields['users_id_supervisor'] ?? 0);
+                        }
+                    }
+
+                    $_POST['id_fielduser'] = $data['link_to_user'];
+                    $_POST['fields_id']    = $data['id'];
+                    $_POST['metademands_id']    = $data['plugin_metademands_metademands_id'];
+                    if ($data['is_mandatory'] == 1) {
+                        $_POST['is_mandatory'] = 1;
+                    }
+                    include(PLUGIN_METADEMANDS_DIR . "/ajax/utitleUpdate.php");
+                    $field .= TemplateRenderer::getInstance()->render(
+                        '@metademands/fields/field_input_group.html.twig',
+                        [
+                            'id'      => 'title_user' . $data['link_to_user'] . $data['id'],
+                            'content' => ob_get_clean(),
+                        ],
+                    );
+                } else {
+                    $options['name']    = $namefield . "[" . $data['id'] . "]";
+                    $options['width']    = "400px";
+                    $options['display'] = false;
+                    if ($data['is_mandatory'] == 1) {
+                        $options['specific_tags'] = ['required' => ($data['is_mandatory'] == 1 ? "required" : "")];
+                    }
+                    //TODO Error if mode basket : $value good value - not $_SESSION['plugin_metademands'][$data['plugin_metademands_metademands_id']]['fields'][$data['id']]
+                    $options['value'] = $_SESSION['plugin_metademands'][$data['plugin_metademands_metademands_id']]['fields'][$data['id']] ?? 0;
+                    $field            .= UserTitle::dropdown($options);
+                }
+                break;
+            case "UserCategory" :
+                if ($data['link_to_user'] > 0) {
+                    // The included endpoint prints the field: capture it and let the template
+                    // own the input-group wrapper, which two distant `echo` used to open and close.
+                    ob_start();
+                    $_POST['field']        = $namefield . "[" . $data['id'] . "]";
+                    $_POST['usercategories_id'] = $value;
+                    $fieldUser             = new Field();
+                    $fieldUser->getFromDBByCrit(['id'   => $data['link_to_user'],
+                        'type' => "dropdown_object",
+                        'item' => User::getType()]);
+
+                    $fieldparameter            = new FieldParameter();
+                    if (isset($fieldUser->fields['id']) && $fieldparameter->getFromDBByCrit(['plugin_metademands_fields_id' => $fieldUser->fields['id']])) {
+                        $_POST['users_id']        = (isset($fieldparameter->fields['default_use_id_requester'])
+                            && $fieldparameter->fields['default_use_id_requester'] == 0) ? 0 : Session::getLoginUserID();
+
+                        if (empty($_POST['users_id'])) {
+                            $user = new User();
+                            $user->getFromDB(Session::getLoginUserID());
+                            $_POST['users_id'] = ($fieldparameter->fields['default_use_id_requester_supervisor'] == 0) ? 0 : ($user->fields['users_id_supervisor'] ?? 0);
+                        }
+                    }
+
+                    $_POST['id_fielduser'] = $data['link_to_user'];
+                    $_POST['fields_id']    = $data['id'];
+                    $_POST['metademands_id']    = $data['plugin_metademands_metademands_id'];
+                    if ($data['is_mandatory'] == 1) {
+                        $_POST['is_mandatory'] = 1;
+                    }
+                    include(PLUGIN_METADEMANDS_DIR . "/ajax/ucategoryUpdate.php");
+                    $field .= TemplateRenderer::getInstance()->render(
+                        '@metademands/fields/field_input_group.html.twig',
+                        [
+                            'id'      => 'category_user' . $data['link_to_user'] . $data['id'],
+                            'content' => ob_get_clean(),
+                        ],
+                    );
+                } else {
+                    $options['name']    = $namefield . "[" . $data['id'] . "]";
+                    $options['width']    = "400px";
+                    $options['display'] = false;
+                    if ($data['is_mandatory'] == 1) {
+                        $options['specific_tags'] = ['required' => ($data['is_mandatory'] == 1 ? "required" : "")];
+                    }
+                    //TODO Error if mode basket : $value good value - not $_SESSION['plugin_metademands'][$data['plugin_metademands_metademands_id']]['fields'][$data['id']]
+                    $options['value'] = $_SESSION['plugin_metademands'][$data['plugin_metademands_metademands_id']]['fields'][$data['id']] ?? 0;
+                    $field            .= UserCategory::dropdown($options);
+                }
+                break;
+            default:
+                if ($data["display_type"] == self::BLOCK_DISPLAY) {
+                    if (getItemForItemtype($data["item"])) {
+                        $classfield = new $data["item"]();
+                        $custom_values = $classfield->find();
+
+                        $field = "";
+                        if (!empty($custom_values)) {
+                            $required = ($data['is_mandatory'] == 1) ? "required=required" : "";
+
+                            // Option label is escaped by Twig {{ }}; the comment is pre-sanitized
+                            // rich HTML (getSafeHtml) rendered |raw. The field-level icon is shared.
+                            $options = [];
+                            foreach ($custom_values as $key => $label) {
+                                $checked = (isset($value) && $value == $key) ? 'checked' : '';
+                                $options[] = [
+                                    'key'          => $key,
+                                    'name'         => $label['name'],
+                                    'checked'      => $checked,
+                                    'comment_html' => RichText::getSafeHtml($label['comment']),
+                                ];
+                            }
+
+                            $field = TemplateRenderer::getInstance()->render(
+                                '@metademands/fields/field_dropdown_block.html.twig',
+                                [
+                                    'namefield' => $namefield,
+                                    'id'        => $data['id'],
+                                    'required'  => $required,
+                                    'has_icon'  => !empty($data['icon']),
+                                    'icon'      => (string) $data['icon'],
+                                    'options'   => $options,
+                                ],
+                            );
+                        }
+                    }
+                } else {
+                    if ($data['item'] == Resource::class) {
+                        $opt['showHabilitations'] = true;
+                    }
+                    if ($item = getItemForItemtype($data['item'])) {
+                        $container_class = new $data['item']();
+                        $field = "";
+                        $field .= $container_class::dropdown($opt);
+                    }
+                }
+                break;
+        }
+
+        echo $field;
+    }
+
+    public static function showFieldCustomValues($params) {}
+
+    public static function showFieldParameters($params): string
+    {
+        $show_used_by_child = $params['object_to_create'] == 'Ticket'
+            && in_array($params["item"], ["Location", "RequestType"]);
+        $used_by_child_html = '';
+        if ($show_used_by_child) {
+            ob_start();
+            \Dropdown::showYesNo('used_by_child', $params['used_by_child']);
+            $used_by_child_html = ob_get_clean();
+        }
+
+        $show_link_to_user = in_array($params["item"], ["Location", "UserTitle", "UserCategory"]);
+        $link_to_user_html = '';
+        if ($show_link_to_user) {
+            $arrayAvailable[0] = \Dropdown::EMPTY_VALUE;
+            $field = new Field();
+            $fields = $field->find([
+                "plugin_metademands_metademands_id" => $params['plugin_metademands_metademands_id'],
+                'type' => "dropdown_object",
+                "item" => User::getType(),
+            ]);
+            foreach ($fields as $f) {
+                $arrayAvailable[$f['id']] = $f['rank'] . " - " . urldecode(html_entity_decode($f['name']));
+            }
+            ob_start();
+            \Dropdown::showFromArray('link_to_user', $arrayAvailable, ['value' => $params['link_to_user']]);
+            $link_to_user_html = ob_get_clean();
+        }
+
+        $show_location_options = $params["item"] == "Location";
+        $show_display_type = !$show_location_options;
+        $display_type_html = '';
+        $root_items_html = '';
+        $location_depth_html = '';
+
+        if ($show_location_options) {
+            $disp = [];
+            $disp[self::CLASSIC_DISPLAY] = __("Classic display", "metademands");
+            $disp[self::SPLITTED_DISPLAY] = __("Splitted display", "metademands");
+            $display_type_html = \Dropdown::showFromArray("display_type", $disp, [
+                'value'   => $params['display_type'],
+                'display' => false,
+            ]);
+            ob_start();
+            Location::dropdown([
+                'name'                => 'root_items_id',
+                'value'               => $params['root_items_id'] ?? 0,
+                'display_emptychoice' => true,
+            ]);
+            $root_items_html = ob_get_clean();
+
+            $depths = [0 => __('No limit', 'metademands')];
+            for ($i = 1; $i <= 6; $i++) {
+                $depths[$i] = sprintf(_n('%d level', '%d levels', $i, 'metademands'), $i);
+            }
+            $location_depth_html = \Dropdown::showFromArray("location_depth", $depths, [
+                'value'   => $params['location_depth'] ?? 0,
+                'display' => false,
+            ]);
+        } else {
+            $disp = [];
+            $disp[self::CLASSIC_DISPLAY] = __("Classic display", "metademands");
+            $disp[self::BLOCK_DISPLAY] = __("Block display", "metademands");
+            $display_type_html = \Dropdown::showFromArray("display_type", $disp, [
+                'value'   => $params['display_type'],
+                'display' => false,
+            ]);
+        }
+
+        return TemplateRenderer::getInstance()->render(
+            '@metademands/fields/field_parameter_dropdown.html.twig',
+            [
+                'show_used_by_child'      => $show_used_by_child,
+                'used_by_child_html'      => $used_by_child_html,
+                'show_link_to_user'       => $show_link_to_user,
+                'link_to_user_html'       => $link_to_user_html,
+                'show_location_options'   => $show_location_options,
+                'show_display_type'       => $show_display_type,
+                'display_type_html'       => $display_type_html,
+                'root_items_html'         => $root_items_html,
+                'location_depth_html'     => $location_depth_html,
+            ],
+        );
+    }
+
+    public static function getParamsValueToCheck($fieldoption, $item, $params)
+    {
+        ob_start();
+        FieldOption::showRegexDropdown($params['check_type_value'], $params['ID']);
+        $regex_html = ob_get_clean();
+
+        ob_start();
+        switch ($params['check_type_value']) {
+            case 1:
+                self::showValueToCheck($fieldoption, $params);
+                break;
+            case 2:
+                FieldOption::showRegexInput($params['check_value_regex']);
+                break;
+            default:
+                echo '';
+        }
+        $cell_content = ob_get_clean();
+
+        // The per-cell inline <script> moved to public/scripts/fieldoption_valuetocheck.js;
+        // the wrapping cell now carries its parameters as data-* attributes.
+        $valuetocheck_html = TemplateRenderer::getInstance()->render(
+            '@metademands/fields/field_value_to_check_cell.html.twig',
+            [
+                'option_id'       => $params['ID'],
+                'with_check_type' => true,
+                'with_tech_group' => true,
+                'content'         => $cell_content,
+            ],
+        );
+
+        $link_html = FieldOption::showLinkHtml($item->getID(), $params);
+
+        echo TemplateRenderer::getInstance()->render(
+            '@metademands/fields/field_params_value_to_check.html.twig',
+            [
+                'row_class'         => '',
+                'label'             => __('Value to check', 'metademands'),
+                'label_colspan'     => 1,
+                'regex_html'        => $regex_html,
+                'valuetocheck_html' => $valuetocheck_html,
+                'link_html'         => $link_html,
+            ],
+        );
+    }
+
+    public static function showValueToCheck($item, $params)
+    {
+        $field = new FieldOption();
+        $existing_options = $field->find(["plugin_metademands_fields_id" => $params["plugin_metademands_fields_id"]]);
+        $already_used = [];
+        switch ($params["item"]) {
+            default:
+                $dbu = new DbUtils();
+                if ($item = $dbu->getItemForItemtype($params["item"])) {
+                    //               if ($params['value'] == 'group') {
+                    //                  $name = "check_value";// TODO : HS POUR LES GROUPES CAR rajout un RAND dans le dropdownname
+                    //               } else {
+                    $name = "check_value";
+                    //               }
+
+                    $params['item']::Dropdown(["name" => $name,
+                        "value" => $params['check_value'],
+                        'used' => $already_used,
+                        'display_emptychoice' => false,
+                        'toadd' => [-1 => __('Not null value', 'metademands')]]);
+                }
+                //                else {
+                //                    if ($params["item"] != "other" && $params["type"] == "dropdown_multiple") {
+                //                        $elements[-1] = __('Not null value', 'metademands');
+                //                        if (is_array(json_decode($params['custom_values'], true))) {
+                //                            $elements += json_decode($params['custom_values'], true);
+                //                        }
+                //                        foreach ($elements as $key => $val) {
+                //                            if ($key != 0) {
+                //                                $elements[$key] = $params["item"]::getFriendlyNameById($key);
+                //                            }
+                //                        }
+                //                    } else {
+                //                        $elements[-1] = __('Not null value', 'metademands');
+                //                        if (is_array(json_decode($params['custom_values'], true))) {
+                //                            $elements += json_decode($params['custom_values'], true);
+                //                        }
+                //                        foreach ($elements as $key => $val) {
+                //                            $elements[$key] = urldecode($val);
+                //                        }
+                //                    }
+                //                    Dropdown::showFromArray(
+                //                        "check_value",
+                //                        $elements,
+                //                        ['value' => $params['check_value'], 'used' => $already_used]
+                //                    );
+                //                }
+                break;
+        }
+    }
+
+
+    public static function showParamsValueToCheck($params)
+    {
+        $value = '';
+        if ($params['check_value'] == -1) {
+            $value .= __('Not null value', 'metademands');
+        } else {
+            switch ($params["item"]) {
+                default:
+                    $dbu = new DbUtils();
+                    if ($item = $dbu->getItemForItemtype($params["item"])
+                        && $params['type'] != "dropdown_multiple") {
+                        $value .= \Dropdown::getDropdownName(getTableForItemType($params["item"]), $params['check_value']);
+                    } else {
+                        if ($params["item"] != "other" && $params["type"] == "dropdown_multiple") {
+                            $elements = [];
+                            if (is_array(json_decode($params['custom_values'], true))) {
+                                $elements += json_decode($params['custom_values'], true);
+                            }
+                            foreach ($elements as $key => $val) {
+                                if ($key != 0) {
+                                    $elements[$key] = $params["item"]::getFriendlyNameById($key);
+                                }
+                            }
+                            $value .= $elements[$params['check_value']];
+                        } else {
+                            $elements = [];
+                            if (!is_array($params['custom_values'])
+                                && $params['custom_values'] != null
+                                && is_array(json_decode($params['custom_values'], true))) {
+                                $elements += json_decode($params['custom_values'], true);
+                            }
+                            foreach ($elements as $key => $val) {
+                                $elements[$key] = urldecode($val);
+                            }
+                            $value .= $elements[$params['check_value']] ?? "";
+                        }
+                    }
+                    break;
+            }
+        }
+        echo TemplateRenderer::getInstance()->render('@metademands/fields/field_value_to_check.html.twig', [
+            'value' => $value,
+        ]);
+    }
+
+    public static function isCheckValueOK($value, $check_value)
+    {
+        if (($check_value == Field::$not_null || $check_value == 0) && empty($value)) {
+            return false;
+        } elseif ($check_value != $value
+            && ($check_value != Field::$not_null && $check_value != 0)) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * @param array $value
+     * @param array $fields
+     * @return array
+     */
+    public static function checkMandatoryFields($value = [], $fields = [])
+    {
+
+        $msg = "";
+        $checkKo = 0;
+        // Check fields empty
+        if ($value['is_mandatory']
+            && ($fields['value'] === null || $fields['value'] === '')) {
+            $msg = $value['name'];
+            $checkKo = 1;
+        }
+
+        return ['checkKo' => $checkKo, 'msg' => $msg];
+    }
+
+    public static function fieldsMandatoryScript($data)
+    {
+        $check_values = $data['options'] ?? [];
+        $id = $data["id"];
+
+        $name = "field[" . $data["id"] . "]";
+        if ($data["item"] == "ITILCategory_Metademands") {
+            $name = "field_plugin_servicecatalog_itilcategories_id";
+        }
+
+        $onchange = "";
+        $pre_onchange = "";
+        $post_onchange = "";
+        $debug = (isset($_SESSION['glpi_use_mode'])
+        && $_SESSION['glpi_use_mode'] == Session::DEBUG_MODE ? true : false);
+        if ($debug) {
+            $onchange = "console.log('fieldsMandatoryScript-dropdown $id');";
+        }
+
+        if (count($check_values) > 0) {
+            //Si la valeur est en session
+            if (isset($data['value']) &&  $data['value'] > 0) {
+                $pre_onchange .= "$('[name=\"field[" . $id . "]\"]').val(" . json_encode((string) $data['value'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) . ").trigger('change');";
+            }
+
+
+            $onchange .= "$('[name=\"$name\"]').change(async function() {";
+
+            $onchange .= "var tohide = {};";
+
+            $display = 0;
+            $compteur = 0;
+            foreach ($check_values as $idc => $check_value) {
+                foreach ($check_value['fields_link'] as $fields_link) {
+                    $onchange .= "if ($fields_link in tohide) {
+                        } else {
+                            tohide[$fields_link] = true;
+                        }";
+
+                    if ($check_value['check_type_value'] == 2) {
+                        $onchange .= "
+                        let regex$compteur = new RegExp(" . json_encode((string) $idc) . ");
+                        let val$compteur = $('[name=\"$name\"] option:selected').text().replaceAll('" . \Dropdown::EMPTY_VALUE . "', '');
+
+                        if(regex$compteur.test(val$compteur)) {
+                            tohide[$fields_link] = false;
+                        }
+                        ";
+                        $compteur += 1;
+                    } else {
+                        $onchange .= "if ($(this).val() != 0 && ($(this).val() == $idc || $idc == 0)) {
+                            tohide[$fields_link] = false;
+                        }";
+                    }
+
+
+                    if (isset($data['value']) && $idc == $data['value']) {
+                        $display = $fields_link;
+                    }
+
+                    $onchange .= "$.each( tohide, function( key, value ) {
+                        if (value == true) {
+                            var id = '#metademands_wizard_red'+ key;
+                            $(id).html('');
+                            sessionStorage.setItem('hiddenlink$name', key);
+                            " . FieldOption::resetMandatoryFieldsByField($name) . "
+                            $('[name =\"field['+ key +']\"]').removeAttr('required');
+                        } else {
+                             var id = '#metademands_wizard_red'+ key;
+                             var fieldid = 'field'+ key;
+                             $(id).html('*');
+                             $('[name =\"field[' + key + ']\"]').attr('required', 'required');
+                             $('[name =\"field[' + key + '-2]\"]').attr('required', 'required');
+                             //Special case Upload field
+                                  sessionStorage.setItem('mandatoryfile$name', key);
+                                 " . FieldOption::checkMandatoryFile($fields_link, $name) . "
+                        }
+                    });
+              ";
+                }
+
+                if ($display > 0) {
+                    $pre_onchange .= FieldOption::setMandatoryFieldsByField($id, $display);
+                }
+
+            }
+            $onchange .= "});";
+            echo Html::scriptBlock(
+                '$(document).ready(function() {' . $pre_onchange . " " . $onchange . " " . $post_onchange . '});',
+            );
+        }
+    }
+
+
+    public static function taskScript($data)
+    {
+
+        $check_values = $data['options'] ?? [];
+        $metaid = $data['plugin_metademands_metademands_id'];
+        $id = $data["id"];
+
+        $script = "";
+        $script2 = "";
+        $compteur = 0;
+        $debug = (isset($_SESSION['glpi_use_mode'])
+        && $_SESSION['glpi_use_mode'] == Session::DEBUG_MODE ? true : false);
+        if ($debug) {
+            $script = "console.log('taskScript-dropdown $id');";
+        }
+
+        if (count($check_values) > 0) {
+            //Si la valeur est en session
+            if (isset($data['value']) &&  $data['value'] > 0) {
+                $script2 .= "$('[name^=\"field[" . $id . "]\"]').val(" . json_encode((string) $data['value'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) . ").trigger('change');";
+            }
+
+            $title = "<i class=\"ti ti-device-floppy\"></i>&nbsp;" . _sx('button', 'Save & Post', 'metademands');
+            $nextsteptitle = __('Next', 'metademands') . "&nbsp;<i class=\"ti ti-chevron-right\"></i>";
+
+
+            foreach ($check_values as $idc => $check_value) {
+                foreach ($data['options'][$idc]['plugin_metademands_tasks_id'] as $tasks_id) {
+                    if ($tasks_id) {
+                        if (MetademandTask::setUsedTask($tasks_id, 0)) {
+                            $script .= "$('[name^=\"field[" . $data["id"] . "]\"]').ready(function() {";
+                            $script .= "document.getElementById('nextBtn').innerHTML = '$title'";
+                            $script .= "});";
+                        }
+                    }
+                }
+            }
+
+            $name = "field[" . $data["id"] . "]";
+            $script .= "$('[name=\"$name\"]').change(async function() {";
+            $script .= "var tohide = {};";
+            foreach ($check_values as $idc => $check_value) {
+                foreach ($data['options'][$idc]['plugin_metademands_tasks_id'] as $tasks_id) {
+                    $script .= "if ($tasks_id in tohide) {
+                        } else {
+                            tohide[$tasks_id] = true;
+                        }
+                       ";
+
+                    if ($check_value['check_type_value'] == 2) {
+                        $script .= "
+                        let regex$compteur = new RegExp(" . json_encode((string) $idc) . ");
+                        let val$compteur = $('[name=\"$name\"] option:selected').text().replaceAll('" . \Dropdown::EMPTY_VALUE . "', '');
+
+                        if(regex$compteur.test(val$compteur)) {
+                            tohide[$tasks_id] = false;
+                        }
+                        ";
+                        $compteur += 1;
+                    } else {
+                        $script .= "if ($(this).val() != 0 && ($(this).val() == $idc || $idc == 0 )) {
+                            tohide[$tasks_id] = false;
+                        }";
+                    }
+
+                    $script .= "$.each( tohide, function( key, value ) {
+                        if (value == true) {
+                            $.ajax({
+                                     url: '" . PLUGIN_METADEMANDS_WEBDIR . "/ajax/set_session.php',
+                                     type: 'POST',
+                                     data: { tasks_id: $tasks_id,
+                                  used: 0 },
+                                  success: function(response){
+                                       if (response != 1) {
+                                           document.getElementById('nextBtn').innerHTML = '$title'
+                                       }
+                                    },
+                                });
+                        } else {
+                             $.ajax({
+                                     url: '" . PLUGIN_METADEMANDS_WEBDIR . "/ajax/set_session.php',
+                                     type: 'POST',
+                                     data: { tasks_id: $tasks_id,
+                                  used: 1 },
+                                  success: function(response){
+                                       if (response != 1) {
+                                           document.getElementById('nextBtn').innerHTML = '$nextsteptitle'
+                                       }
+                                    },
+                                });
+
+                        }
+                    });
+              ";
+                }
+            }
+            $script .= "});";
+
+            foreach ($check_values as $idc => $check_value) {
+                foreach ($check_value['plugin_metademands_tasks_id'] as $tasks_id) {
+                    if (is_array(FieldParameter::_unserialize($data['default']))) {
+                        $default_values = FieldParameter::_unserialize($data['default']);
+
+                        foreach ($default_values as $k => $v) {
+                            if ($v == 1) {
+                                if ($idc == $k) {
+                                    if (MetademandTask::setUsedTask($tasks_id, 1)) {
+                                        $script .= "$('[name^=\"field[" . $data["id"] . "]\"]').ready(function() {";
+                                        $script .= "document.getElementById('nextBtn').innerHTML = '$nextsteptitle'";
+                                        $script .= "});";
+                                    }
+                                } else {
+                                    if (MetademandTask::setUsedTask($tasks_id, 0)) {
+                                        $script .= "$('[name^=\"field[" . $data["id"] . "]\"]').ready(function() {";
+                                        $script .= "document.getElementById('nextBtn').innerHTML = '$title'";
+                                        $script .= "});";
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            echo Html::scriptBlock('$(document).ready(function() {' . $script2 . " " . $script . '});');
+        }
+    }
+
+    public static function fieldsHiddenScript($data)
+    {
+
+        $check_values = $data['options'] ?? [];
+        $id = $data["id"];
+
+        $name = "field[" . $data["id"] . "]";
+
+        $onchange = "";
+        $pre_onchange = "";
+        $post_onchange = "";
+        $debug = (isset($_SESSION['glpi_use_mode'])
+        && $_SESSION['glpi_use_mode'] == Session::DEBUG_MODE ? true : false);
+        if ($debug) {
+            $onchange = "console.log('fieldsHiddenScript-dropdown $id');";
+        }
+
+        //add childs by idc
+        $childs_by_checkvalue = [];
+        foreach ($check_values as $idc => $check_value) {
+            if (isset($check_value['childs_blocks']) && $check_value['childs_blocks'] != null) {
+                $childs_blocks = json_decode($check_value['childs_blocks'], true);
+                if (isset($childs_blocks)
+                    && is_array($childs_blocks)
+                    && count($childs_blocks) > 0) {
+                    foreach ($childs_blocks as $childs) {
+                        if (is_array($childs)) {
+                            foreach ($childs as $child) {
+                                $childs_by_checkvalue[$idc][] = $child;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (count($check_values) > 0) {
+            //default hide of all hidden links
+            foreach ($check_values as $idc => $check_value) {
+                foreach ($check_value['hidden_link'] as $hidden_link) {
+                    $pre_onchange .= "$('[id-field =\"field" . $hidden_link . "\"]').hide();
+                    $('[id-field =\"field" . $hidden_link . "-2\"]').hide();";
+                }
+            }
+
+            //Si la valeur est en session
+            if (isset($data['value']) &&  $data['value'] > 0) {
+                $pre_onchange .= "$('[name=\"field[" . $id . "]\"]').val(" . json_encode((string) $data['value'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) . ").trigger('change');";
+            }
+
+            $onchange .= "$('[name=\"$name\"]').change(async function() {";
+
+            $onchange .= "var tohide = {};";
+            $display = 0;
+
+            foreach ($check_values as $idc => $check_value) {
+                foreach ($check_value['hidden_link'] as $hidden_link) {
+                    $onchange .= "if ($hidden_link in tohide) {
+                        } else {
+                            tohide[$hidden_link] = true;
+                        }
+                        ";
+                }
+            }
+
+            $compteur = 0;
+            foreach ($check_values as $idc => $check_value) {
+                foreach ($check_value['hidden_link'] as $hidden_link) {
+                    if ($check_value['check_type_value'] == 2) {
+                        $onchange .= "
+                        let regex$compteur = new RegExp(" . json_encode((string) $idc) . ");
+                        let val$compteur = $('[name=\"$name\"] option:selected').text().replaceAll('" . \Dropdown::EMPTY_VALUE . "', '');
+
+                        if(regex$compteur.test(val$compteur)) {
+                            tohide[$hidden_link] = false;
+                        }
+                        ";
+                        $compteur += 1;
+                    } else {
+                        $onchange .= "if ( ($(this).val() == $idc ||  ($(this).val() != 0 && $idc == -1 ))) {
+                            tohide[$hidden_link] = false;
+                        }";
+                    }
+                }
+            }
+
+            foreach ($check_values as $idc => $check_value) {
+                foreach ($check_value['hidden_link'] as $hidden_link) {
+                    if (isset($data['value']) && $idc == $data['value']) {
+                        $display = $hidden_link;
+                    }
+
+                    $onchange .= "$.each( tohide, function( key, value ) {
+                        if (value == true) {
+                            $('[id-field =\"field'+key+'\"]').hide();
+                            $('[id-field =\"field'+key+'-2\"]').hide();
+                            sessionStorage.setItem('hiddenlink$name', key);
+                            $('[name =\"field['+key+']\"]').removeAttr('required');
+                            $('[name =\"field['+key+'-2]\"]').removeAttr('required');
+                            " . FieldOption::resetMandatoryFieldsByFieldForHidden($name);
+
+                    if (is_array($childs_by_checkvalue)) {
+                        foreach ($childs_by_checkvalue as $k => $childs_blocks) {
+                            if ($idc == $k) {
+                                foreach ($childs_blocks as $childs) {
+                                    $onchange .= "$('[bloc-id =\"bloc" . $childs . "\"]').hide();
+                                            $('[bloc-id =\"subbloc" . $childs . "\"]').hide();
+                                            if (document.getElementById('ablock" . $childs . "'))
+                                                document.getElementById('ablock" . $childs . "').style.display = 'none';";
+                                }
+                            }
+                        }
+                    }
+                    $onchange .= "} else {
+                            $('[id-field =\"field'+key+'\"]').show();
+                            $('[id-field =\"field'+key+'-2\"]').show();
+                        }
+                    });
+              ";
+                }
+            }
+
+            if ($display > 0) {
+                $pre_onchange .= "$('[id-field =\"field" . $display . "\"]').show();";
+                $pre_onchange .= FieldOption::setMandatoryFieldsByField($id, $display);
+            }
+            $onchange .= "});";
+
+            echo Html::scriptBlock('$(document).ready(function() {' . $pre_onchange . " " . $onchange . " " . $post_onchange . '});');
+        }
+    }
+
+    public static function blocksHiddenScript($data)
+    {
+        $metaid = $data['plugin_metademands_metademands_id'];
+        $check_values = $data['options'] ?? [];
+        $id = $data["id"];
+
+        $name = "field[" . $data["id"] . "]";
+        if ($data["item"] == "ITILCategory_Metademands") {
+            $name = "field_plugin_servicecatalog_itilcategories_id";
+        }
+
+        //add childs by idc
+        $childs_by_checkvalue = [];
+        foreach ($check_values as $idc => $check_value) {
+            if (isset($check_value['childs_blocks']) && $check_value['childs_blocks'] != null) {
+                $childs_blocks = json_decode($check_value['childs_blocks'], true);
+                if (isset($childs_blocks)
+                    && is_array($childs_blocks)
+                    && count($childs_blocks) > 0) {
+                    foreach ($childs_blocks as $childs) {
+                        if (is_array($childs)) {
+                            foreach ($childs as $child) {
+                                $childs_by_checkvalue[$idc][] = $child;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        $onchange = "";
+        $pre_onchange = "";
+        $post_onchange = "";
+        $debug = (isset($_SESSION['glpi_use_mode'])
+        && $_SESSION['glpi_use_mode'] == Session::DEBUG_MODE ? true : false);
+        if ($debug) {
+            $onchange = "console.log('blocksHiddenScript-dropdownmeta $id');";
+        }
+
+        if (count($check_values) > 0) {
+            //Initialize default value - force change after onchange fonction
+            foreach ($check_values as $idc => $check_value) {
+                //Default values
+                if (isset($data['custom_values'])
+                    && is_array($data['custom_values'])
+                    && count($data['custom_values']) > 0) {
+                    $custom_values = $data['custom_values'];
+                    foreach ($custom_values as $k => $custom_value) {
+                        if ($k == $idc && $custom_value['is_default'] == 1) {
+                            $post_onchange .= "$('[name=\"$name\"]').prop('checked', true).trigger('change');";
+
+                            if (is_array($childs_by_checkvalue)) {
+                                foreach ($childs_by_checkvalue as $k => $childs_blocks) {
+                                    if ($idc == $k) {
+                                        foreach ($childs_blocks as $childs) {
+                                            $options = getAllDataFromTable(
+                                                'glpi_plugin_metademands_fieldoptions',
+                                                ['hidden_block' => $childs],
+                                            );
+                                            if (count($options) == 0) {
+                                                $post_onchange .= "if (document.getElementById('ablock" . $childs . "'))
+                                            document.getElementById('ablock" . $childs . "').style.display = 'block';
+                                            $('[bloc-id =\"bloc" . $childs . "\"]').show();
+                                                             " . Fieldoption::setMandatoryBlockFields(
+                                                    $metaid,
+                                                    $childs,
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+
+            //by default - hide all
+            $pre_onchange .= Fieldoption::hideAllblockbyDefault($data);
+            if (!isset($data['value'])) {
+                $pre_onchange .= Fieldoption::emptyAllblockbyDefault($check_values);
+            }
+
+            //Si la valeur est en session
+            // The value is encoded at the sink below: it travels POST -> session -> database ->
+            // another user's session, and the `> 0` test degrades to a string comparison as soon
+            // as it is not numeric, so it cannot keep a payload out of the emitted JS.
+            if (isset($data['value']) &&  $data['value'] > 0) {
+                if ($data["display_type"] == self::BLOCK_DISPLAY) {
+                    $values = $data['value'];
+                    $pre_onchange .= "$('[name=\"$name\"]').val(" . json_encode((string) $data['value'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) . ").prop('checked', true).trigger('change');";
+                } else {
+                    $pre_onchange .= "$('[name=\"$name\"]').val(" . json_encode((string) $data['value'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) . ").trigger('change');";
+                }
+            }
+
+
+            $onchange .= "$('[name=\"$name\"]').change(async function() {";
+
+            $onchange .= "var tohide = {};";
+            $display = 0;
+            $compteur = 0;
+            foreach ($check_values as $idc => $check_value) {
+                foreach ($check_value['hidden_block'] as $hidden_block) {
+                    $onchange .= "if ($hidden_block in tohide) {
+                      } else {
+                        tohide[$hidden_block] = true;
+                      }";
+
+                    if ($check_value['check_type_value'] == 2) {
+                        $onchange .= "
+                        let regex$compteur = new RegExp(" . json_encode((string) $idc) . ");
+                        let val$compteur = $('[name=\"$name\"] option:selected').text().replaceAll('" . \Dropdown::EMPTY_VALUE . "', '');
+
+                        if(regex$compteur.test(val$compteur)) {
+                            tohide[$hidden_block] = false;
+                        }
+                        ";
+                        $compteur += 1;
+                    } else {
+                        $onchange .= "if ($(this).val() != 0 && ($(this).val() == $idc || $idc == 0  || $idc == -1)) {
+                        tohide[$hidden_block] = false;
+                    }";
+                    }
+
+
+                    $onchange .= "$.each( tohide, function( key, value ) {
+                    if (value == true) {
+                       var id = 'ablock'+ key;
+                        if (document.getElementById(id))
+                        document.getElementById(id).style.display = 'none';
+                        $('[bloc-id =\"bloc'+ key +'\"]').hide();
+                        $('[bloc-id =\"subbloc'+ key +'\"]').hide();
+                        sessionStorage.setItem('hiddenbloc$name', key);
+                        " . Fieldoption::setEmptyBlockFields($name) . "";
+                    $hidden = Fieldoption::resetMandatoryBlockFields($name);
+                    $onchange .= "$hidden";
+                    if (is_array($childs_by_checkvalue)) {
+                        foreach ($childs_by_checkvalue as $k => $childs_blocks) {
+                            if ($idc == $k) {
+                                foreach ($childs_blocks as $childs) {
+                                    $onchange .= "if (document.getElementById('ablock" . $childs . "'))
+                                document.getElementById('ablock" . $childs . "').style.display = 'none';
+                                $('[bloc-id =\"bloc" . $childs . "\"]').hide();
+                                $('[bloc-id =\"subbloc" . $childs . "\"]').hide();";
+                                }
+                            }
+                        }
+                    }
+                    $onchange .= "} else {
+                        var id = 'ablock'+ key;
+                        if (document.getElementById(id))
+                        document.getElementById(id).style.display = 'block';
+                        $('[bloc-id =\"bloc'+ key +'\"]').show();
+                        $('[bloc-id =\"subbloc'+ key +'\"]').show();
+                        ";
+
+                    $hidden = Fieldoption::setMandatoryBlockFields($metaid, $hidden_block);
+
+                    $onchange .= "$hidden";
+                    if (is_array($childs_by_checkvalue)) {
+                        foreach ($childs_by_checkvalue as $k => $childs_blocks) {
+                            if ($idc == $k) {
+                                foreach ($childs_blocks as $childs) {
+                                    $options = getAllDataFromTable(
+                                        'glpi_plugin_metademands_fieldoptions',
+                                        ['hidden_block' => $childs],
+                                    );
+                                    if (count($options) == 0) {
+                                        $onchange .= "if (document.getElementById('ablock" . $childs . "'))
+                                document.getElementById('ablock" . $childs . "').style.display = 'block';
+                                $('[bloc-id =\"bloc" . $childs . "\"]').show();
+                                $('[bloc-id =\"subbloc" . $childs . "\"]').show();";
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    $onchange .= "}
+                });
+          ";
+
+                    if (isset($data['value']) && $idc == $data['value']) {
+                        $display = $hidden_block;
+                    }
+
+                    if ($data["item"] == "ITILCategory_Metademands") {
+                        if (isset($_GET['itilcategories_id']) && $idc == (int) $_GET['itilcategories_id']) {
+                            $pre_onchange .= "$('[bloc-id =\"bloc" . $hidden_block . "\"]').show();
+                        $('[bloc-id =\"subbloc" . $hidden_block . "\"]').show();
+                          " . Fieldoption::setMandatoryBlockFields($metaid, $hidden_block);
+                        }
+                    }
+                }
+            }
+            if ($display > 0) {
+                $pre_onchange .= "if (document.getElementById('ablock" . $display . "'))
+                        document.getElementById('ablock" . $display . "').style.display = 'block';
+                        $('[bloc-id =\"bloc" . $display . "\"]').show();
+                        $('[bloc-id =\"subbloc" . $display . "\"]').show();";
+            }
+
+            $onchange .= "});";
+
+            echo Html::scriptBlock(
+                '$(document).ready(function() {' . $pre_onchange . " " . $onchange . " " . $post_onchange . '});',
+            );
+        }
+    }
+
+    public static function checkConditions($data, $metaparams)
+    {
+
+        $submittitle   = $metaparams['submittitle'] ?? '';
+        $nextsteptitle = $metaparams['nextsteptitle'] ?? '';
+        $use_condition = $metaparams['use_condition'] ?? '';
+        $show_rule     = $metaparams['show_rule'] ?? '';
+        $show_button   = $metaparams['show_button'] ?? '';
+        $use_richtext  = $metaparams['use_richtext'] ?? '';
+        $richtext_id   = $metaparams['richtext_id'] ?? 0;
+
+        $conditions = Condition::conditionsTab($data['plugin_metademands_metademands_id']);
+        $condition_fields = [];
+        foreach ($conditions as $cid => $condition) {
+            $condition_fields[] = $condition['plugin_metademands_fields_id'];
+        }
+
+        if ($show_rule != Condition::SHOW_RULE_ALWAYS && in_array($data['id'], $condition_fields)) {
+            $root_doc = PLUGIN_METADEMANDS_WEBDIR;
+            $onchange = "window.metademandconditionsparams = {};
+                        metademandconditionsparams.submittitle = '$submittitle';
+                        metademandconditionsparams.nextsteptitle = '$nextsteptitle';
+                        metademandconditionsparams.use_condition = '$use_condition';
+                        metademandconditionsparams.show_rule = '$show_rule';
+                        metademandconditionsparams.show_button = '$show_button';
+                        metademandconditionsparams.use_richtext = '$use_richtext';
+                        metademandconditionsparams.richtext_ids = {$richtext_id};
+                        metademandconditionsparams.root_doc = '$root_doc';";
+            $name = "field[" . $data["id"] . "]";
+            $onchange .= "$('[name=\"$name\"]').change(function() {";
+            $onchange .= "plugin_metademands_wizard_checkConditions(metademandconditionsparams);";
+            $onchange .= "});";
+
+            echo Html::scriptBlock(
+                '$(document).ready(function() {' . $onchange . '});',
+            );
+        }
+    }
+
+    public static function getFieldValue($field)
+    {
+        switch ($field['item']) {
+            default:
+                $dbu = new DbUtils();
+                if (!empty($field['item'])) {
+                    return \Dropdown::getDropdownName(
+                        $dbu->getTableForItemType($field['item']),
+                        $field['value'],
+                    );
+                }
+                return '';
+        }
+    }
+
+    public static function displayFieldItems(&$result, $formatAsTable, $style_title, $label, $field, $return_value, $lang, $is_order = false)
+    {
+
+        $colspan = $is_order ? 6 : 1;
+        $result[$field['rank']]['display'] = true;
+        if ($field['value'] != 0) {
+            switch ($field['item']) {
+                default:
+                    if ($formatAsTable) {
+                        $result[$field['rank']]['content'] .= "<td $style_title colspan='$colspan'>";
+                    }
+                    $result[$field['rank']]['content'] .= htmlspecialchars((string) $label, ENT_QUOTES, 'UTF-8');
+                    if ($formatAsTable) {
+                        $result[$field['rank']]['content'] .= "</td><td colspan='$colspan'>";
+                    }
+                    $result[$field['rank']]['content'] .= htmlspecialchars((string) self::getFieldValue($field), ENT_QUOTES, 'UTF-8');
+                    if ($formatAsTable) {
+                        $result[$field['rank']]['content'] .= "</td>";
+                    }
+                    break;
+            }
+        }
+
+        return $result;
+    }
+
+}

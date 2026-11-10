@@ -1,0 +1,141 @@
+/*!
+ * -------------------------------------------------------------------------
+ * addressing plugin for GLPI
+ * Copyright (C) 2016-2026 by the addressing Development Team.
+ *
+ * https://github.com/pluginsGLPI/addressing
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of addressing.
+ *
+ * addressing is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * addressing is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with addressing. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+.plugin_addressing_ip_double {
+   background-color: #CF9B9B;
+}
+
+.plugin_addressing_ip_free {
+   background-color: #8CB8D8;
+}
+
+.plugin_addressing_ip_reserved {
+   background-color: #e78e3f;
+}
+
+.plugin_addressing_ping_on {
+   background-color: #8CB8D8;
+}
+
+.plugin_addressing_ping_off {
+   background-color: #8DA372;
+}
+
+.plugin_addressing_ping_equipment {
+   border:2px solid #E1CC7B;
+   color:white;
+   background-color:black;
+   font-weight:bold;
+   height:150px;
+   width:100%;
+   overflow:auto;
+   border-radius: 4px 4px 4px 4px;
+   padding: 2px;
+}
+
+.legend_addressing {
+   padding: 10px;
+   margin: 10px;
+}
+
+/* Cells and icons of the IP report (templates/report_ip_list.html.twig). */
+.plugin_addressing_cell {
+   background-color: var(--add-cell-bg);
+   text-align: center;
+}
+
+.plugin_addressing_icon {
+   font-size: 2em;
+}
+
+.plugin_addressing_icon_warning {
+   color: orange;
+}
+
+.plugin_addressing_icon_ok {
+   color: var(--add-state-ok);
+}
+
+.plugin_addressing_icon_ko {
+   color: var(--add-state-ko);
+}
+
+.plugin_addressing_icon_reserve {
+   color: #d56f15;
+}
+
+.plugin_addressing_icon_saved {
+   color: forestgreen;
+}
+
+.plugin_addressing_icon_saved.plugin_addressing_icon_unsaved {
+   color: orange;
+}
+
+/*
+ * Dark-palette adaptation for the addressing report.
+ *
+ * The report is a legacy table whose cell backgrounds and status icons are written as
+ * inline styles, which no rule can override without !important. Report.php, hook.php
+ * and PingInfo.php read them as variables instead, keeping the original colour as the
+ * fallback, so a page served without this file renders exactly as it did before. The
+ * light values below are those originals, untouched.
+ *
+ * --add-cell-bg  keeps the contrast the grey cells had against the surface, 1.32:1
+ *                either way.
+ * --add-state-ok / --add-state-ko  keep the same hue at the lightness that reproduces
+ *                the contrast those icons had on a light cell: 5.6:1 and 7.5:1. Left
+ *                as they were, dark green and dark red fell to 2.1:1 and 1.6:1.
+ *
+ * The five status backgrounds below are deliberately not touched: the legend names
+ * them, so they have to stay recognisable. Only the text laid over them moves, since
+ * it follows the theme and would otherwise sit between 1.7:1 and 2.2:1 on them.
+ */
+:root {
+   --add-cell-bg: #e0e0e0;
+   --add-state-ok: darkgreen;
+   --add-state-ko: darkred;
+}
+
+:root[data-glpi-theme-dark="1"] {
+   --add-cell-bg: #222222;
+   --add-state-ok: #00b300;
+   --add-state-ko: #ff9494;
+}
+
+:root[data-glpi-theme-dark="1"] .plugin_addressing_ip_double,
+:root[data-glpi-theme-dark="1"] .plugin_addressing_ip_free,
+:root[data-glpi-theme-dark="1"] .plugin_addressing_ip_reserved,
+:root[data-glpi-theme-dark="1"] .plugin_addressing_ping_on,
+:root[data-glpi-theme-dark="1"] .plugin_addressing_ping_off,
+:root[data-glpi-theme-dark="1"] .plugin_addressing_ip_double a,
+:root[data-glpi-theme-dark="1"] .plugin_addressing_ip_free a,
+:root[data-glpi-theme-dark="1"] .plugin_addressing_ip_reserved a,
+:root[data-glpi-theme-dark="1"] .plugin_addressing_ping_on a,
+:root[data-glpi-theme-dark="1"] .plugin_addressing_ping_off a {
+   color: #1f2937;
+}

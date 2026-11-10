@@ -1,0 +1,54 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * cmdb plugin for GLPI
+ * Copyright (C) 2020-2026 by the cmdb Development Team.
+ *
+ * https://github.com/InfotelGLPI/cmdb
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of cmdb.
+ *
+ * cmdb is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * cmdb is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with cmdb. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use GlpiPlugin\Cmdb\CI;
+use GlpiPlugin\Cmdb\Criticity;
+use GlpiPlugin\Cmdb\Criticity_Item;
+
+Session::checkRight('plugin_cmdb_cis', UPDATE);
+
+// Replay the business allow-list at the sink rather than accepting any instantiable
+// class of the GLPI registry: Criticity_Item::getCIType() is the very list
+// Criticity::addFieldCriticity() consults to decide whether the field is offered at all.
+// The former 'ticket' lowercase literal matched no GLPI itemtype and had no caller.
+$itemtype = (string) ($_REQUEST['itemtype'] ?? '');
+if (!in_array($itemtype, Criticity_Item::getCIType(), true)) {
+    throw new \Glpi\Exception\Http\BadRequestHttpException();
+}
+
+echo "<tr class='tab_bg_1' id='plugin_cmdb_tr'>";
+echo "<td>" . Criticity_Item::getTypeName(1) . "</td>";
+echo "<td>";
+$crit = new Criticity();
+$crit->criticityDropdown(["itemtype" => $itemtype]);
+echo "</td>";
+if ($itemtype != CI::class) {
+    echo "<td colspan='2'></td>";
+}
+echo "</tr>";

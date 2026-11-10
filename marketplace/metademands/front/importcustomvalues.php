@@ -1,0 +1,107 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * metademands plugin for GLPI
+ * Copyright (C) 2018-2026 by the metademands Development Team.
+ *
+ * https://github.com/InfotelGLPI/metademands
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of metademands.
+ *
+ * metademands is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * metademands is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use GlpiPlugin\Metademands\Field;
+use GlpiPlugin\Metademands\FieldCustomvalue;
+
+Session::checkRight("plugin_metademands", UPDATE);
+
+if (isset($_POST['importreplacecsv']) && isset($_POST['plugin_metademands_fields_id'])) {
+    // The right bit above is global and carries no entity boundary, while this import purges then
+    // rewrites every custom value of the posted field. Bind the control to the parent field: Field
+    // is a CommonDBChild of Metademand, so check() resolves the metademand and applies both the
+    // right and the entity boundary (same contract as front/fieldcustomvalue.form.php).
+    $fields_id = (int) $_POST['plugin_metademands_fields_id'];
+    $field     = new Field();
+    $field->check($fields_id, UPDATE);
+
+    $csvMimes = [
+        'text/x-comma-separated-values',
+        'text/comma-separated-values',
+        'application/octet-stream',
+        'application/vnd.ms-excel',
+        'application/x-csv',
+        'text/x-csv',
+        'text/csv',
+        'application/csv',
+        'application/excel',
+        'application/vnd.msexcel',
+        'text/plain',
+    ];
+
+
+    // Fail closed: only read a genuine, error-free HTTP upload. Without these checks
+    // a missing/failed upload would fall through to fopen() on an empty or unrelated
+    // tmp path, and the purge below would still wipe the field's existing values.
+    if (
+        !isset($_FILES['importFrm'])
+        || ($_FILES['importFrm']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK
+        || !is_uploaded_file($_FILES['importFrm']['tmp_name'])
+    ) {
+        Session::addMessageAfterRedirect(__('Please upload a valid CSV file', 'metademands'), false, ERROR);
+        Html::back();
+    }
+
+    $finfo    = new finfo(FILEINFO_MIME_TYPE);
+    $realMime = $finfo->file($_FILES['importFrm']['tmp_name']);
+    if (!empty($_FILES['importFrm']['name']) && in_array($realMime, $csvMimes)) {
+        if (($handle = fopen($_FILES['importFrm']['tmp_name'], "r")) !== false) {
+            // Read the whole file first and only purge the existing values once the read
+            // has fully succeeded, so a mid-file failure cannot leave the field emptied
+            // of its previous values (atomic import).
+            $rows = [];
+            while (($data = fgetcsv($handle, 1000, $_SESSION["glpicsv_delimiter"])) !== false) {
+                $rows[] = $data;
+            }
+            fclose($handle);
+
+            $fieldcustom = new FieldCustomvalue();
+            $fieldcustom->deleteByCriteria(['plugin_metademands_fields_id' => $fields_id]);
+            $rank = 0;
+            foreach ($rows as $data) {
+                $input = [];
+                $input['name'] = $data[0];
+                $input['is_default'] = $data[1] ?? 0;
+                $input['comment'] = $data[2] ?? '';
+                $input['plugin_metademands_fields_id'] = $fields_id;
+                $input['rank'] = $rank;
+                $rank++;
+                $fieldcustom->add($input);
+            }
+            Session::addMessageAfterRedirect(__('Data imported successfully', 'metademands'), false, INFO);
+        } else {
+            Session::addMessageAfterRedirect(__('Impossible to read the CSV file', 'metademands'), false, ERROR);
+            return false;
+        }
+    } else {
+        Session::addMessageAfterRedirect(__('Please upload a valid CSV file', 'metademands'), false, ERROR);
+    }
+
+    Html::back();
+}

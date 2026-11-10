@@ -1,0 +1,43 @@
+{#
+ # -------------------------------------------------------------------------
+ # resources plugin for GLPI
+ # Copyright (C) 2015-2026 by the resources Development Team.
+ #
+ # https://github.com/InfotelGLPI/resources
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of resources.
+ #
+ # resources is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 2 of the License, or
+ # (at your option) any later version.
+ #
+ # resources is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with resources. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{# Standalone message block used by the front controllers that can only tell the user
+ # why the page they asked for cannot be rendered: an inactive plugin, a missing right
+ # or a missing configuration.
+ #
+ # `centered` switches to the plain centered variant used when nothing is actually
+ # misconfigured -- there is simply nothing to show yet. #}
+{% if centered ?? false %}
+    <div class="center">
+        <br><br>
+        <b>{{ message }}</b>
+    </div>
+{% else %}
+    <div class="alert alert-important alert-warning d-flex">
+        <b>{{ message }}</b>
+    </div>
+{% endif %}

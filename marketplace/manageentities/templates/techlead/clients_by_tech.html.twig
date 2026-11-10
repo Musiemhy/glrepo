@@ -1,0 +1,247 @@
+{#
+ # -------------------------------------------------------------------------
+ # manageentities plugin for GLPI
+ # Copyright (C) 2017-2026 by the manageentities Development Team.
+ #
+ # https://github.com/InfotelGLPI/manageentities
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of manageentities.
+ #
+ # manageentities is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # manageentities is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with manageentities. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{# Number of clients per tech lead: a client can have several tech leads, so the bars are
+   relative to the busiest tech lead and the counts do not add up to the number of clients #}
+{% set rand = random() %}
+<div class="row g-3 mt-1">
+    <div class="col-12 col-xl-8">
+        {# The "Main tech lead" filter is pure CSS (.me-techlead-card:has(), public/css/manageentities.css),
+           "Yes only" by default #}
+        <div class="card me-techlead-card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="ti ti-user-star me-1"></i>
+                    {{ __('Tech lead by clients', 'manageentities') }}
+                </h3>
+                <div class="card-actions d-flex flex-wrap align-items-center gap-2">
+                    {% if techs is not empty %}
+                        <div class="btn-group btn-group-sm" role="group" aria-label="{{ __('Main tech lead', 'manageentities') }}"
+                             title="{{ __('Main tech lead', 'manageentities') }}">
+                            {% for filter in [
+                                {value: 'all', label: __('All'), icon: 'ti-list'},
+                                {value: 'main', label: __('Yes only', 'manageentities'), icon: 'ti-star'},
+                                {value: 'other', label: __('No only', 'manageentities'), icon: 'ti-star-off'},
+                            ] %}
+                                <input type="radio" class="btn-check" name="techlead_filter{{ rand }}"
+                                       id="techlead_filter{{ rand }}_{{ filter.value }}" value="{{ filter.value }}"
+                                       autocomplete="off" {{ filter.value == 'main' ? 'checked' }}>
+                                <label class="btn btn-outline-secondary" for="techlead_filter{{ rand }}_{{ filter.value }}">
+                                    <i class="ti {{ filter.icon }} me-1"></i>{{ filter.label }}
+                                </label>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    <span class="badge bg-blue-lt">
+                        {{ __('%1$s client(s) followed by %2$s tech lead(s)', 'manageentities')|format(total_clients, techs|length) }}
+                    </span>
+                    {% if can_view_rules %}
+                        {# Clients able to open tickets and the rule assigning them their main tech lead #}
+                        <a href="{{ rules_url }}" class="btn btn-sm btn-outline-secondary"
+                           title="{{ __('Automatic assignment of the main tech lead to the tickets opened by the clients', 'manageentities') }}">
+                            <i class="ti ti-route me-1"></i>
+                            {{ __('Assignment rules', 'manageentities') }}
+                            {% if missing_rules > 0 %}
+                                <span class="badge bg-red-lt ms-1"
+                                      title="{{ __('Rules to create', 'manageentities') }}">{{ missing_rules }}</span>
+                            {% endif %}
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body p-0">
+                {% if techs is not empty %}
+                {# One badge per tech lead: a click unfolds the clients below, each linked to
+                   the customer sheet of the entity, where its tech leads are changed #}
+                {# Same cards as "Subscriptions by type" of the contracts status overview #}
+                <div class="d-flex flex-wrap gap-2 p-3 border-bottom" id="techlead_badges{{ rand }}">
+                    {% for tech in techs %}
+                        <button type="button" class="card card-link text-center border-2 flex-shrink-0 flex-grow-1 p-0"
+                                style="min-width:110px"
+                                data-bs-toggle="collapse" data-bs-target="#techlead_clients{{ rand }}_{{ tech.users_id }}"
+                                aria-expanded="false" aria-controls="techlead_clients{{ rand }}_{{ tech.users_id }}">
+                            <div class="card-body p-3 w-100">
+                                <div class="display-6 fw-bold text-primary">
+                                    {# One count per filter value, the visible one is picked by the CSS filter #}
+                                    <span class="me-techlead-count" data-me-count="all">{{ tech.nb_clients }}</span>
+                                    <span class="me-techlead-count" data-me-count="main">{{ tech.nb_main }}</span>
+                                    <span class="me-techlead-count" data-me-count="other">{{ tech.nb_clients - tech.nb_main }}</span>
+                                </div>
+                                <div class="text-muted small mt-1">
+                                    <i class="ti ti-user me-1"></i>{{ tech.name }}
+                                </div>
+                            </div>
+                        </button>
+                    {% endfor %}
+                </div>
+                <div id="techlead_clients_list{{ rand }}">
+                {% for tech in techs %}
+                    <div class="collapse border-bottom" id="techlead_clients{{ rand }}_{{ tech.users_id }}"
+                         data-bs-parent="#techlead_clients_list{{ rand }}">
+                        <div class="px-3 pt-3">
+                            <h4 class="mb-2">
+                                {{ tech.name }}
+                                <span class="badge bg-blue-lt ms-1">
+                                    {# One count per filter value, the visible one is picked by the CSS filter #}
+                                    <span class="me-techlead-count" data-me-count="all">{{ tech.nb_clients }}</span>
+                                    <span class="me-techlead-count" data-me-count="main">{{ tech.nb_main }}</span>
+                                    <span class="me-techlead-count" data-me-count="other">{{ tech.nb_clients - tech.nb_main }}</span>
+                                </span>
+                            </h4>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover table-vcenter mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>{{ _n('Client', 'Clients', 1, 'manageentities') }}</th>
+                                        <th class="text-end">{{ __('Main tech lead', 'manageentities') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                {% for client in tech.clients %}
+                                    <tr data-me-main="{{ client.is_main ? 1 : 0 }}">
+                                        <td>
+                                            <a href="{{ client.url }}" title="{{ __('Customer sheet', 'manageentities') }}">{{ client.name }}</a>
+                                        </td>
+                                        <td class="text-end">
+                                            {% if can_toggle_main %}
+                                                {# A click switches the main tech lead of the client directly #}
+                                                <form method="post" action="{{ action_url }}" class="d-inline">
+                                                    <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token() }}">
+                                                    <input type="hidden" name="id" value="{{ client.link_id }}">
+                                                    <button type="submit" name="toggletechleadbydefault" value="1"
+                                                            class="badge border-0 {{ client.is_main ? 'bg-green-lt' : 'bg-secondary-lt' }}"
+                                                            title="{{ client.is_main ? __('Main tech lead - click to no longer be the main one', 'manageentities') : __('Tech lead - click to become the main one', 'manageentities') }}">
+                                                        <i class="ti {{ client.is_main ? 'ti-star' : 'ti-star-off' }} me-1"></i>
+                                                        {{ client.is_main ? __('Yes') : __('No') }}
+                                                    </button>
+                                                </form>
+                                            {% else %}
+                                                <span class="badge {{ client.is_main ? 'bg-green-lt' : 'bg-secondary-lt' }}">
+                                                    <i class="ti {{ client.is_main ? 'ti-star' : 'ti-star-off' }} me-1"></i>
+                                                    {{ client.is_main ? __('Yes') : __('No') }}
+                                                </span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                                    <tr class="me-techlead-filter-empty">
+                                        <td colspan="2" class="text-muted text-center">{{ __('No results found') }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                {% endfor %}
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover table-vcenter mb-0">
+                        <thead>
+                            <tr>
+                                <th>{{ __('Technician') }}</th>
+                                <th class="text-end">{{ _n('Client', 'Clients', 2, 'manageentities') }}</th>
+                                <th class="text-end">{{ __('As main tech lead', 'manageentities') }}</th>
+                                <th class="w-50">{{ __('Share', 'manageentities') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for tech in techs %}
+                            <tr>
+                                {# The clients of each tech lead are listed by the badges above #}
+                                <td class="text-nowrap">
+                                    <i class="ti ti-user me-1"></i>{{ tech.name }}
+                                </td>
+                                <td class="text-end fw-bold">{{ tech.nb_clients }}</td>
+                                <td class="text-end">{{ tech.nb_main }}</td>
+                                <td style="min-width: 8rem;">
+                                    <div class="progress" style="height: 0.75rem;">
+                                        <div class="progress-bar bg-primary" style="width: {{ tech.percent }}%;" role="progressbar"
+                                             aria-valuenow="{{ tech.percent }}" aria-valuemin="0" aria-valuemax="100"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                    <p class="text-muted text-center py-3 mb-0">{{ __('No tech lead', 'manageentities') }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-xl-4">
+        {# Clients having tech leads, but none of them flagged as the main one #}
+        <div class="card mb-3">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="ti ti-star-off me-1"></i>
+                    {{ __('Clients without main tech lead', 'manageentities') }}
+                </h3>
+                <div class="card-actions">
+                    <span class="badge {{ without_main is empty ? 'bg-green-lt' : 'bg-yellow-lt' }}">{{ without_main|length }}</span>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if without_main is not empty %}
+                    <ul class="list-unstyled small mb-0">
+                        {% for client in without_main %}
+                            <li><a href="{{ client.url }}">{{ client.name }}</a></li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-muted text-center mb-0">{{ __('Every client with tech leads has a main one', 'manageentities') }}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        {# Clients without any tech lead at all #}
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="ti ti-alert-triangle me-1"></i>
+                    {{ __('Clients without tech lead', 'manageentities') }}
+                </h3>
+                <div class="card-actions">
+                    <span class="badge {{ without_techlead is empty ? 'bg-green-lt' : 'bg-orange-lt' }}">{{ without_techlead|length }}</span>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if without_techlead is not empty %}
+                    <ul class="list-unstyled small mb-0">
+                        {% for client in without_techlead %}
+                            <li><a href="{{ client.url }}">{{ client.name }}</a></li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-muted text-center mb-0">{{ __('Every client has a tech lead', 'manageentities') }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>

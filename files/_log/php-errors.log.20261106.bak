@@ -1,0 +1,70 @@
+[2026-11-05 06:22:40] glpi.WARNING:   *** Warning: Undefined array key "entities_id" at Ticket.php line 1287
+  Backtrace :
+  ./marketplace/behaviors/src/Ticket.php:1287        
+  ./marketplace/behaviors/src/Common.php:94          GlpiPlugin\Behaviors\Ticket::onNewTicket()
+  ./src/Plugin.php:1826                              GlpiPlugin\Behaviors\Common::postInit()
+  ./src/Plugin.php:432                               Plugin::doHook()
+  ...tener/PostBootListener/InitializePlugins.php:70 Plugin->init()
+  ...ymfony/event-dispatcher/EventDispatcher.php:268 Glpi\Kernel\Listener\PostBootListener\InitializePlugins->onPostBoot()
+  ...ymfony/event-dispatcher/EventDispatcher.php:220 Symfony\Component\EventDispatcher\EventDispatcher::Symfony\Component\EventDispatcher\{closure}()
+  ...symfony/event-dispatcher/EventDispatcher.php:56 Symfony\Component\EventDispatcher\EventDispatcher->callListeners()
+  ./src/Glpi/Kernel/Kernel.php:180                   Symfony\Component\EventDispatcher\EventDispatcher->dispatch()
+  ./vendor/symfony/http-kernel/Kernel.php:201        Glpi\Kernel\Kernel->boot()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-05 11:43:19] glpi.WARNING:   *** Warning: Undefined array key "entities_id" at Ticket.php line 1287
+  Backtrace :
+  ./marketplace/behaviors/src/Ticket.php:1287        
+  ./marketplace/behaviors/src/Common.php:94          GlpiPlugin\Behaviors\Ticket::onNewTicket()
+  ./src/Plugin.php:1826                              GlpiPlugin\Behaviors\Common::postInit()
+  ./src/Plugin.php:432                               Plugin::doHook()
+  ...tener/PostBootListener/InitializePlugins.php:70 Plugin->init()
+  ...ymfony/event-dispatcher/EventDispatcher.php:268 Glpi\Kernel\Listener\PostBootListener\InitializePlugins->onPostBoot()
+  ...ymfony/event-dispatcher/EventDispatcher.php:220 Symfony\Component\EventDispatcher\EventDispatcher::Symfony\Component\EventDispatcher\{closure}()
+  ...symfony/event-dispatcher/EventDispatcher.php:56 Symfony\Component\EventDispatcher\EventDispatcher->callListeners()
+  ./src/Glpi/Kernel/Kernel.php:180                   Symfony\Component\EventDispatcher\EventDispatcher->dispatch()
+  ./vendor/symfony/http-kernel/Kernel.php:201        Glpi\Kernel\Kernel->boot()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-05 11:44:04] glpi.WARNING:   *** Warning: Undefined array key "entities_id" at Ticket.php line 1287
+  Backtrace :
+  ./marketplace/behaviors/src/Ticket.php:1287        
+  ./marketplace/behaviors/src/Common.php:94          GlpiPlugin\Behaviors\Ticket::onNewTicket()
+  ./src/Plugin.php:1826                              GlpiPlugin\Behaviors\Common::postInit()
+  ./src/Plugin.php:432                               Plugin::doHook()
+  ...tener/PostBootListener/InitializePlugins.php:70 Plugin->init()
+  ...ymfony/event-dispatcher/EventDispatcher.php:268 Glpi\Kernel\Listener\PostBootListener\InitializePlugins->onPostBoot()
+  ...ymfony/event-dispatcher/EventDispatcher.php:220 Symfony\Component\EventDispatcher\EventDispatcher::Symfony\Component\EventDispatcher\{closure}()
+  ...symfony/event-dispatcher/EventDispatcher.php:56 Symfony\Component\EventDispatcher\EventDispatcher->callListeners()
+  ./src/Glpi/Kernel/Kernel.php:180                   Symfony\Component\EventDispatcher\EventDispatcher->dispatch()
+  ./vendor/symfony/http-kernel/Kernel.php:201        Glpi\Kernel\Kernel->boot()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-05 13:31:03] glpi.WARNING:   *** Warning: require(./files/_cache/11.0.9-e391d765-production/app/ContainerDKnsrFM/getSessionStartService.php): Failed to open stream: No such file or directory at Glpi_Kernel_KernelProductionContainer.php line 157
+  Backtrace :
+  ...M/Glpi_Kernel_KernelProductionContainer.php:157 
+  ...M/Glpi_Kernel_KernelProductionContainer.php:157 require()
+  ...M/Glpi_Kernel_KernelProductionContainer.php:193 ContainerDKnsrFM\Glpi_Kernel_KernelProductionContainer->load()
+  ...ymfony/event-dispatcher/EventDispatcher.php:265 ContainerDKnsrFM\Glpi_Kernel_KernelProductionContainer::ContainerDKnsrFM\{closure}()
+  ...ymfony/event-dispatcher/EventDispatcher.php:220 Symfony\Component\EventDispatcher\EventDispatcher::Symfony\Component\EventDispatcher\{closure}()
+  ...symfony/event-dispatcher/EventDispatcher.php:56 Symfony\Component\EventDispatcher\EventDispatcher->callListeners()
+  ./src/Glpi/Kernel/Kernel.php:180                   Symfony\Component\EventDispatcher\EventDispatcher->dispatch()
+  ./vendor/symfony/http-kernel/Kernel.php:201        Glpi\Kernel\Kernel->boot()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+
+[2026-11-05 13:31:03] glpi.CRITICAL:   *** Uncaught Error: Failed opening required './files/_cache/11.0.9-e391d765-production/app/ContainerDKnsrFM/getSessionStartService.php' (include_path='.:/usr/share/pear:/usr/share/php')
+  Backtrace :
+  ...M/Glpi_Kernel_KernelProductionContainer.php:157 
+  ...M/Glpi_Kernel_KernelProductionContainer.php:193 ContainerDKnsrFM\Glpi_Kernel_KernelProductionContainer->load()
+  ...ymfony/event-dispatcher/EventDispatcher.php:265 ContainerDKnsrFM\Glpi_Kernel_KernelProductionContainer::ContainerDKnsrFM\{closure}()
+  ...ymfony/event-dispatcher/EventDispatcher.php:220 Symfony\Component\EventDispatcher\EventDispatcher::Symfony\Component\EventDispatcher\{closure}()
+  ...symfony/event-dispatcher/EventDispatcher.php:56 Symfony\Component\EventDispatcher\EventDispatcher->callListeners()
+  ./src/Glpi/Kernel/Kernel.php:180                   Symfony\Component\EventDispatcher\EventDispatcher->dispatch()
+  ./vendor/symfony/http-kernel/Kernel.php:201        Glpi\Kernel\Kernel->boot()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()
+

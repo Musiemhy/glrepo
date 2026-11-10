@@ -1,0 +1,207 @@
+{
+    "action": "inventory",
+    "content": {
+        "accesslog": {
+            "logdate": "2026-11-04 15:57:31"
+        },
+        "bios": {
+            "bdate": "2021-06-25",
+            "bmanufacturer": "VMware, Inc.",
+            "bversion": "VMW71.00V.18227214.B64.2106252220",
+            "mmanufacturer": "Intel Corporation",
+            "mmodel": "440BX Desktop Reference Platform",
+            "smanufacturer": "VMware, Inc.",
+            "smodel": "VMware7,1",
+            "ssn": "VMware-56 4d 4c e9 c7 04 fe 60-a0 25 1c 5d 3d 59 6d 00"
+        },
+        "drives": [
+            {
+                "description": "Local Fixed Disk",
+                "filesystem": "NTFS",
+                "free": 174384,
+                "label": "",
+                "letter": "C:",
+                "serial": "2CF2400C",
+                "systemdrive": true,
+                "total": 204182,
+                "type": "Local Disk",
+                "volumn": ""
+            },
+            {
+                "filesystem": "NTFS",
+                "free": 82,
+                "label": "Recovery",
+                "letter": "Recovery",
+                "serial": "0CF17827",
+                "systemdrive": false,
+                "total": 498,
+                "type": "Local Disk",
+                "volumn": "Recovery"
+            },
+            {
+                "filesystem": "FAT32",
+                "free": 68,
+                "serial": "6CF1BCE5",
+                "systemdrive": false,
+                "total": 95,
+                "type": "Local Disk"
+            }
+        ],
+        "hardware": {
+            "chassis_type": "Other",
+            "defaultgateway": "172.25.20.254",
+            "dns": "172.25.20.100",
+            "lastloggeduser": "dccsnimda",
+            "memory": 8191,
+            "name": "WIN-PKBL2GJF207",
+            "uuid": "E94C4D56-04C7-60FE-A025-1C5D3D596D00",
+            "vmsystem": "VMware",
+            "winlang": "1033",
+            "winowner": "Windows User",
+            "winprodid": "00429-80392-89004-AA221",
+            "workgroup": "ITMOD.local"
+        },
+        "inputs": [
+            {
+                "caption": "Enhanced (101- or 102-key)",
+                "description": "Remote Desktop Keyboard Device",
+                "layout": "00000409",
+                "name": "Enhanced (101- or 102-key)"
+            },
+            {
+                "caption": "Remote Desktop Mouse Device",
+                "description": "Remote Desktop Mouse Device",
+                "interface": "Other",
+                "manufacturer": "(Standard system devices)",
+                "name": "Remote Desktop Mouse Device",
+                "pointingtype": "2"
+            },
+            {
+                "caption": "USB Input Device",
+                "description": "USB Input Device",
+                "interface": "USB",
+                "manufacturer": "(Standard system devices)",
+                "name": "USB Input Device",
+                "pointingtype": "2"
+            },
+            {
+                "caption": "PS\/2 Compatible Mouse",
+                "description": "PS\/2 Compatible Mouse",
+                "interface": "PS\/2",
+                "manufacturer": "Microsoft",
+                "name": "PS\/2 Compatible Mouse",
+                "pointingtype": "2"
+            }
+        ],
+        "printers": [
+            {
+                "driver": "Microsoft Print To PDF",
+                "name": "Microsoft Print to PDF (redirected 2)",
+                "network": false,
+                "port": "TS006",
+                "printprocessor": "winprint",
+                "resolution": "600x600",
+                "shared": false,
+                "status": "Idle"
+            },
+            {
+                "driver": "Microsoft IPP Class Driver",
+                "name": "HP LaserJet M607 [E32B5F] (redirected 2)",
+                "network": false,
+                "port": "TS005",
+                "printprocessor": "winprint",
+                "resolution": "600x600",
+                "shared": false,
+                "status": "Idle"
+            },
+            {
+                "driver": "Microsoft Shared Fax Driver",
+                "name": "Fax (redirected 2)",
+                "network": false,
+                "port": "TS004",
+                "printprocessor": "winprint",
+                "resolution": "200x200",
+                "shared": false,
+                "status": "Idle"
+            },
+            {
+                "driver": "Microsoft XPS Document Writer v4",
+                "name": "Microsoft XPS Document Writer (redirected 5)",
+                "network": false,
+                "port": "TS003",
+                "printprocessor": "winprint",
+                "resolution": "600x600",
+                "shared": false,
+                "status": "Idle"
+            },
+            {
+                "driver": "Microsoft XPS Document Writer v4",
+                "name": "Microsoft XPS Document Writer",
+                "network": false,
+                "port": "PORTPROMPT:",
+                "printprocessor": "winprint",
+                "resolution": "600x600",
+                "shared": false,
+                "status": "Idle"
+            },
+            {
+                "driver": "Microsoft Print To PDF",
+                "name": "Microsoft Print to PDF (redirected 5)",
+                "network": false,
+                "port": "TS001",
+                "printprocessor": "winprint",
+                "resolution": "600x600",
+                "shared": false,
+                "status": "Idle"
+            },
+            {
+                "driver": "Microsoft Print To PDF",
+                "name": "Microsoft Print to PDF",
+                "network": false,
+                "port": "PORTPROMPT:",
+                "printprocessor": "winprint",
+                "resolution": "600x600",
+                "shared": false,
+                "status": "Idle"
+            },
+            {
+                "driver": "Microsoft Shared Fax Driver",
+                "name": "Fax (redirected 5)",
+                "network": false,
+                "port": "TS002",
+                "printprocessor": "winprint",
+                "resolution": "200x200",
+                "shared": false,
+                "status": "Idle"
+            }
+        ],
+        "users": [
+            {
+                "domain": "WIN-PKBL2GJF207",
+                "login": "dccsnimda"
+            },
+            {
+                "domain": "ITMOD",
+                "login": "ITID"
+            }
+        ],
+        "versionclient": "GLPI-Agent_v1.15",
+        "versionprovider": {
+            "comments": [
+                "Provided by Teclib Edition",
+                "Installer built on Mon Jun  9 13:00:00 2025 UTC",
+                "Built with Strawberry Perl 5.40.2",
+                "Built on github actions windows image for glpi-project\/glpi-agent repository"
+            ],
+            "etime": 25,
+            "name": "GLPI",
+            "perl_exe": "C:\\Program Files\\GLPI-Agent\\perl\\bin\\glpi-agent.exe",
+            "perl_version": "v5.40.2",
+            "program": "C:\\Program Files\\GLPI-Agent\\perl\\bin\\glpi-win32-service",
+            "version": "1.15"
+        }
+    },
+    "deviceid": "WIN-PKBL2GJF207-2026-11-03-16-56-20",
+    "itemtype": "Computer",
+    "partial": true
+}

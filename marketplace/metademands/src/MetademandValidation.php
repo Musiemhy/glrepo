@@ -1,0 +1,824 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * metademands plugin for GLPI
+ * Copyright (C) 2018-2026 by the metademands Development Team.
+ *
+ * https://github.com/InfotelGLPI/metademands
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of metademands.
+ *
+ * metademands is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * metademands is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Metademands;
+
+use Ajax;
+use CommonDBTM;
+use CommonITILActor;
+use DBConnection;
+use Glpi\Application\View\TemplateRenderer;
+use Glpi\Exception\Http\AccessDeniedHttpException;
+use Glpi\Exception\Http\BadRequestHttpException;
+use Html;
+use Migration;
+use Plugin;
+use Session;
+use Ticket_User;
+use Toolbox;
+use PluginFieldsContainer;
+use PluginFieldsField;
+use User;
+
+/**
+ * Class MetademandValidation
+ */
+class MetademandValidation extends CommonDBTM
+{
+    public static $rightname = 'plugin_metademands_validatemeta';
+
+    public const VALIDATE_WITHOUT_TASK = 3; // meta validate without task
+    public const TASK_CREATION = 2; // task_created
+    public const TICKET_CREATION = 1; // tickets_created
+    public const TO_VALIDATE = 0; // waiting
+    public const TO_VALIDATE_WITHOUTTASK = -1; // waiting without ticket
+
+    // Posted create_subticket values, as offered by metademandvalidation_view.html.twig.
+    public const CREATE_SUBTICKETS = 1;
+    public const CREATE_TASKS = 0;
+    public const ASSIGN_ONLY = 2;
+
+    /**
+     * functions mandatory
+     * getTypeName(), canCreate(), canView()
+     *
+     * @param int $nb
+     *
+     * @return string
+     */
+    public static function getTypeName($nb = 0)
+    {
+        return __('Metademand validation', 'metademands');
+    }
+
+    /**
+     * @return bool|int
+     */
+    public static function canView(): bool
+    {
+        return Session::haveRight(self::$rightname, READ);
+    }
+
+    /**
+     * @return bool
+     */
+    public static function canCreate(): bool
+    {
+        return Session::haveRight(self::$rightname, READ);
+    }
+
+
+    public static function install(Migration $migration)
+    {
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+        $table  = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $query = "CREATE TABLE `$table` (
+                        `id` int {$default_key_sign} NOT NULL auto_increment,
+                        `tickets_id`                        int {$default_key_sign} NOT NULL DEFAULT '0',
+                        `plugin_metademands_metademands_id` int {$default_key_sign} NOT NULL DEFAULT '0',
+                        `users_id`                          int {$default_key_sign} NOT NULL DEFAULT '0',
+                        `validate`                          tinyint      NOT NULL DEFAULT '0',
+                        `date`                              timestamp    NOT NULL,
+                        `tickets_to_create`                 text         NOT NULL,
+                        PRIMARY KEY (`id`),
+                        KEY `users_id` (`users_id`),
+                        KEY `tickets_id` (`tickets_id`),
+                        KEY `plugin_metademands_metademands_id` (`plugin_metademands_metademands_id`)
+               ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
+
+            $DB->doQuery($query);
+        }
+
+        //version 3.3.0
+        if (!isIndex($table, "users_id")) {
+            $migration->addKey($table, "users_id");
+        }
+        if (!isIndex($table, "tickets_id")) {
+            $migration->addKey($table, "tickets_id");
+        }
+        if (!isIndex($table, "plugin_metademands_metademands_id")) {
+            $migration->addKey($table, "plugin_metademands_metademands_id");
+        }
+    }
+
+    public static function uninstall()
+    {
+        global $DB;
+
+        $DB->dropTable(self::getTable(), true);
+    }
+
+    /**
+     * @param       $ID
+     * @param array $options
+     *
+     * @return bool
+     * @throws \GlpitestSQLError
+     */
+    public function showForm($ID, $options = [])
+    {
+        if (!$this->canview()) {
+            return false;
+        }
+        if (!$this->cancreate()) {
+            return false;
+        }
+        Html::requireJs('tinymce');
+
+        $metademand = new Metademand();
+
+        if ($ID > 0) {
+            $this->check($ID, READ);
+            $metademand->getFromDB($this->fields['plugin_metademands_metademands_id']);
+            $this->showFormHeader(['colspan' => 2]);
+            $this->showFormButtons(['colspan' => 2]);
+        } else {
+            // Create item
+            $item = $options['item'];
+            $canedit = $metademand->can($item->fields['id'], UPDATE);
+            $this->getEmpty();
+            $this->fields["plugin_metademands_metademands_id"] = $item->fields['id'];
+            $this->fields['color'] = '#000';
+
+            $hidden_html = Html::hidden('plugin_metademands_metademands_id', ['value' => $item->fields['id']]);
+            $submit_html = Html::submit(_sx('button', 'Add'), ['name' => 'add', 'class' => 'btn btn-primary']);
+
+            TemplateRenderer::getInstance()->display('@metademands/forms/metademandvalidation_add.html.twig', [
+                'form_action' => Toolbox::getItemTypeFormURL(__CLASS__),
+                'canedit'     => $canedit,
+                'hidden_html' => $hidden_html,
+                'submit_html' => $submit_html,
+            ]);
+        }
+        return true;
+    }
+
+    /**
+     * Criteria the assignable group dropdown of the validation form is built with.
+     *
+     * Shared with ajax/displayGroupField.php so that the offered list and the check
+     * replayed in validateMeta() cannot drift apart.
+     *
+     * @return array<string, mixed>
+     */
+    public static function getAssignableGroupCriteria(): array
+    {
+        return ['is_assign' => 1];
+    }
+
+    /**
+     * Replay the dropdown criteria on the posted group identifier.
+     *
+     * Group::dropdown() only offers assignable groups of the active entities, but that
+     * restriction lives in the list builder: nothing replayed it when the value came
+     * back, so any identifier -- a group flagged is_assign = 0, or a group of an entity
+     * the validator cannot reach -- was written on the ticket as an assignee, which also
+     * grants that group read access to it.
+     *
+     * @param mixed $groups_id posted identifier
+     *
+     * @return int the accepted identifier, 0 when the empty choice was posted
+     */
+    private static function checkAssignableGroup($groups_id): int
+    {
+        $groups_id = (int) $groups_id;
+        if ($groups_id === 0) {
+            // The dropdown carries an empty choice: leaving the ticket unassigned is legitimate.
+            return 0;
+        }
+
+        $criteria = self::getAssignableGroupCriteria();
+
+        $group = new \Group();
+        if (
+            !$group->getFromDB($groups_id)
+            || (int) $group->fields['is_assign'] !== (int) $criteria['is_assign']
+            || !Session::haveAccessToEntity($group->fields['entities_id'], $group->fields['is_recursive'])
+        ) {
+            throw new AccessDeniedHttpException();
+        }
+
+        return $groups_id;
+    }
+
+    /**
+     * The create_subticket values the loaded record actually offers.
+     *
+     * viewValidation() decides which radio buttons, or which hidden input, the form
+     * carries, and it is the only place where the state of the record was ever taken
+     * into account. Replaying that decision here makes the transition non replayable:
+     * once validated, the record exposes no value at all.
+     *
+     * @return array<int> empty when the record is not waiting for a validation any more
+     */
+    private function getAllowedCreateSubticketValues(): array
+    {
+        if ((int) $this->fields['users_id'] !== 0) {
+            return [];
+        }
+
+        switch ((int) $this->fields['validate']) {
+            case self::TO_VALIDATE:
+                $metademand = new Metademand();
+                if (
+                    $metademand->getFromDB($this->fields['plugin_metademands_metademands_id'])
+                    && (int) $metademand->fields['force_create_tasks'] === 0
+                ) {
+                    return [self::CREATE_TASKS, self::CREATE_SUBTICKETS];
+                }
+
+                // force_create_tasks hides the sub-ticket radio button.
+                return [self::CREATE_TASKS];
+
+            case self::TO_VALIDATE_WITHOUTTASK:
+                return [self::ASSIGN_ONLY];
+
+            default:
+                return [];
+        }
+    }
+
+    public function validateMeta($params)
+    {
+        $ticket_id = $params["tickets_id"];
+        $inputVal = [];
+
+        if (!$this->getFromDBByCrit(['tickets_id' => (int) $ticket_id])) {
+            throw new BadRequestHttpException();
+        }
+
+        // State guard. Until now nothing checked that the metademand was still waiting:
+        // the transitions below create tasks, overwrite the assigned group and drop every
+        // assigned technician of the ticket, so replaying the request -- or posting it
+        // without create_subticket, which a loose == 0 turned into the task branch --
+        // duplicated the tasks and silently emptied the ticket of its assignees.
+        $allowed_create_subticket = $this->getAllowedCreateSubticketValues();
+        if (
+            !isset($params["create_subticket"])
+            || !in_array((int) $params["create_subticket"], $allowed_create_subticket, true)
+        ) {
+            throw new BadRequestHttpException();
+        }
+        $create_subticket = (int) $params["create_subticket"];
+
+        $groups_id_assign = self::checkAssignableGroup($params["group_to_assign"] ?? 0);
+
+        $meta_tasks = json_decode($this->fields["tickets_to_create"], true);
+        if (is_array($meta_tasks)) {
+            foreach ($meta_tasks as $key => $val) {
+                $task = new TicketTask();
+                if (isset($val['tickettasks_id'])
+                    && $task->getFromDB($val['tickettasks_id'])) {
+                    $meta_tasks[$key]['tickettasks_name'] = urldecode($val['tickettasks_name']);
+                    if ($val['tasks_completename'] != null) {
+                        $meta_tasks[$key]['tasks_completename'] = urldecode($val['tasks_completename']);
+                    }
+                    if (!empty($val['content'])) {
+                        $meta_tasks[$key]['content'] = urldecode($val['content']);
+                    }
+                } else {
+                    unset($meta_tasks[$key]);
+                }
+            }
+        }
+
+        $ticket = new \Ticket();
+        $ticket->getFromDB($ticket_id);
+        //      $ticket->fields["_users_id_requester"] = Session::getLoginUserID();
+        $users = $ticket->getUsers(CommonITILActor::REQUESTER);
+        foreach ($users as $user) {
+            $ticket->fields["_users_id_requester"] = $user['users_id'];
+        }
+        $meta = new Metademand();
+        $meta->getFromDB($this->getField("plugin_metademands_metademands_id"));
+
+        $values_form = [];
+        $ticket_field = new Ticket_Field();
+        $fields = $ticket_field->find(['tickets_id' => $ticket_id]);
+        foreach ($fields as $f) {
+            $values_form[$f['plugin_metademands_fields_id']] = json_decode($f['value'], true);
+            if ($values_form[$f['plugin_metademands_fields_id']] === null) {
+                $values_form[$f['plugin_metademands_fields_id']] = $f['value'];
+            }
+            $f['plugin_metademands_fields_id'];
+        }
+        $inputField = [];
+        $inputFieldMain = [];
+        if (Plugin::isPluginActive('fields')) {
+            $pluginfield = new Pluginfields();
+            $pluginfields = $pluginfield->find(['plugin_metademands_metademands_id' => $meta->getID()]);
+
+            foreach ($pluginfields as $plfield) {
+                $fields_field = new PluginFieldsField();
+                $fields_container = new PluginFieldsContainer();
+                if ($fields_field->getFromDB($plfield['plugin_fields_fields_id'])) {
+                    if ($fields_container->getFromDB($fields_field->fields['plugin_fields_containers_id'])) {
+                        if ($fields_container->fields['type'] == 'tab') {
+                            if (isset($values_form[$plfield['plugin_metademands_fields_id']])) {
+                                if ($fields_field->fields['type'] == 'dropdown') {
+                                    if (!isset($inputField[$fields_field->fields['plugin_fields_containers_id']]["plugin_fields_" . $fields_field->fields['name'] . "dropdowns_id"])
+                                        || empty($inputField[$fields_field->fields['plugin_fields_containers_id']]["plugin_fields_" . $fields_field->fields['name'] . "dropdowns_id"])) {
+                                        $val_f = 0;
+                                        if ($values_form[$plfield['plugin_metademands_fields_id']] == "") {
+                                            $values_form[$plfield['plugin_metademands_fields_id']] = 0;
+                                        }
+                                        $className = 'PluginFields' . ucfirst($fields_field->fields['name']) . 'Dropdown';
+                                        if (getItemForItemtype($className)) {
+                                            $classf = new $className();
+                                            $valuesf = $classf->find();
+
+                                            $field_custom = new FieldCustomvalue();
+                                            if ($customs = $field_custom->find(
+                                                ["plugin_metademands_fields_id" => $plfield['plugin_metademands_fields_id']],
+                                            )) {
+                                                if (count($customs) > 0) {
+                                                    foreach ($customs as $custom) {
+                                                        foreach ($valuesf as $valuef) {
+                                                            if ($custom['name'] == $valuef['name']) {
+                                                                $val_f = $valuef['id'];
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        $inputField[$fields_field->fields['plugin_fields_containers_id']]["plugin_fields_" . $fields_field->fields['name'] . "dropdowns_id"] = $val_f;
+                                    }
+                                } elseif ($fields_field->fields['type'] == 'yesno') {
+                                    $val = $values_form[$plfield['plugin_metademands_fields_id']];
+                                    //                                    if (is_int($val)) {
+                                    //                                        $val = $val - 1;
+                                    //                                    } else {
+                                    //                                        if (!isset($inputField[$fields_field->fields['plugin_fields_containers_id']][$fields_field->fields['name']])
+                                    //                                            || empty($inputField[$fields_field->fields['plugin_fields_containers_id']][$fields_field->fields['name']])) {
+                                    //                                            $val = 0;
+                                    //                                        } else {
+                                    //                                            $val = $inputField[$fields_field->fields['plugin_fields_containers_id']][$fields_field->fields['name']];
+                                    //                                        }
+                                    //                                    }
+                                    $inputField[$fields_field->fields['plugin_fields_containers_id']][$fields_field->fields['name']] = $val;
+                                } else {
+                                    if (!isset($inputField[$fields_field->fields['plugin_fields_containers_id']][$fields_field->fields['name']]) ||
+                                        empty($inputField[$fields_field->fields['plugin_fields_containers_id']][$fields_field->fields['name']])) {
+                                        $inputField[$fields_field->fields['plugin_fields_containers_id']][$fields_field->fields['name']] = $values_form[$plfield['plugin_metademands_fields_id']];
+                                    }
+                                }
+                            }
+                        }
+
+                        if ($fields_container->fields['type'] == 'dom') {
+                            if (isset($values_form[$plfield['plugin_metademands_fields_id']])) {
+                                if ($fields_field->fields['type'] == 'dropdown') {
+                                    $val_f = 0;
+                                    if ($values_form[$plfield['plugin_metademands_fields_id']] == "") {
+                                        $values_form[$plfield['plugin_metademands_fields_id']] = 0;
+                                    }
+                                    $className = 'PluginFields' . ucfirst($fields_field->fields['name']) . 'Dropdown';
+                                    if (getItemForItemtype($className)) {
+                                        $classf = new $className();
+                                        $valuesf = $classf->find();
+
+                                        $field_custom = new FieldCustomvalue();
+                                        if ($customs = $field_custom->find(
+                                            ["plugin_metademands_fields_id" => $plfield['plugin_metademands_fields_id']],
+                                        )) {
+                                            if (count($customs) > 0) {
+                                                foreach ($customs as $custom) {
+                                                    foreach ($valuesf as $valuef) {
+                                                        if ($custom['name'] == $valuef['name']) {
+                                                            $val_f = $valuef['id'];
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    $inputFieldMain["plugin_fields_" . $fields_field->fields['name'] . "dropdowns_id"] = $val_f;
+                                } elseif ($fields_field->fields['type'] == 'yesno') {
+                                    $val = $values_form[$plfield['plugin_metademands_fields_id']];
+                                    //                                    if (is_int($val)) {
+                                    //                                        $val = $val - 1;
+                                    //                                    }
+                                    $inputFieldMain[$fields_field->fields['name']] = $val;
+                                } else {
+                                    $inputFieldMain[$fields_field->fields['name']] = $values_form[$plfield['plugin_metademands_fields_id']];
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if ($create_subticket === self::CREATE_SUBTICKETS) {
+            if (!Metademand::createSonsTickets(
+                $meta->getID(),
+                $ticket_id,
+                $ticket->fields,
+                $ticket_id,
+                $meta_tasks,
+                1,
+                $inputField,
+                $inputFieldMain,
+            )) {
+                $KO[] = 1;
+            }
+            $inputVal['validate'] = self::TICKET_CREATION;
+        } elseif ($create_subticket === self::CREATE_TASKS) {
+            if (is_array($meta_tasks)) {
+                foreach ($meta_tasks as $meta_task) {
+                    if (Ticket_Field::checkTicketCreation($meta_task['tasks_id'], $ticket_id)) {
+                        $ticket_task = new TicketTask();
+                        $input = [];
+                        $input['content'] = $meta_task['tickettasks_name'] . " " . $meta_task['content'];
+                        $input['tickets_id'] = $ticket_id;
+                        $input['groups_id_tech'] = $meta_task["groups_id_assign"];
+                        $input['users_id_tech'] = $meta_task["users_id_assign"];
+                        $ticket_task->add($input);
+                    }
+                }
+            }
+            $input = [];
+            $input['id'] = $ticket_id;
+            $input['_itil_assign']["_type"] = "group";
+            $input['_itil_assign']["groups_id"] = $groups_id_assign;
+
+            $ticket->update($input);
+
+            // Handing the ticket over from its individual technicians to the group above is
+            // what this transition means, so the purge stays as it is. What made it abusable
+            // was that it could be replayed on an already validated metademand; the state
+            // guard at the top of the method now lets it run exactly once.
+            $where_keep = [
+                'tickets_id' => $ticket_id,
+                'type' => CommonITILActor::ASSIGN,
+            ];
+            $ticket_user = new Ticket_User();
+            $found = $ticket_user->find($where_keep);
+            foreach ($found as $id => $tu) {
+                //delete user
+                $ticket_user->delete(['id' => $id]);
+            }
+
+            $inputVal['validate'] = self::TASK_CREATION;
+        } else {
+            $input = [];
+            $input['id'] = $ticket_id;
+            $input['_itil_assign']["_type"] = "group";
+            $input['_itil_assign']["groups_id"] = $groups_id_assign;
+
+            $ticket->update($input);
+
+            // Handing the ticket over from its individual technicians to the group above is
+            // what this transition means, so the purge stays as it is. What made it abusable
+            // was that it could be replayed on an already validated metademand; the state
+            // guard at the top of the method now lets it run exactly once.
+            $where_keep = [
+                'tickets_id' => $ticket_id,
+                'type' => CommonITILActor::ASSIGN,
+            ];
+            $ticket_user = new Ticket_User();
+            $found = $ticket_user->find($where_keep);
+            foreach ($found as $id => $tu) {
+                //delete user
+                $ticket_user->delete(['id' => $id]);
+            }
+
+            $inputVal['validate'] = self::VALIDATE_WITHOUT_TASK;
+        }
+
+        $inputVal['id'] = $this->getID();
+        $inputVal['users_id'] = Session::getLoginUserID();
+        $inputVal['date'] = $_SESSION["glpi_currenttime"];
+        $this->update($inputVal);
+
+        $message = '';
+        if ($inputVal['validate'] == self::TASK_CREATION) {
+            $message = __('Tasks are created', 'metademands');
+        } elseif ($inputVal['validate'] == self::TICKET_CREATION) {
+            $message = __('Sub-tickets are created', 'metademands');
+        } elseif ($inputVal['validate'] == self::VALIDATE_WITHOUT_TASK) {
+            $message = __('The metademand is validated and affected', 'metademands');
+        }
+
+        if ($message !== '') {
+            TemplateRenderer::getInstance()->display('@metademands/alert.html.twig', [
+                'level'   => 'success',
+                'message' => $message,
+            ]);
+        }
+    }
+
+    public static function showActionsForm($params)
+    {
+        $item = $params['item'];
+        $metaValidation = new MetademandValidation();
+        if ($item->fields['id'] > 0
+            && $metaValidation->getFromDBByCrit(['tickets_id' => $item->fields['id']])
+            && $_SESSION['glpiactiveprofile']['interface'] == 'central'
+            && ($item->fields['status'] != \Ticket::SOLVED
+                && $item->fields['status'] != \Ticket::CLOSED)
+            && $item->fields['is_deleted'] != 1
+            && Session::haveRight('plugin_metademands_validatemeta', READ)
+            && Session::getCurrentInterface() == 'central') {
+            $style = "btn-green";
+            $title = "";
+            if ($metaValidation->fields["validate"] == self::TO_VALIDATE
+                || $metaValidation->fields["validate"] == self::TO_VALIDATE_WITHOUTTASK) {
+                $style = "btn-orange";
+                $title = __('Metademand validation', 'metademands');
+            }
+            echo TemplateRenderer::getInstance()->render(
+                '@metademands/forms/validation_action_button.html.twig',
+                [
+                    'style' => $style,
+                    'title' => $title,
+                ],
+            );
+
+            echo Ajax::createIframeModalWindow(
+                'metavalidation',
+                PLUGIN_METADEMANDS_WEBDIR . '/front/metademandvalidation.form.php?tickets_id=' . $item->fields['id'],
+                [
+                    'title' => __('Metademand validation', 'metademands'),
+                    'display' => false,
+                    'width' => 200,
+                    'height' => 400,
+                    'reloadonclose' => true,
+                ],
+            );
+        }
+    }
+
+    public function viewValidation($params)
+    {
+        $ticket_id = $params["tickets_id"];
+        $this->getFromDBByCrit(['tickets_id' => $ticket_id]);
+        $ticket = new \Ticket();
+        $ticket->getFromDB($ticket_id);
+
+        $action_hidden  = Html::hidden('action', ['id' => 'action_validationMeta', 'value' => 'validationMeta']);
+        $tickets_hidden = Html::hidden('tickets_id', ['id' => 'action_validationMeta', 'value' => $ticket_id]);
+
+        $is_to_validate             = false;
+        $show_both_options          = false;
+        $ajax_scripts_html          = '';
+        $is_to_validate_withouttask = false;
+        $create_subticket_hidden    = '';
+        $group_dropdown_html        = '';
+        $is_tasks_created           = false;
+        $is_validate_without_task   = false;
+
+        if ($this->fields["users_id"] == 0
+            && $this->fields["validate"] == self::TO_VALIDATE) {
+            $is_to_validate = true;
+            $metademands = new Metademand();
+            if ($metademands->getFromDB($this->fields["plugin_metademands_metademands_id"])
+                && $metademands->fields['force_create_tasks'] == 0) {
+                $show_both_options = true;
+            }
+
+            ob_start();
+            Ajax::updateItemOnEvent(
+                'create_subticket',
+                'to_update_group',
+                PLUGIN_METADEMANDS_WEBDIR . "/ajax/displayGroupField.php",
+                [
+                    "create_subticket" => '__VALUE__',
+                    'tickets_id' => $ticket_id,
+                ],
+            );
+            Ajax::updateItemOnEvent(
+                'create_subticket2',
+                'to_update_group',
+                PLUGIN_METADEMANDS_WEBDIR . "/ajax/displayGroupField.php",
+                [
+                    "create_subticket" => '__VALUE__',
+                    'tickets_id' => $ticket_id,
+                ],
+            );
+            $ajax_scripts_html = ob_get_clean();
+        } elseif ($this->fields["users_id"] == 0
+            && $this->fields["validate"] == self::TO_VALIDATE_WITHOUTTASK) {
+            $is_to_validate_withouttask = true;
+            $create_subticket_hidden = Html::hidden("create_subticket", ["value" => self::ASSIGN_ONLY]);
+            $group = 0;
+            foreach ($ticket->getGroups(CommonITILActor::ASSIGN) as $d) {
+                $group = $d['groups_id'];
+            }
+            ob_start();
+            \Group::dropdown([
+                'condition' => self::getAssignableGroupCriteria(),
+                'name' => 'group_to_assign',
+                'value' => $group,
+            ]);
+            $group_dropdown_html = ob_get_clean();
+        } elseif ($this->fields["users_id"] != 0
+            && $this->fields["validate"] == self::TASK_CREATION) {
+            $is_tasks_created = true;
+        } elseif ($this->fields["users_id"] != 0
+            && $this->fields["validate"] == self::VALIDATE_WITHOUT_TASK) {
+            $is_validate_without_task = true;
+        }
+
+        $has_validator     = ($this->fields["users_id"] != 0);
+        $validated_by_text = '';
+        if ($has_validator) {
+            $validated_by_text = sprintf(
+                __('Validated by %s on %s', 'metademands'),
+                User::getFriendlyNameById($this->fields["users_id"]),
+                Html::convDateTime($this->fields["date"]),
+            );
+        }
+
+        $show_submit = ($this->fields["users_id"] == 0);
+        $submit_html = '';
+        if ($show_submit) {
+            $submit_html = Html::submit(
+                __("Validate metademands", 'metademands'),
+                ['name' => 'btnAddAll', 'class' => 'btn btn-primary'],
+            );
+        }
+
+        TemplateRenderer::getInstance()->display('@metademands/forms/metademandvalidation_view.html.twig', [
+            'form_action'                => PLUGIN_METADEMANDS_WEBDIR . "/front/metademandvalidation.form.php",
+            'action_hidden'              => $action_hidden,
+            'tickets_hidden'             => $tickets_hidden,
+            'is_to_validate'             => $is_to_validate,
+            'show_both_options'          => $show_both_options,
+            'ajax_scripts_html'          => $ajax_scripts_html,
+            'is_to_validate_withouttask' => $is_to_validate_withouttask,
+            'create_subticket_hidden'    => $create_subticket_hidden,
+            'group_dropdown_html'        => $group_dropdown_html,
+            'is_tasks_created'           => $is_tasks_created,
+            'is_validate_without_task'   => $is_validate_without_task,
+            'has_validator'              => $has_validator,
+            'validated_by_text'          => $validated_by_text,
+            'show_submit'                => $show_submit,
+            'submit_html'                => $submit_html,
+        ]);
+    }
+
+    /**
+     * @param $field
+     * @param $name (default '')
+     * @param $values (default '')
+     * @param $options   array
+     *
+     * @return string
+     * *@since version 0.84
+     *
+     */
+    public static function getSpecificValueToSelect($field, $name = '', $values = '', array $options = [])
+    {
+        if (!is_array($values)) {
+            $values = [$field => $values];
+        }
+        $options['display'] = false;
+
+        switch ($field) {
+            case 'validate':
+                $options['name'] = $name;
+                $options['value'] = $values[$field];
+                //            $options['withmajor'] = 1;
+                return self::dropdownStatus($options);
+                break;
+        }
+        return parent::getSpecificValueToSelect($field, $name, $values, $options);
+    }
+
+
+    /**
+     * display a value according to a field
+     *
+     * @param $field     String         name of the field
+     * @param $values    String / Array with the value to display
+     * @param $options   Array          of option
+     *
+     * @return a string
+     **@since version 0.83
+     *
+     */
+    public static function getSpecificValueToDisplay($field, $values, array $options = [])
+    {
+        if (!is_array($values)) {
+            $values = [$field => $values];
+        }
+        switch ($field) {
+            case 'validate':
+                $style = "style='background-color: " . self::getStatusColor($values[$field]) . ";'";
+                $out = "<div class='center' $style>";
+                $out .= self::getStatusName($values[$field]);
+                $out .= "</div>";
+                return $out;
+        }
+        return parent::getSpecificValueToDisplay($field, $values, $options);
+    }
+
+    /**
+     * @param array $options
+     *
+     * @return int|string
+     */
+    public static function dropdownStatus(array $options = [])
+    {
+        $p['name'] = 'validate';
+        $p['value'] = 0;
+        $p['showtype'] = 'normal';
+        $p['display'] = true;
+        $p['display_emptychoice'] = false;
+        if (is_array($options) && count($options)) {
+            foreach ($options as $key => $val) {
+                $p[$key] = $val;
+            }
+        }
+
+        $values = [];
+        //      $values[0]               = static::getStatusName(0);
+        $values[self::TO_VALIDATE_WITHOUTTASK] = static::getStatusName(self::TO_VALIDATE_WITHOUTTASK);
+        $values[self::TO_VALIDATE] = static::getStatusName(self::TO_VALIDATE);
+        $values[self::TICKET_CREATION] = static::getStatusName(self::TICKET_CREATION);
+        $values[self::TASK_CREATION] = static::getStatusName(self::TASK_CREATION);
+        $values[self::VALIDATE_WITHOUT_TASK] = static::getStatusName(self::VALIDATE_WITHOUT_TASK);
+
+        return \Dropdown::showFromArray($p['name'], $values, $p);
+    }
+
+
+    /**
+     * @param $value
+     *
+     * @return string
+     */
+    public static function getStatusName($value)
+    {
+        switch ($value) {
+            case self::TO_VALIDATE:
+                return __('To validate', 'metademands');
+            case self::TICKET_CREATION:
+                return __('Child tickets created', 'metademands');
+            case self::TASK_CREATION:
+                return __('Tasks created', 'metademands');
+            case self::TO_VALIDATE_WITHOUTTASK:
+                return __('To validate without child', 'metademands');
+            case self::VALIDATE_WITHOUT_TASK:
+                return __('Validate without child', 'metademands');
+            default:
+                // Return $value if not define
+                return __('Not subject to validation', 'metademands');
+        }
+    }
+
+    /**
+     * @param $value
+     *
+     * @return string
+     */
+    public static function getStatusColor($value)
+    {
+        switch ($value) {
+            case self::TO_VALIDATE_WITHOUTTASK:
+            case self::TO_VALIDATE:
+                return "orange";
+            case self::VALIDATE_WITHOUT_TASK:
+            case self::TASK_CREATION:
+            case self::TICKET_CREATION:
+                return "forestgreen";
+            default:
+                // Return $value if not define
+                return "";
+        }
+    }
+}

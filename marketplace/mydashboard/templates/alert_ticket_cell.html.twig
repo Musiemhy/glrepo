@@ -1,0 +1,47 @@
+{#
+ # -------------------------------------------------------------------------
+ # mydashboard plugin for GLPI
+ # Copyright (C) 2016-2026 by the mydashboard Development Team.
+ #
+ # https://github.com/InfotelGLPI/mydashboard
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of mydashboard.
+ #
+ # mydashboard is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # mydashboard is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with mydashboard. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{# Cells of the "tickets updated by requesters" Datatable (Alert widget 7). The Datatable
+   API takes one HTML string per cell, so each cell is rendered on its own through this
+   template, by kind; every value is escaped here. #}
+{% if kind == 'ticket_name' %}
+    <div class="center" style="background-color:{{ bgcolor }}; padding: 10px;">
+        <a style="{{ text_color }}" href="{{ url }}" target="_blank">{{ __('%1$s: %2$s')|format(__('ID'), id) }}</a>
+    </div>
+{% elseif kind == 'ticket_id' %}
+    <a href="{{ url }}" target="_blank">{{ id }}</a>
+{% elseif kind == 'names' %}
+    {% for name in names %}
+        {{ name }}{% if not loop.last %}<br>{% endif %}
+    {% endfor %}
+{% elseif kind == 'priority' %}
+    <div class="center" style="background-color:{{ bgcolor }}; padding: 10px;{{ text_color }}">
+        <span class="b">{{ priority }} - {{ priority_name }}</span>
+    </div>
+{% elseif kind == 'category' %}
+    <span class="b">{{ category }}</span>
+{% endif %}

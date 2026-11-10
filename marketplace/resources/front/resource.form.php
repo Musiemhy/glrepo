@@ -1,0 +1,725 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * resources plugin for GLPI
+ * Copyright (C) 2015-2026 by the resources Development Team.
+ *
+ * https://github.com/InfotelGLPI/resources
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of resources.
+ *
+ * resources is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * resources is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with resources. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+global $DB;
+
+use GlpiPlugin\Resources\Adconfig;
+use GlpiPlugin\Resources\Checklist;
+use GlpiPlugin\Resources\Checklistconfig;
+use GlpiPlugin\Resources\Choice;
+use GlpiPlugin\Resources\Employee;
+use GlpiPlugin\Resources\LDAP;
+use GlpiPlugin\Resources\ContractType;
+use GlpiPlugin\Resources\LeavingReason;
+use GlpiPlugin\Resources\LinkAd;
+use GlpiPlugin\Resources\Resource_Item;
+use GlpiPlugin\Resources\Role;
+use GlpiPlugin\Resources\Service;
+use GlpiPlugin\Resources\Task;
+use GlpiPlugin\Servicecatalog\Main;
+use GlpiPlugin\Resources\Menu;
+use GlpiPlugin\Resources\Resource;
+use GlpiPlugin\Resources\Resource_Validation;
+use GlpiPlugin\Resources\Config;
+
+if (!isset($_GET["id"])) {
+    $_GET["id"] = "";
+}
+if (!isset($_GET["withtemplate"])) {
+    $_GET["withtemplate"] = "";
+}
+
+$resource = new Resource();
+$checklist = new Checklist();
+$checklistconfig = new Checklistconfig();
+$employee = new Employee();
+$choice = new Choice();
+$resource_item = new Resource_Item();
+$task = new Task();
+
+/////////////////////////////////resource from helpdesk///////////////////////////////
+
+if (isset($_POST["secondary_services"])) {
+    $_POST["secondary_services"] = json_encode($_POST["secondary_services"]);
+} else {
+    $_POST["secondary_services"] = "";
+}
+if (isset($_POST["resend"])) {
+    // resend reads the resource by POST id and raises a notification event (e-mails
+    // carrying resource data). The id comes entirely from POST and this branch runs
+    // before any other guard, so enforce READ right + entity access on the target
+    // first, like the sibling "report" branch.
+    $resource->check((int) $_POST["id"], READ);
+    $resource->reSendResourceCreation($_POST);
+    $resource->redirectToList();
+
+    //from helpdesk
+    //add items needs of a resource
+} elseif (isset($_POST["addhelpdeskitem"])) {
+    if ($_POST['plugin_resources_choiceitems_id'] > 0 && $_POST['plugin_resources_resources_id'] > 0) {
+        // Choices carry no entity of their own: gate right + entity access on the
+        // parent resource (the entity owner) instead of the global create right.
+        $resource->check((int) $_POST['plugin_resources_resources_id'], UPDATE);
+        $choice->addHelpdeskItem($_POST);
+    }
+    Html::back();
+} //from helpdesk
+//delete items needs of a resource
+elseif (isset($_POST["deletehelpdeskitem"])) {
+    // Resolve the choice's parent resource and gate right + entity access on it
+    // (the choice itself has no entities_id) before deleting.
+    if ($choice->getFromDB((int) $_POST["id"])) {
+        $resource->check((int) $choice->fields['plugin_resources_resources_id'], UPDATE);
+        $choice->delete(['id' => $_POST["id"]]);
+    }
+    Html::back();
+
+    ///////////////////////////////employees///////////////////////////////
+    //from central
+    // add employee and resource if adding employee informations from user details form
+} elseif (isset($_POST["addressourceandemployee"])) {
+    // This branch creates a Resource first and an Employee under it afterwards, so the
+    // Employee right alone never authorised it. Fix the entity, then require CREATE on
+    // Resource there before anything is written.
+    $_POST["entities_id"] = $_SESSION["glpiactive_entity"];
+    $resource->check(-1, CREATE, $_POST);
+    if ($employee->canCreate()) {
+        $User = new user();
+        $User->getFromDB($_POST["users_id"]);
+        //Check unicity by criteria control
+        $_POST["name"] = $User->fields["realname"];
+        $_POST["firstname"] = $User->fields["firstname"];
+        $_POST["plugin_resources_contracttypes_id"] = 0;
+        $_POST["users_id"] = 0;
+        $_POST["users_id_sales"] = 0;
+        $_POST["date_end"] = date('Y-m-d');
+        $_POST["departments_id"] = 0;
+        $_POST["is_leaving"] = 0;
+        $_POST["users_id_recipient_leaving"] = 0;
+        $_POST["comment"] = "";
+        $_POST["notes"] = "";
+        $_POST["is_template"] = 0;
+        $_POST["template_name"] = "";
+        $_POST["is_deleted"] = 0;
+        $_POST["withtemplate"] = 0;
+
+        if ($_POST["templates_id"] > 0) {
+            // The template id is client-supplied and its whole record is merged into the
+            // new resource below: accept a row only when it really is a template and the
+            // session may read it, otherwise any resource of the instance was clonable.
+            $template = new Resource();
+            if ($template->getFromDB((int) $_POST["templates_id"])
+                && $template->fields["is_template"]
+                && $template->can($template->getID(), READ)) {
+                // The merge below copies every column of the template, entities_id and the
+                // row identity included, which is how the entity fixed above could be
+                // overwritten by the one the template belongs to. Drop them first.
+                unset(
+                    $template->fields["id"],
+                    $template->fields["is_template"],
+                    $template->fields["date_mod"],
+                    $template->fields["date_creation"],
+                    $template->fields["entities_id"],
+                    $template->fields["is_recursive"],
+                );
+
+                $fields = [];
+                foreach ($template->fields as $key => $value) {
+                    if ($value != '' && (!isset($fields[$key]) || $fields[$key] == '' || $fields[$key] == 0)) {
+                        $_POST[$key] = $value;
+                    }
+                }
+
+                $_POST["withtemplate"] = 1;
+            }
+        }
+        //for not create employee informations with template
+        $_POST["add_from_helpdesk"] = 1;
+        $_POST["locations_id"] = $User->fields["locations_id"];
+        $_POST["date_begin"] = date('Y-m-d');
+        $_POST["users_id_recipient"] = Session::getLoginUserID();
+        $_POST["date_declaration"] = date('Y-m-d');
+
+        //add resources
+        $newID = $resource->add($_POST);
+
+        if ($newID) {
+            //add link with User
+            $opt["plugin_resources_resources_id"] = $newID;
+            $opt["items_id"] = $User->fields["id"];
+            $opt["itemtype"] = 'User';
+
+            $resource_item->addItem($opt);
+
+            //add employee
+            $values["plugin_resources_resources_id"] = $newID;
+            $values["plugin_resources_employers_id"] = $_POST["plugin_resources_employers_id"];
+            $values["plugin_resources_clients_id"] = $_POST["plugin_resources_clients_id"];
+            $values["is_template"] = 0;
+            $employee->add($values);
+        }
+    }
+
+    Html::back();
+
+    //from central
+    //add employee informations from user details form or resource form
+} elseif (isset($_POST["addemployee"])) {
+    if ($_POST['plugin_resources_resources_id'] > 0) {
+        // Employees carry no entity of their own: gate right + entity access on the
+        // parent resource before creating the employee record under it.
+        $resource->check((int) $_POST["plugin_resources_resources_id"], UPDATE);
+        $values["plugin_resources_resources_id"] = $_POST["plugin_resources_resources_id"];
+        $values["plugin_resources_employers_id"] = $_POST["plugin_resources_employers_id"];
+        $values["plugin_resources_clients_id"] = $_POST["plugin_resources_clients_id"];
+        $newID = $employee->add($values);
+    }
+    Html::back();
+} //from central OR helpdesk
+//update employee informations from user details form or resource form
+elseif (isset($_POST["updateemployee"])) {
+    // Gate on the employee's own parent resource (the entity owner of the record
+    // being modified), not on the global right, to prevent cross-entity IDOR.
+    if ($_POST['plugin_resources_resources_id'] > 0 && $employee->getFromDB((int) $_POST['id'])) {
+        $resource->check((int) $employee->fields['plugin_resources_resources_id'], UPDATE);
+        $values["id"] = $_POST['id'];
+        $values["plugin_resources_resources_id"] = $_POST["plugin_resources_resources_id"];
+        $values["plugin_resources_employers_id"] = $_POST["plugin_resources_employers_id"];
+        $values["plugin_resources_clients_id"] = $_POST["plugin_resources_clients_id"];
+        $employee->update($values);
+    }
+    Html::back();
+} //from central
+//delete employee informations from user details form or resource form
+elseif (isset($_POST["deleteemployee"])) {
+    // Resolve the employee's parent resource and gate right + entity access on it
+    // (the employee has no entities_id) before purging.
+    if ($employee->getFromDB((int) $_POST["id"])) {
+        $resource->check((int) $employee->fields['plugin_resources_resources_id'], UPDATE);
+        $employee->delete($_POST, 1);
+    }
+    Html::back();
+
+    /////////////////////////////////resource from central///////////////////////////////
+    //add resource
+} elseif (isset($_POST["add"])) {
+    // CREATE, not UPDATE: the bits of plugin_resources are independently grantable (the
+    // standard matrix is shown, Profile::getAllRights() declaring no explicit 'rights' key),
+    // so a profile deliberately given update only was creating resources through this branch.
+    // The branch at line 110 of this same file already takes it that way.
+    $resource->check(-1, CREATE, $_POST);
+    $newID = $resource->add($_POST);
+    if (isset($_POST['plugin_resources_employers_id'])) {
+        $employee = new Employee();
+        $employee->add([
+            'plugin_resources_employers_id' => $_POST['plugin_resources_employers_id'],
+            'plugin_resources_resources_id' => $newID,
+            'plugin_resources_clients_id' => 0,
+        ]);
+    }
+    Html::back();
+} //from central
+//update resource
+elseif (isset($_POST["update"])) {
+    $resource->check($_POST['id'], UPDATE);
+    // The frozen form only hides its buttons: refuse the same POST server-side.
+    if ($resource->isFrozenAfterValidation()) {
+        throw new \Glpi\Exception\Http\AccessDeniedHttpException();
+    }
+    $_POST['plugin_resources_profiletypes_id'] = $_SESSION["glpiactiveprofile"]['id'];
+    $_POST['plugin_resources_grouptypes_id'] = $_SESSION["glpigroups"];
+
+    $required    = $resource->checkRequiredFields($_POST);
+
+    if (count($required) > 0) {
+        // Set default value...
+        $values = [];
+        foreach ($_POST as $key => $val) {
+            $values[$key] = $val;
+        }
+
+        $values['target']       = Toolbox::getItemTypeFormURL('PluginResourcesWizard');
+        $values['withtemplate'] = $_POST["withtemplate"];
+
+        $values["requiredfields"] = 1;
+
+        Session::addMessageAfterRedirect(__("One or more mandatory fields are empty.", 'resources'), false, ERROR);
+
+        Html::back();
+    }
+    $old_is_leaving = $resource->fields['is_leaving'] ?? 0;
+    $resource->update($_POST);
+    if (isset($_POST['plugin_resources_employers_id'])) {
+        $employee = new Employee();
+        if ($employee->getFromDBByCrit(['plugin_resources_resources_id' => $_POST['id']])) {
+            $employee->update([
+                'id' => $employee->getID(),
+                'plugin_resources_employers_id' => $_POST['plugin_resources_employers_id'],
+                'plugin_resources_resources_id' => $_POST['id'],
+                'plugin_resources_clients_id' => 0,
+            ]);
+        } else {
+            $employee->add([
+                'plugin_resources_employers_id' => $_POST['plugin_resources_employers_id'],
+                'plugin_resources_resources_id' => $_POST['id'],
+                'plugin_resources_clients_id' => 0,
+            ]);
+        }
+    }
+
+    // Create departure ticket when is_leaving is set to 1 for the first time from the resource form
+    $new_is_leaving = $_POST['is_leaving'] ?? 0;
+    if (!$old_is_leaving && $new_is_leaving) {
+        $config = new Config();
+        $config->getFromDB(1);
+        if ($config->fields["create_ticket_departure"]) {
+            $ticket = new Ticket();
+            $resource->getFromDB($_POST['id']);
+
+            $tt = $ticket->getITILTemplateToUse(0, Ticket::DEMAND_TYPE, $config->fields["categories_id"]);
+            if (isset($tt->predefined) && count($tt->predefined)) {
+                foreach ($tt->predefined as $predeffield => $predefvalue) {
+                    $ticket->fields[$predeffield] = $predefvalue;
+                }
+            }
+            $ticket->fields["name"] = __("Departure of", 'resources') . " " . $resource->fields['name'] . " " . $resource->fields['firstname'];
+            $ticket->fields["itilcategories_id"] = $config->fields["categories_id"];
+            $ticket->fields["content"] = $resource->fields['name'] . " " . $resource->fields['firstname'] . " " . __("leave on", "resources") . " " . Html::convDate($resource->fields['date_end']);
+            if (!empty($resource->fields['plugin_resources_leavingreasons_id'])) {
+                $ticket->fields["content"] .= "<br>" . LeavingReason::getTypeName(0) . " : " . Dropdown::getDropdownName(LeavingReason::getTable(), $resource->fields["plugin_resources_leavingreasons_id"]);
+            }
+            if (!empty($resource->fields['plugin_resources_contracttypes_id'])) {
+                $ticket->fields["content"] .= "<br>" . ContractType::getTypeName(0) . " : " . Dropdown::getDropdownName(ContractType::getTable(), $resource->fields['plugin_resources_contracttypes_id']);
+            } else {
+                $ticket->fields["content"] .= "<br>" . ContractType::getTypeName(0) . " : " . __("Without contract", 'resources');
+            }
+            $ticket->fields['users_id_recipient'] = Session::getLoginUserID();
+            $ticket->fields['_users_id_requester'] = Session::getLoginUserID();
+            $ticket->fields["type"] = Ticket::DEMAND_TYPE;
+            $ticket->fields["entities_id"] = $_SESSION['glpiactive_entity'];
+            $ticket->fields['items_id'] = [Resource::class => [$_POST['id']]];
+            unset($ticket->fields["id"]);
+            $ticket->add($ticket->fields);
+
+            $linkad = new LinkAd();
+            if ($linkad->getFromDBByCrit(["plugin_resources_resources_id" => $_POST['id']])) {
+                $linkad->update(['id' => $linkad->getID(), 'action_done' => 0]);
+            }
+        }
+    }
+
+    Html::back();
+} //from central
+//delete resource
+elseif (isset($_POST["delete"])) {
+    // The template variant below is a forced delete, that is a definitive purge: ask for the
+    // bit the branch actually spends rather than the UPDATE it used to settle for.
+    $resource->check((int) $_POST['id'], !empty($_POST["withtemplate"]) ? PURGE : DELETE);
+    if (!empty($_POST["withtemplate"])) {
+        $resource->delete($_POST, 1);
+    } else {
+        $resource->delete($_POST);
+    }
+
+    if (!empty($_POST["withtemplate"])) {
+        Html::redirect(PLUGIN_RESOURCES_WEBDIR . "/front/setup.templates.php?add=0");
+    } else {
+        $resource->redirectToList();
+    }
+} //from central
+//restore resource
+elseif (isset($_POST["restore"])) {
+    // Restoring is the counterpart of deleting and carries the same bit in the core.
+    $resource->check((int) $_POST['id'], DELETE);
+    $resource->restore($_POST);
+    $resource->redirectToList();
+} //from central
+//purge resource template
+elseif (isset($_POST["purge"])) {
+    // delete($_POST, 1) erases the record and its related data for good, with no trash bin to
+    // restore it from: PURGE is the bit for that, the way front/wizard.form.php:83 asks for it
+    // on this very itemtype.
+    $resource->check((int) $_POST['id'], PURGE);
+    $resource->delete($_POST, 1);
+    if (!empty($_POST["withtemplate"])) {
+        Html::redirect(PLUGIN_RESOURCES_WEBDIR . "/front/setup.templates.php?add=0");
+    } else {
+        $resource->redirectToList();
+    }
+}  //from central
+//add items of a resource
+elseif (isset($_POST["additem"])) {
+    if (!empty($_POST['itemtype']) && !empty($_POST['items_id'])) {
+        // Authorize the parent resource (right + entity) before linking an item to it,
+        // like the neighbouring addhelpdeskitem branch — otherwise any authenticated
+        // user could attach an arbitrary object to a resource of another entity.
+        $resource->check((int) ($_POST['plugin_resources_resources_id'] ?? 0), UPDATE);
+
+        // The pair below is stored as posted, then reused to instantiate a class and to
+        // build SQL identifiers downstream: pin the itemtype to the list the plugin
+        // exposes, the way ajax/linkItems.php pins the one it hands to ::dropdown().
+        if (!in_array($_POST['itemtype'], Resource::getTypes(true), true)) {
+            throw new \Glpi\Exception\Http\BadRequestHttpException();
+        }
+
+        // Authorizing the resource says nothing about the object being attached to it,
+        // and that object's name, serial and inventory number are displayed back on the
+        // resource afterwards. can(READ) covers the right bit and the entity boundary
+        // alike, which getTypeItems() does not.
+        $linked_item = getItemForItemtype($_POST['itemtype']);
+        if (!$linked_item || !$linked_item->can((int) $_POST['items_id'], READ)) {
+            throw new \Glpi\Exception\Http\AccessDeniedHttpException();
+        }
+
+        $resource_item->addItem($_POST);
+    }
+    Html::back();
+} //from central
+//update comment of item of a resource
+elseif (isset($_POST["updatecomment"])) {
+    foreach ($_POST["updatecomment"] as $key => $val) {
+        // Authorize each Resource_Item actually updated (right + entity), mirroring
+        // the deleteitem branch, to prevent editing comments of items one does not own.
+        $resource_item->check((int) $key, UPDATE);
+        $varcomment = "comment" . $key;
+        $resource_item->updateItem($key, $_POST[$varcomment]);
+    }
+    Html::back();
+} //from central
+//delete item of a resource
+elseif (isset($_POST["deleteitem"])) {
+    foreach ($_POST["item"] as $key => $val) {
+        if ($val == 1) {
+            $resource_item->check($key, UPDATE);
+            $resource_item->deleteItem($key);
+        }
+    }
+
+    Html::back();
+} //from central
+//delete item of a resource form items detail
+elseif (isset($_POST["deleteresources"])) {
+    $input = ['id' => $_POST["id"]];
+    $resource_item->check($_POST["id"], UPDATE);
+    $resource_item->deleteItem($_POST["id"]);
+    Html::back();
+} //from central
+//add checklist from resource form
+elseif (isset($_POST["add_checklist_resources"])) {
+    // canCreate() only answers for the global right bit. The resource id is client-supplied
+    // and the checklists are seeded under it, so authorise the record itself.
+    $resource->check((int) ($_POST["id"] ?? 0), UPDATE);
+    if ($checklist->canCreate()) {
+        $checklistconfig->addChecklistsFromRules($resource, Checklist::RESOURCES_CHECKLIST_IN);
+        $checklistconfig->addChecklistsFromRules($resource, Checklist::RESOURCES_CHECKLIST_OUT);
+        $checklistconfig->addChecklistsFromRules($resource, Checklist::RESOURCES_CHECKLIST_TRANSFER);
+    }
+    Html::back();
+} ///////////////////////////////checklists///////////////////////////////
+//from central
+//add checklist
+elseif (isset($_POST["add_checklist"])) {
+    // The whole $_POST is written as-is, so the parent resource has to be authorised
+    // before anything is created under it, and it also fixes the entity of the new row.
+    $resource->check((int) ($_POST['plugin_resources_resources_id'] ?? 0), UPDATE);
+    if ($checklist->canCreate()) {
+        $_POST['entities_id'] = $resource->fields['entities_id'];
+        $newID = $checklist->add($_POST);
+    }
+    Html::back();
+
+    //from central
+    //close checklist
+} elseif (isset($_POST["close_checklist"])) {
+    // This branch had no guard at all: both the checklist lookup and the ticket creation
+    // below are keyed on the posted plugin_resources_resources_id, so authorising that
+    // resource (right bit and entity) is what gates the whole path.
+    $resource->check((int) ($_POST['plugin_resources_resources_id'] ?? 0), UPDATE);
+    $isfinished = Checklist::checkifChecklistFinished($_POST);
+
+    if ($isfinished) {
+        Checklist::createTicket($_POST);
+    } else {
+        Session::addMessageAfterRedirect(__('The checklist is not finished', 'resources'), true, ERROR);
+    }
+    Html::back();
+
+    //from central
+    //open checklist
+} elseif (isset($_POST["open_checklist"])) {
+    // openFinishedChecklist() is keyed on the posted plugin_resources_resources_id and
+    // reopens every checklist row of that resource: authorise the resource, not just the
+    // global right bit canCreate() answers for.
+    $resource->check((int) ($_POST['plugin_resources_resources_id'] ?? 0), UPDATE);
+    if ($checklist->canCreate()) {
+        $checklist->openFinishedChecklist($_POST);
+    }
+    Html::back();
+
+    //from central
+    //up / down checklist
+} elseif (isset($_POST["move"])) {
+    // changeRank reorders a checklist row of a given resource: authorize the parent
+    // resource (right + entity) before mutating its checklist ordering.
+    $resource->check((int) ($_POST['plugin_resources_resources_id'] ?? 0), UPDATE);
+    $checklist->changeRank($_POST);
+    Html::back();
+} elseif (isset($_POST["report"])) {
+    // sendReport() triggers an outbound notification about the resource: authorize
+    // read access (right + entity) on the targeted resource before sending it.
+    $resource->check((int) $_POST["id"], READ);
+    $restrict = [
+        "itemtype" => 'User',
+        "plugin_resources_resources_id" => $_POST["id"],
+    ];
+    $dbu = new DbUtils();
+    $linkeduser = $dbu->getAllDataFromTable('glpi_plugin_resources_resources_items', $restrict);
+
+    if (!empty($linkeduser)) {
+        $resource->sendReport($_POST);
+        Session::addMessageAfterRedirect(__('Notification sent', 'resources'), true);
+    } else {
+        Session::addMessageAfterRedirect(
+            __('The notification is not sent because the resource is not linked with a user', 'resources'),
+            true,
+            ERROR,
+        );
+    }
+    Html::back();
+} elseif (isset($_POST["delete_picture"])) {
+    // Enforce the right BEFORE any filesystem mutation (check() dies on failure).
+    $resource->check($_POST['id'], UPDATE);
+    // The file to delete is the one stored on the authorized resource, never the posted
+    // 'picture' value, which is not bound to it and could target another resource's picture.
+    if ($resource->deletePictureFile()) {
+        $resource->update([
+            'id'      => $resource->getID(),
+            'picture' => 'NULL',
+        ]);
+    }
+    Html::back();
+} elseif (isset($_POST["synchActiveDirectory"])) {
+    // Creating/updating an Active Directory account is a high-impact external side
+    // effect. resource.form.php has no global guard and the $canedit computed below was
+    // never enforced, leaving this branch reachable by any authenticated user. Gate on
+    // UPDATE right + entity access of the target resource before touching the directory.
+    Session::checkRight(Resource_Validation::$rightname, UPDATE);
+    $resource->check((int) $_POST["plugin_resources_resources_id"], UPDATE);
+
+    $config          = new Config();
+    $configAD        = new Adconfig();
+    $config->getFromDB(1);
+    $configAD->getFromDB(1);
+    $configAD->fields = $configAD->prepareFields($configAD->fields);
+    $canedit                           = Session::haveRight(Resource_Validation::$rightname, UPDATE);
+    $entities_id                       = $resource->fields["entities_id"];
+    $plugin_resources_contracttypes_id = $resource->fields["plugin_resources_contracttypes_id"];
+    $rand                              = mt_rand();
+    $enddate                           = $resource->getField("date_end");
+
+    $linkAD                            = new LinkAd();
+    $linkAD->getEmpty();
+    $islink = $linkAD->getFromDBByCrit(["plugin_resources_resources_id" => $resource->getID()]);
+
+    if (!$islink) {
+        $ret                     = LinkAd::processLogin($resource);
+        $linkAD->fields["login"] = $ret[0];
+        $logAvailable            = $ret[1];
+
+        $mail                       = LinkAd::processMail($resource, $linkAD->fields["login"]);
+        $linkAD->fields["mail"]     = $mail;
+        $role                       = Dropdown::getDropdownName(Role::getTable(), $resource->fields['plugin_resources_roles_id']);
+        $linkAD->fields["role"]     = $role;
+        $service                    = Dropdown::getDropdownName(Service::getTable(), $resource->fields['plugin_resources_services_id']);
+        $linkAD->fields["service"]  = $service;
+        $location                   = Dropdown::getDropdownName(Location::getTable(), $resource->fields['locations_id']);
+        $linkAD->fields["location"] = $location;
+    }
+
+    $ID = $linkAD->getID();
+    $value = [
+        'plugin_resources_resources_id' => $resource->fields['id'],
+        'plugin_resources_contracttypes_id' => $plugin_resources_contracttypes_id,
+        'entities_id' => $entities_id,
+        'enddate' => $enddate,
+        'id' => $ID,
+        'login' => $linkAD->fields["login"],
+        'department' => Dropdown::getDropdownName('glpi_plugin_resources_departments', $resource->getField("plugin_resources_departments_id")),
+        'glpi_plugin_resources_departments' => $resource->getField("plugin_resources_departments_id"),
+        'name' => $resource->getField("name"),
+        'firstname' => $resource->getField("firstname"),
+        'phone' => $resource->getField('phone'),
+        'mail' => $linkAD->fields["mail"],
+        'contract' => $resource->getField("plugin_resources_contracttypes_id") ? Dropdown::getDropdownName('glpi_plugin_resources_contracttypes', $resource->getField("plugin_resources_contracttypes_id")) : '',
+        'glpi_plugin_resources_contracttypes' => $resource->getField("plugin_resources_contracttypes_id"),
+        'cellphone' => $resource->getField("cellphone"),
+        'role' => $resource->getField('plugin_resources_roles_id') ? Dropdown::getDropdownName('glpi_plugin_resources_roles', $resource->getField('plugin_resources_roles_id')) : '',
+        'glpi_plugin_resources_roles_id' => $resource->getField("plugin_resources_roles_id"),
+        'service' => $resource->getField('plugin_resources_services_id') ? Dropdown::getDropdownName('glpi_plugin_resources_services', $resource->getField('plugin_resources_services_id')) : '',
+        'glpi_plugin_resources_services_id' => $resource->getField("plugin_resources_services_id"),
+        'location' => $resource->getField('locations_id') ? Dropdown::getDropdownName('glpi_locations', $resource->getField('locations_id')) : '',
+        'glpi_locations_id' => $resource->getField("locations_id"),
+        'function' => $resource->getField('plugin_resources_functions_id') ? Dropdown::getDropdownName('glpi_plugin_resources_functions', $resource->getField('plugin_resources_functions_id')) : '',
+        'glpi_plugin_resources_functions_id' => $resource->getField("plugin_resources_functions_id"),
+        'begindate' => $resource->getField("date_begin"),
+    ];
+
+    $linkad = new LinkAd();
+
+    if (!$islink) {
+        //creation
+        $ldap = new LDAP();
+        $res = $ldap->createUserAD($value);
+        if ($res) {
+            $_POST["action_done"] = 1;
+            $linkad->add($value);
+            $message = __('the user has been added to the LDAP directory', 'resources');
+            Session::addMessageAfterRedirect($message, false, INFO);
+        } else {
+            $message = __('the user has not been added to the LDAP directory', 'resources');
+            Session::addMessageAfterRedirect($message, false, ERROR);
+        }
+    } else {
+
+        //update
+        $ldap = new LDAP();
+        $linkad->getFromDB($value['id']);
+        $value["login"] = $linkad->getField("login");
+        $res = $ldap->updateUserAD($value);
+        if ($res[0]) {
+
+            $value["action_done"] = 1;
+            $linkad->update($value);
+
+            $message = __('the user has been updated to the LDAP directory', 'resources');
+            Session::addMessageAfterRedirect($message, false, INFO);
+        } else {
+            $message = __('the user has not been updated to the LDAP directory', 'resources');
+            Session::addMessageAfterRedirect($message, false, ERROR);
+        }
+    }
+
+    Html::back();
+
+} elseif (isset($_POST["validOrderLeaving"])) {
+    // IDOR + unauthorized write: the target id comes entirely from POST and update()
+    // enforces neither right nor entity. Gate on UPDATE of the target resource, like the
+    // sibling write branches, before mutating it and generating a departure ticket.
+    $resource->check((int) $_POST["plugin_resources_resources_id"], UPDATE);
+    // The leaving form only owns the order text. Never hand the raw body to update(): any
+    // other resource column posted alongside it was written as is, bypassing the frozen form
+    // check of the update branch above.
+    $_POST["id"] = (int) $_POST["plugin_resources_resources_id"];
+    $resource->update([
+        'id'           => $_POST["id"],
+        'remove_order' => $_POST['remove_order'] ?? '',
+    ]);
+
+    $config = new Config();
+    $config->getFromDB(1);
+    if ($config->fields["create_ticket_departure_instructions"]) {
+        $resource->getFromDB($_POST["id"]);
+        $ticket = new Ticket();
+
+        $tt = $ticket->getITILTemplateToUse(0, Ticket::DEMAND_TYPE, $config->fields["categories_id"]);
+        if (isset($tt->predefined) && count($tt->predefined)) {
+            foreach ($tt->predefined as $predeffield => $predefvalue) {
+                // Load template data
+                // add() goes through the query builder, which quotes values itself.
+                $ticket->fields[$predeffield] = $predefvalue;
+            }
+        }
+        $resource->getFromDB($_POST["id"]);
+        $ticket->fields["name"] = __("Departure of", 'resources') . " " . $resource->fields['name'] . " " . $resource->fields['firstname'];
+        $ticket->fields["itilcategories_id"] = $config->fields["categories_id"];
+
+        $dateend = new DateTime($resource->fields['date_end']);
+        $ticket->fields["content"] = $resource->fields['name'] . " " . $resource->fields['firstname'] . " " . __("leave on", "resources") . " " . Html::convDate($dateend->format('Y-m-d'));
+        if (isset($resource->fields['plugin_resources_leavingreasons_id']) && !empty($resource->fields['plugin_resources_leavingreasons_id'])) {
+            $ticket->fields["content"] .= "<br>" . LeavingReason::getTypeName(0) . " : " . Dropdown::getDropdownName(LeavingReason::getTable(), $resource->fields["plugin_resources_leavingreasons_id"]);
+        }
+        if (($resource->fields['plugin_resources_contracttypes_id']) != 0) {
+            $ticket->fields["content"] .= "<br>" . ContractType::getTypeName(0) . " : " . Dropdown::getDropdownName(ContractType::getTable(), $resource->fields['plugin_resources_contracttypes_id']);
+        } else {
+            $ticket->fields["content"] .= "<br>" . ContractType::getTypeName(0) . " : " . __("Without contract", 'resources');
+        }
+        $ticket->fields["content"] .= "<br>" . __("Order", 'resources') . " : " . $resource->fields['remove_order'];
+        $ticket->fields['users_id_recipient'] = Session::getLoginUserID();
+        $ticket->fields['_users_id_requester'] = Session::getLoginUserID();
+        $ticket->fields["type"] = Ticket::DEMAND_TYPE;
+        $ticket->fields["entities_id"] = $_SESSION['glpiactive_entity'];
+        $ticket->fields['items_id'] = [Resource::class => [$_POST['id']]];
+        unset($ticket->fields["id"]);
+        $ticket_id = $ticket->add($ticket->fields);
+
+        if ($config->fields['use_module_duplicata_ticket'] && $config->fields['use_module_departure_instruction'] && $config->fields["send_second_ticket_remove"] && $config->fields["assignment_group_second_ticket"]) {
+            $ticket->fields['users_id_recipient'] = Session::getLoginUserID();
+            $ticket->fields['_users_id_requester'] = Session::getLoginUserID();
+            $ticket->fields["type"] = Ticket::DEMAND_TYPE;
+            $ticket->fields["entities_id"] = $_SESSION['glpiactive_entity'];
+            $ticket->fields['items_id'] = [Resource::class => [$_POST['id']]];
+            unset($ticket->fields["id"]);
+            $ticket_id = $ticket->add($ticket->fields);
+            $groupticket = new Group_Ticket();
+            $groupticket->fields['tickets_id'] = $ticket_id;
+            $groupticket->fields['groups_id'] = $config->fields["assignment_group_second_ticket"];
+            $groupticket->fields['type'] = CommonITILActor::ASSIGN;
+            unset($groupticket->fields["id"]);
+            $groupticket->add($groupticket->fields);
+        }
+
+    }
+    Html::back();
+} else {
+    $resource->checkGlobal(READ);
+    if (Session::getCurrentInterface() == 'central') {
+        //from central
+        Html::header(Resource::getTypeName(2), '', "admin", Menu::class);
+    } else {
+        //from helpdesk
+        if (Plugin::isPluginActive('servicecatalog')) {
+            Main::showDefaultHeaderHelpdesk(Menu::getTypeName(2), true);
+        } else {
+            Html::helpHeader(Resource::getTypeName(2));
+        }
+    }
+
+    $resource->display(['id' => $_GET["id"], 'withtemplate' => $_GET["withtemplate"]]);
+
+    if (Session::getCurrentInterface() != 'central'
+        && Plugin::isPluginActive('servicecatalog')) {
+        Main::showNavBarFooter('resources');
+    }
+
+    if (Session::getCurrentInterface() == 'central') {
+        Html::footer();
+    } else {
+        Html::helpFooter();
+    }
+}

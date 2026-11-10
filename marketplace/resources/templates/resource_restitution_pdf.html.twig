@@ -1,0 +1,46 @@
+{#
+ # -------------------------------------------------------------------------
+ # resources plugin for GLPI
+ # Copyright (C) 2015-2026 by the resources Development Team.
+ #
+ # https://github.com/InfotelGLPI/resources
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of resources.
+ #
+ # resources is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 2 of the License, or
+ # (at your option) any later version.
+ #
+ # resources is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with resources. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{# Restitution block injected into #resource_pdf by ajax/pdfresource.php when the
+ # outgoing resource's linked user still holds equipment. It is rendered *inside* the
+ # departure form of resource_remove_form.html.twig, so it must not open a form of its
+ # own: resources.js posts a detached form (new tab) carrying the token below. #}
+
+<p>{{ __('Please ensure that the return form is signed by the employee', 'resources') }}</p>
+
+<div class="alert alert-important alert-warning d-flex">
+    {{ __("The sales manager is responsible for the complete return of the company's equipment held by the outgoing employee (badge, PC, smartphone, etc.)", 'resources') }}
+</div>
+
+<button type="button" class="btn btn-warning plugin-resources-pdf-download"
+        data-url="{{ pdf_url }}"
+        data-users-id="{{ users_id }}"
+        data-resources-id="{{ resources_id }}"
+        data-root="{{ root_doc }}"
+        data-csrf="{{ csrf_token() }}">
+    {{ __('Download the restitution form', 'resources') }}
+</button>

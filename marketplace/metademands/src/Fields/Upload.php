@@ -1,0 +1,183 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * metademands plugin for GLPI
+ * Copyright (C) 2018-2026 by the metademands Development Team.
+ *
+ * https://github.com/InfotelGLPI/metademands
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of metademands.
+ *
+ * metademands is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * metademands is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Metademands\Fields;
+
+use CommonDBTM;
+use Glpi\Application\View\TemplateRenderer;
+use GlpiPlugin\Metademands\FieldCustomvalue;
+use Html;
+use GlpiPlugin\Metademands\Wizard;
+
+/**
+ * Upload Class
+ *
+ **/
+class Upload extends CommonDBTM
+{
+    private $uploads = [];
+
+    /**
+     * Return the localized name of the current Type
+     * Should be overloaded in each new class
+     *
+     * @param integer $nb Number of items
+     *
+     * @return string
+     **/
+    public static function getTypeName($nb = 0)
+    {
+        return __('Add attachment', 'metademands');
+    }
+
+    public static function showWizardField($data, $namefield, $value, $on_order, $idline)
+    {
+        Html::requireJs('tinymce');
+
+
+        $self = new self();
+
+        if (is_array($value)) {
+            $value = " ";
+        }
+        $randupload = mt_rand();
+        $namedrop = 'dropdoc' . $randupload;
+
+        $arrayFiles = json_decode($value, true);
+
+        $files = [];
+        $nb = 0;
+        $container = 'fileupload_info_ticket' . $namefield . $data['id'];
+        // Uploader options are identical across branches except for the "multiple" flag.
+        $file_opts = [
+            'filecontainer' => $container,
+            'editor_id' => $namefield . $data['id'],
+            'showtitle' => false,
+            'display' => false,
+            'dropZone' => 'dropdoc' . $randupload,
+            'required' => ($data['is_mandatory'] ? true : false),
+            'uploads' => $self->uploads,
+        ];
+        $multiple_opts = ['multiple' => true] + $file_opts;
+
+        $file_input = "";
+        if (is_array($arrayFiles)) {
+            if (count($arrayFiles) > 0) {
+                foreach ($arrayFiles as $k => $file) {
+                    $wiz = new Wizard();
+                    //own showSimpleForm for return (not echo)
+                    $files[] = [
+                        // The stored filename is user-controlled; auto-escaped in the template.
+                        'name' => str_replace($file['_prefix_filename'], "", $file['_filename']),
+                        'delete_form' => FieldCustomvalue::showSimpleForm(
+                            $wiz->getFormURL(),
+                            'delete_basket_file',
+                            _x('button', 'Delete permanently'),
+                            [
+                                'id' => $k,
+                                'metademands_id' => $data['plugin_metademands_metademands_id'],
+                                'plugin_metademands_fields_id' => $data['id'],
+                                'idline' => $idline,
+                            ],
+                            'fa-times-circle',
+                        ),
+                    ];
+                    $nb++;
+                }
+                if ($data["max_upload"] > $nb) {
+                    $file_input = Html::file($data["max_upload"] > 1 ? $multiple_opts : $file_opts);
+                }
+            } else {
+                $file_input = Html::file($data["max_upload"] > 1 ? $multiple_opts : $file_opts);
+            }
+        } else {
+            $file_input = Html::file($data["max_upload"] > 1 ? $multiple_opts : $file_opts);
+        }
+
+        echo TemplateRenderer::getInstance()->render(
+            '@metademands/fields/field_upload.html.twig',
+            [
+                'files'      => $files,
+                'file_input' => $file_input,
+                'script'     => Html::scriptBlock("$('#$namedrop').show();"),
+            ],
+        );
+    }
+
+    public static function showFieldCustomValues($params) {}
+
+    public static function showFieldParameters($params): string
+    {
+        $data[0] = \Dropdown::EMPTY_VALUE;
+        for ($i = 1; $i <= 50; $i++) {
+            $data[$i] = $i;
+        }
+        $max_upload_html = \Dropdown::showFromArray("max_upload", $data, [
+            'value'   => $params['max_upload'],
+            'display' => false,
+        ]);
+
+        return TemplateRenderer::getInstance()->render(
+            '@metademands/fields/field_parameter_upload.html.twig',
+            ['max_upload_html' => $max_upload_html],
+        );
+    }
+
+
+    /**
+     * @param array $value
+     * @param array $fields
+     * @return array
+     */
+    public static function checkMandatoryFields($value = [], $post = [])
+    {
+        $msg = "";
+        $checkKo = 0;
+        // Check fields empty
+        if ($value['is_mandatory']) {
+            if (isset($post['_filename'])) {
+                if (empty($post['_filename'][0])) {
+                    $msg = $value['name'];
+                    $checkKo = 1;
+                }
+            } else {
+                $msg = $value['name'];
+                $checkKo = 1;
+            }
+        }
+
+        return ['checkKo' => $checkKo, 'msg' => $msg];
+    }
+
+    public static function fieldsMandatoryScript($data) {}
+
+    public static function fieldsHiddenScript($data) {}
+
+    public static function blocksHiddenScript($data) {}
+}

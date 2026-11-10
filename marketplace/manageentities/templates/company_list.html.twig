@@ -1,0 +1,74 @@
+{#
+ # -------------------------------------------------------------------------
+ # manageentities plugin for GLPI
+ # Copyright (C) 2017-2026 by the manageentities Development Team.
+ #
+ # https://github.com/InfotelGLPI/manageentities
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of manageentities.
+ #
+ # manageentities is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # manageentities is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with manageentities. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{% if can_add %}
+    <form method="post" name="company_add_form" action="{{ form_url }}">
+        <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="company_id" value="company">
+        <input type="hidden" name="id" value="">
+        <div class="card mb-3">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="ti ti-building-plus"></i>
+                <strong>{{ add_title }}</strong>
+            </div>
+            <div class="card-body">
+                <button type="submit" name="add_company" class="btn btn-primary">
+                    <i class="ti ti-plus me-1"></i>{{ _x('button', 'Add') }}
+                </button>
+            </div>
+        </div>
+    </form>
+{% endif %}
+
+<div class="card mb-3">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="ti ti-building"></i>
+        <strong>{{ _n('Company', 'Companies', 2, 'manageentities') }}</strong>
+    </div>
+    <div class="card-body p-0">
+        {% if companies|length > 0 %}
+            {# name is the anchor produced by CommonDBTM::getLink(), already escaped by the
+             # core, hence the raw_html formatter. Nothing is assembled here: building the
+             # markup in the template is what let an unescaped company name through. #}
+            {{ include('components/datatable.html.twig', {
+                'entries': companies,
+                'columns': {
+                    'name': _n('Company', 'Companies', 1, 'manageentities'),
+                },
+                'formatters':    {'name': 'raw_html'},
+                'total_number':  companies|length,
+                'nosort':        true,
+                'nofilter':      true,
+            }) }}
+        {% else %}
+            <div class="alert alert-info m-3">
+                <i class="ti ti-info-circle me-2"></i>
+                {{ __('No results found') }}
+            </div>
+        {% endif %}
+    </div>
+</div>

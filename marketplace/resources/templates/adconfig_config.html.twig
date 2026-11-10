@@ -1,0 +1,135 @@
+{#
+ # -------------------------------------------------------------------------
+ # resources plugin for GLPI
+ # Copyright (C) 2015-2026 by the resources Development Team.
+ #
+ # https://github.com/InfotelGLPI/resources
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of resources.
+ #
+ # resources is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 2 of the License, or
+ # (at your option) any later version.
+ #
+ # resources is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with resources. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+<form name="form" method="post" action="{{ form_action }}">
+    <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="id" value="{{ id }}">
+    <div class="center">
+        <table class="tab_cadre_fixe">
+            <tr><th colspan="4">{{ title }}</th></tr>
+
+            <tr class="tab_bg_1">
+                <td>{{ label_rootdn }}</td>
+                <td>{{ login_field|raw }}</td>
+                <td>{{ label_password }}</td>
+                <td>
+                    <input type="password" name="password" value="" autocomplete="new-password">
+                    <input type="checkbox" name="_blank_passwd" id="_blank_passwd">&nbsp;
+                    <label for="_blank_passwd">{{ label_clear }}</label>
+                </td>
+            </tr>
+
+            <tr class="tab_bg_1">
+                <td>{{ label_server }}</td>
+                <td>{{ auth_dropdown|raw }}</td>
+                <td>{{ label_creation_category }}</td>
+                <td>{{ creation_dropdown|raw }}</td>
+            </tr>
+
+            <tr class="tab_bg_1">
+                <td>{{ label_allow_invalid_cert }}</td>
+                <td>{{ allow_invalid_cert_dropdown|raw }}</td>
+                <td colspan="2">
+                    {% if allow_invalid_cert_warning is not empty %}
+                        <div class="alert alert-warning mb-0">{{ allow_invalid_cert_warning }}</div>
+                    {% endif %}
+                </td>
+            </tr>
+
+            <tr class="tab_bg_1">
+                <td>{{ label_modification_category }}</td>
+                <td>{{ modification_dropdown|raw }}</td>
+                <td>{{ label_deletion_category }}</td>
+                <td>{{ deletion_dropdown|raw }}</td>
+            </tr>
+
+            <tr><th colspan="4">{{ label_login_creation }}</th></tr>
+            <tr class="tab_bg_1">
+                <td>{{ label_first_form }}</td>
+                <td>{{ first_form_dropdown|raw }}</td>
+                <td>{{ label_second_form }}</td>
+                <td>{{ second_form_dropdown|raw }}</td>
+            </tr>
+
+            {% if ssl_tls %}
+                <tr><th colspan="4">{{ label_password_creation }}</th></tr>
+                <tr class="tab_bg_1">
+                    <td>{{ label_use_password_module }}</td>
+                    <td>{{ use_password_module_dropdown|raw }}</td>
+                    {% if show_format %}
+                        <td>{{ label_format_password }}</td>
+                        <td>{{ format_dropdown|raw }}</td>
+                    {% endif %}
+                </tr>
+                {% if show_format and show_password_detail %}
+                    <tr class="tab_bg_1">
+                        {% if is_prefix_format %}
+                            <td>{{ label_prefix }}</td>
+                            <td>{{ prefix_dropdown|raw }}</td>
+                        {% endif %}
+                        <td>{{ password_detail_label }}</td>
+                        <td>{{ default_account_password_field|raw }}</td>
+                    </tr>
+                    {% if password_warning is not empty %}
+                        <tr class="tab_bg_1">
+                            <td colspan="4">
+                                <div class="alert alert-warning mb-0">{{ password_warning }}</div>
+                            </td>
+                        </tr>
+                    {% endif %}
+                {% endif %}
+            {% endif %}
+
+            <tr><th colspan="4">{{ label_mail_creation }}</th></tr>
+            <tr class="tab_bg_1">
+                <td>{{ label_prefix }}</td>
+                <td>{{ mail_prefix_dropdown|raw }}</td>
+                <td>{{ label_suffix }}</td>
+                <td>{{ mail_suffix_field|raw }}</td>
+            </tr>
+
+            <tr><th colspan="4">{{ label_field_mapping }}</th></tr>
+            {% for row in mapping_rows %}
+                <tr class="tab_bg_1">
+                    {% for cell in row %}
+                        <td>{{ cell.label }}</td>
+                        <td>{{ cell.field|raw }}</td>
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+
+            <tr>
+                <td class="tab_bg_2 center" colspan="4">
+                    <button type="submit" name="update_setup" class="btn btn-primary">
+                        <i class="ti ti-device-floppy"></i>
+                        {{ _x('button', 'Update') }}
+                    </button>
+                </td>
+            </tr>
+        </table>
+    </div>
+</form>

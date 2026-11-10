@@ -1,0 +1,82 @@
+<?php
+
+namespace GlpiPlugin\Permissionsmatrix;
+
+// Trava de segurança padrão do GLPI para impedir acesso direto ao arquivo
+if (!defined('GLPI_ROOT')) {
+    die("Desculpe. Você não pode acessar este arquivo diretamente");
+}
+
+/**
+ * Classe principal do plugin.
+ */
+class Matriz extends \CommonGLPI {
+    
+    /**
+     * Define o nome interno do direito de permissão no banco
+     */
+    public static $rightname = 'plugin_permissionsmatrix';
+
+    /**
+     * Define o nome que vai aparecer no menu do GLPI
+     */
+    static function getMenuName() {
+        return __('Permissions Matrix', 'permissionsmatrix');
+    }
+
+    /**
+     * Define o nome interno do tipo (padrão do framework)
+     */
+    static function getTypeName($nb = 0) {
+        return __('Permissions Matrix', 'permissionsmatrix');
+    }
+
+    /**
+     * Define o ícone que vai aparecer ao lado do nome no menu (opcional na v10+)
+     */
+    static function getIcon() {
+        return "fas fa-table"; // Ícone de tabela do FontAwesome
+    }
+
+    /**
+     * Constrói o conteúdo do menu, indicando para qual página ele aponta
+     */
+    static function getMenuContent() {
+        // Se o perfil logado NÃO tiver permissão, aborta a criação do botão
+        if (!self::canView()) {
+            return false;
+        }
+        
+        return [
+            'title' => self::getMenuName(),
+            'page'  => '/' . \Plugin::getWebDir('permissionsmatrix', false) . '/front/matrix.form.php',
+            'icon'  => self::getIcon()
+        ];
+    }
+
+    /**
+     * Controle de Acesso (Segurança)
+     * Define quem pode ver este botão no menu.
+     * CORREÇÃO: Adicionado o ": bool" exigido pelo PHP 8 / GLPI 11
+     */
+    #[\ReturnTypeWillChange]
+    public static function canView(): bool {
+        // Agora o GLPI só exibe o menu se o perfil tiver a permissão 1 (READ)
+        return \Session::haveRight('plugin_permissionsmatrix', READ);
+    }
+
+    /**
+     * Sobrescreve a resolução de URL padrão do GLPI, já que o nome do arquivo mudou para matrix.form.php
+     */
+    public static function getSearchURL($full = true) {
+        return \Plugin::getWebDir('permissionsmatrix', $full) . '/front/matrix.form.php';
+    }
+
+    public static function getFormURLWithID($id = 0, $full = true) {
+        return \Plugin::getWebDir('permissionsmatrix', $full) . '/front/matrix.form.php';
+    }
+
+    public static function getFormURL($full = true) {
+        return \Plugin::getWebDir('permissionsmatrix', $full) . '/front/matrix.form.php';
+    }
+}

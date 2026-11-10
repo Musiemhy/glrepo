@@ -1,0 +1,197 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * resources plugin for GLPI
+ * Copyright (C) 2015-2026 by the resources Development Team.
+ *
+ * https://github.com/InfotelGLPI/resources
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of resources.
+ *
+ * resources is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * resources is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with resources. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use GlpiPlugin\Resources\Adconfig;
+use GlpiPlugin\Resources\ContractNature;
+use GlpiPlugin\Resources\Department;
+use GlpiPlugin\Resources\LDAP;
+use GlpiPlugin\Resources\LinkAd;
+use GlpiPlugin\Resources\Rank;
+use GlpiPlugin\Resources\Resource;
+use GlpiPlugin\Resources\ResourceFunction;
+use GlpiPlugin\Resources\ResourceSituation;
+use GlpiPlugin\Resources\ResourceSpeciality;
+use GlpiPlugin\Resources\Role;
+use GlpiPlugin\Resources\Service;
+use GlpiPlugin\Resources\Team;
+use GlpiPlugin\Resources\Config;
+use GlpiPlugin\Resources\Resource_Validation;
+
+Session::checkRight('plugin_resources', READ);
+
+// This endpoint is the sink of Resource_Validation::showValidationForm(), and a display gate
+// is never transitive: the URL is plainly readable in the script block that method emits
+// (src/Resource_Validation.php:176-191), so every condition that screen imposes has to be
+// posed again here. The first one is the dedicated right: plugin_resources is not
+// plugin_resources_validation, and the whole feature hangs off the latter
+// (src/Resource_Validation.php:48). READ is the bit the screen asks for, canView() being what
+// gates both getTabNameForItem() and showValidationForm(); the validate button itself is not
+// gated on canCreate(), so demanding UPDATE here would lock out the very managers the feature
+// is written for.
+Session::checkRight(Resource_Validation::$rightname, READ);
+
+// This endpoint mutates a resource and creates tickets. GLPI's CheckCsrfListener only
+// validates the CSRF token on non-GET requests, so a state-changing action reachable
+// via GET escapes CSRF protection entirely. Require POST (the legitimate AJAX caller,
+// Resource_Validation.php, already posts) and read $_POST so the token is enforced.
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    throw new \Glpi\Exception\Http\BadRequestHttpException();
+}
+
+$resource_id = (int) ($_POST["plugin_resources_resources_id"] ?? 0);
+$resource = new Resource();
+$resource->check($resource_id, UPDATE);
+
+// The two remaining conditions of showValidationForm(): the screen only offers the validate
+// button to the direct manager of the resource, and only while the information has not been
+// validated yet. Neither was replayed here, so any holder of the right could validate someone
+// else's resource, and replaying the call on an already validated one created the arrival
+// tickets over and over.
+if (empty($resource->fields['users_id'])
+    || $_SESSION['glpiID'] != $resource->fields['users_id']
+    || $resource->fields['valid_resource_information']) {
+    throw new \Glpi\Exception\Http\AccessDeniedHttpException();
+}
+
+// Server-side flag: the only path allowed to set valid_resource_information.
+$resource->allow_validation_flag = true;
+$resource->update([
+    'id'                         => $resource_id,
+    'valid_resource_information' => 1,
+]);
+$resource->allow_validation_flag = false;
+$resource->getFromDB($resource_id);
+
+$config = new Config();
+$config->getFromDB(1);
+
+$ticket = new Ticket();
+
+$tt = $ticket->getITILTemplateToUse(0, Ticket::DEMAND_TYPE, $config->fields["categories_id"]);
+if (isset($tt->predefined) && count($tt->predefined)) {
+    foreach ($tt->predefined as $predeffield => $predefvalue) {
+        // Load template data
+        // add() goes through the query builder, which quotes values itself.
+        $ticket->fields[$predeffield] = $predefvalue;
+    }
+}
+
+$ticket->fields["name"] = __("Arrival of", 'resources') . " " . $resource->fields['name'] . " " . $resource->fields['firstname'];
+$ticket->fields["itilcategories_id"] = $config->fields["categories_id"];
+
+$content = str_replace(PHP_EOL, '<br>', $config->fields['text_ticket_validation']);
+foreach (Config::getAvailablevariable() as $key => $value) {
+    switch ($key) {
+        case '##resource_gender##':
+            $content = str_replace($key, Resource::getGenderByValue($resource->fields['gender']), $content);
+            break;
+        case '##resource_locations_id##' :
+            $content = str_replace($key, Location::getFriendlyNameById($resource->fields['locations_id']), $content);
+            break;
+        case '##resource_users_id##' :
+        case '##resource_users_id_sales##' :
+            $field = str_replace("##resource_", "", $key);
+            $field = str_replace("##", "", $field);
+            $content = str_replace($key, User::getFriendlyNameById($resource->fields[$field]), $content);
+            break;
+        case '##resource_plugin_resources_departments_id##' :
+            $content = str_replace($key, Department::getFriendlyNameById($resource->fields['plugin_resources_departments_id']), $content);
+            break;
+        case '##resource_plugin_resources_services_id##' :
+            $content = str_replace($key, Service::getFriendlyNameById($resource->fields['plugin_resources_services_id']), $content);
+            break;
+        case '##resource_plugin_resources_functions_id##' :
+            $content = str_replace($key, ResourceFunction::getFriendlyNameById($resource->fields['plugin_resources_functions_id']), $content);
+            break;
+        case '##resource_plugin_resources_teams_id##' :
+            $content = str_replace($key, Team::getFriendlyNameById($resource->fields['plugin_resources_teams_id']), $content);
+            break;
+        case '##resource_date_begin##' :
+        case '##resource_date_end##' :
+            $field = str_replace("##resource_", "", $key);
+            $field = str_replace("##", "", $field);
+            $date = new DateTime($resource->fields[$field]);
+            $content = str_replace($key, $date->format('Y-m-d'), $content);
+            break;
+        case '##resource_plugin_resources_resourcesituations_id##' :
+            $content = str_replace($key, ResourceSituation::getFriendlyNameById($resource->fields['plugin_resources_resourcesituations_id']), $content);
+            break;
+        case '##resource_plugin_resources_contractnatures_id##' :
+            $content = str_replace($key, ContractNature::getFriendlyNameById($resource->fields['plugin_resources_contractnatures_id']), $content);
+            break;
+        case '##resource_plugin_resources_ranks_id##' :
+            $content = str_replace($key, Rank::getFriendlyNameById($resource->fields['plugin_resources_ranks_id']), $content);
+            break;
+        case '##resource_plugin_resources_resourcespecialities_id##' :
+            $content = str_replace($key, ResourceSpeciality::getFriendlyNameById($resource->fields['plugin_resources_resourcespecialities_id']), $content);
+            break;
+        case '##resource_plugin_resources_roles_id##' :
+            $content = str_replace($key, Role::getFriendlyNameById($resource->fields['plugin_resources_roles_id']), $content);
+            break;
+        default:
+            $field = str_replace("##resource_", "", $key);
+            $field = str_replace("##", "", $field);
+            $content = str_replace($key, $resource->fields[$field], $content);
+            break;
+    }
+}
+
+if (substr_count($content, 'r<br>') > 1) {
+    $content = str_replace('r<br>', '<br>', $content);
+}
+$ticket->fields["content"] = $content;
+
+$ticket->fields['users_id_recipient']  = Session::getLoginUserID();
+$ticket->fields['_users_id_requester'] = Session::getLoginUserID();
+$ticket->fields["type"] = Ticket::DEMAND_TYPE;
+// The content of this ticket is built entirely from the fields of $resource and the ticket is
+// linked to it, so it belongs to the entity of the resource. Taking the active entity of the
+// session instead would publish the resource data to an entity the resource is not in: the
+// caller may legitimately hold the resource in scope from a parent entity.
+$ticket->fields["entities_id"] = $resource->fields['entities_id'];
+$ticket->fields['items_id'] = [Resource::class => [$resource->fields['id']]];
+unset($ticket->fields["id"]);
+$ticket_id = $ticket->add($ticket->fields);
+
+if ($config->fields['use_module_duplicata_ticket'] && $config->fields['use_module_validation'] && $config->fields["send_second_ticket_validation"] && $config->fields["assignment_group_second_ticket"]) {
+    $ticket->fields['users_id_recipient']  = Session::getLoginUserID();
+    $ticket->fields['_users_id_requester'] = Session::getLoginUserID();
+    $ticket->fields["type"] = Ticket::DEMAND_TYPE;
+    // Same as the arrival ticket above: entity of the resource, not of the session.
+    $ticket->fields["entities_id"] = $resource->fields['entities_id'];
+    $ticket->fields['items_id'] = [Resource::class => [$resource->fields['id']]];
+    unset($ticket->fields["id"]);
+    $ticket_id = $ticket->add($ticket->fields);
+    $groupticket = new Group_Ticket();
+    $groupticket->fields['tickets_id'] = $ticket_id;
+    $groupticket->fields['groups_id'] = $config->fields["assignment_group_second_ticket"];
+    $groupticket->fields['type'] = CommonITILActor::ASSIGN;
+    unset($groupticket->fields["id"]);
+    $groupticket->add($groupticket->fields);
+}

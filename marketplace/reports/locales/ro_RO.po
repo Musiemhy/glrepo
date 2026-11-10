@@ -1,0 +1,414 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# 
+# Translators:
+# Doru  DEACONU <dumitrudeaconu@yahoo.com>, 2013
+# Doru  DEACONU <dumitrudeaconu@yahoo.com>, 2015
+msgid ""
+msgstr ""
+"Project-Id-Version: GLPI Project - reports plugin\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-16 17:10+0200\n"
+"PO-Revision-Date: 2021-03-05 12:54+0000\n"
+"Last-Translator: Nelly Mahu-Lasson <nini.lasson@orange.fr>\n"
+"Language-Team: Romanian (Romania) (http://www.transifex.com/yllen/"
+"GLPI_reports/language/ro_RO/)\n"
+"Language: ro_RO\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n==1?0:(((n%100>19)||((n%100==0)&&(n!=0)))?"
+"2:1));\n"
+
+#: report/applicationsbylocation/applicationsbylocation.php:66
+msgid "Application"
+msgstr ""
+
+#: src/Report.php:138
+#: report/applicationsbylocation/applicationsbylocation.php:57
+msgid "Applications by locations and versions"
+msgstr ""
+
+#: src/PriorityCriteria.php:80
+msgid "At least"
+msgstr "Cel puţin"
+
+#: report/applicationsbylocation/applicationsbylocation.php:69
+#: report/softversioninstallations/softversioninstallations.php:69
+msgid "Computer status"
+msgstr "Status calculatoare"
+
+#: src/DateIntervalCriteria.php:223 src/TimeIntervalCriteria.php:176
+msgid "Date interval"
+msgstr "Interval Data"
+
+#: report/histohard/histohard.php:55
+msgid "Date of inventory"
+msgstr "Data inventarului"
+
+#: src/Report.php:147 report/licenses/licenses.php:56
+msgid "Detailed license report"
+msgstr ""
+
+#: src/Report.php:156 report/softnotinstalled/softnotinstalled.php:56
+msgid "Detailed report of software installation by status"
+msgstr ""
+
+#: report/pcsbyentity/pcsbyentity.php:287
+msgid "Display"
+msgstr "Afişaj"
+
+#. TRANS: The name of the report = Duplicate computers
+#: src/Report.php:139 report/doublons/doublons.php:46
+#: report/doublons/doublons.php:78 report/doublons/doublons.php:620
+msgid "Duplicate computers"
+msgstr "Calculatoare duplicate"
+
+#: report/pcsbyentity/pcsbyentity.php:288
+msgid "Entity tree"
+msgstr "Arborescenţă entităţi"
+
+#: src/Report.php:145 report/infocom/infocom.php:78
+msgid "Financial information"
+msgstr ""
+
+#: report/doublons/doublons.php:497
+msgid "First computer"
+msgstr "Primul calculator"
+
+#: src/Report.php:142 report/globalhisto/globalhisto.php:65
+msgid "Global History (for Test / example only)"
+msgstr ""
+
+#: src/Report.php:159 report/statticketsbyentity/statticketsbyentity.php:65
+msgid "Helpdesk requesters and tickets by entity"
+msgstr ""
+
+#: src/Report.php:143 report/histohard/histohard.php:46
+#: report/histohard/histohard.php:53
+msgid "History of last hardware's installations"
+msgstr "Istoric al ultimelor modificări hardware"
+
+#: src/Report.php:144 report/histoinst/histoinst.php:48
+#: report/histoinst/histoinst.php:55
+msgid "History of last software's installations"
+msgstr "Istoric ultimele instalări soft"
+
+#: report/doublons/doublons.php:514 report/doublons/doublons.php:529
+msgid "Last inventory date"
+msgstr "Data ultimului inventar"
+
+#: src/Report.php:148 report/licensesexpires/licensesexpires.php:56
+msgid "Licenses by expiration date"
+msgstr ""
+
+#: report/location/location.php:59
+msgid "Link"
+msgid_plural "Links"
+msgstr[0] ""
+msgstr[1] ""
+msgstr[2] ""
+
+#: src/Report.php:140 report/equipmentbygroups/equipmentbygroups.php:38
+msgid "List all devices of a group, ordered by users"
+msgstr ""
+
+#: src/Report.php:149
+#: report/listequipmentbylocation/listequipmentbylocation.php:52
+msgid "List of equipments by location"
+msgstr ""
+
+#: src/Report.php:150 report/listgroups/listgroups.php:52
+msgid "List of groups and members"
+msgstr ""
+
+#: src/Report.php:162 report/transferreditems/transferreditems.php:49
+msgid "List of transfered objects"
+msgstr ""
+
+#: report/listequipmentbylocation/listequipmentbylocation.php:141
+msgid "Location not selected"
+msgstr ""
+
+#: src/Report.php:151 report/location/location.php:49
+msgid "Location tree"
+msgstr ""
+
+#: report/histohard/histohard.php:59
+msgid "Modification"
+msgstr "Modificare"
+
+#: report/statticketsbyentity/statticketsbyentity.php:107
+msgid "Newer"
+msgstr "Mai recente"
+
+#: src/Profile.php:133
+msgid "No right on Assistance / Statistics"
+msgstr "Fără drepturi pe Asistenţă / Statistici"
+
+#: src/Profile.php:134
+msgid "No right on Tools / Reports"
+msgstr "Fără drepturi pe Instrumente / Rapoarte"
+
+#: report/statusertask/statusertask.php:65
+msgid "Number created tasks"
+msgstr ""
+
+#: src/Report.php:141 report/equipmentbylocation/equipmentbylocation.php:46
+msgid "Number of equipments by location"
+msgstr ""
+
+#. TRANS: The name of the report = Number of items by entity
+#: src/Report.php:152 report/pcsbyentity/pcsbyentity.php:241
+#: report/pcsbyentity/pcsbyentity.php:250
+msgid "Number of items by entity"
+msgstr "Număr echipamente pe entitate"
+
+#: src/TimeIntervalCriteria.php:75 src/TimeIntervalCriteria.php:84
+msgid "Number pending"
+msgstr "Număr deja în curs"
+
+#: report/statticketsbyentity/statticketsbyentity.php:102
+msgid "Older"
+msgstr "Mai vechi"
+
+#: templates/report_config.html.twig:53
+msgctxt "button"
+msgid "Post"
+msgstr ""
+
+#: src/Report.php:153 report/printers/printers.php:68
+msgid "Printers"
+msgstr ""
+
+#: src/Profile.php:130
+msgid "Profiles rights"
+msgstr ""
+
+#: front/report.form.php:93 front/report.form.php:129 src/AutoReport.php:250
+msgid "Report"
+msgstr ""
+
+#: front/report.form.php:40 front/report.form.php:127
+msgid "Reports plugin configuration"
+msgstr "Configurare plugin Rapoarte"
+
+#: front/report.form.php:128
+msgid "Rights management by report"
+msgstr "Management drepturi pe raport"
+
+#. TRANS: The name of the report = Rule's catalog
+#: src/Report.php:154 report/rules/rules.php:50 report/rules/rules.php:103
+#: report/rules/rules.php:121
+msgid "Rule's catalog"
+msgstr ""
+
+#: templates/profile.html.twig:37
+msgctxt "button"
+msgid "Save"
+msgstr ""
+
+#: src/AutoReport.php:946
+msgid "Search criteria"
+msgstr "Criterii de căutare"
+
+#: src/Report.php:155 report/searchinfocom/searchinfocom.php:60
+msgid "Search in the financial information"
+msgstr ""
+
+#: report/doublons/doublons.php:498
+msgid "Second computer"
+msgstr "Calculatorul secund"
+
+#: report/pcsbyentity/pcsbyentity.php:357
+msgid "Selection of type is mandatory"
+msgstr ""
+
+#: src/Report.php:157
+#: report/softversioninstallations/softversioninstallations.php:57
+msgid "Software version installations"
+msgstr ""
+
+#: report/softversioninstallations/softversioninstallations.php:62
+msgid "Software version status"
+msgstr "Status versiuni software"
+
+#: report/pcsbyentity/pcsbyentity.php:291
+msgid "Sort by count"
+msgstr "Sortat după număr"
+
+#: report/transferreditems/transferreditems.php:94
+msgid "Source entity"
+msgstr "Entitate sursă"
+
+#: report/transferreditems/transferreditems.php:95
+msgid "Target entity"
+msgstr "Entitate destinaţie"
+
+#: report/statusertask/statusertask.php:51
+msgid "Tasks created"
+msgstr ""
+
+#: src/Report.php:161 report/statusertask/statusertask.php:48
+msgid "Tasks list per user"
+msgstr ""
+
+#: report/histohard/histohard.php:204
+msgid "The list is limited to 100 items and 21 days"
+msgstr "Listă limitată la 100 evenimente şi 21 zile"
+
+#: report/histoinst/histoinst.php:143
+msgid "The list is limited to 200 items and 21 days"
+msgstr "Listă limitată la 200 evenimente şi 21 zile"
+
+#: report/statticketsbyentity/statticketsbyentity.php:96
+msgid "Tickets count"
+msgstr "Număr tichete"
+
+#: src/Report.php:160 report/statticketsbypriority/statticketsbypriority.php:54
+msgid "Tickets no closed, sorted by priority"
+msgstr ""
+
+#: src/Report.php:158
+#: report/statnightticketsbypriority/statnightticketsbypriority.php:54
+msgid "Tickets opened at night, sorted by priority"
+msgstr ""
+
+#: src/Report.php:146 report/iteminstall/iteminstall.php:58
+msgid "Time before equipment start-up"
+msgstr ""
+
+#: src/DateIntervalCriteria.php:225 src/TimeIntervalCriteria.php:178
+msgid "Time interval"
+msgstr "Interval Timp"
+
+#: report/transferreditems/transferreditems.php:96
+msgid "Transfert date"
+msgstr "Data transfer"
+
+#: report/pcsbyentity/pcsbyentity.php:314
+#: report/pcsbyentity/pcsbyentity.php:343
+msgid "Unknown"
+msgstr "Necunoscut"
+
+#: templates/report_rights.html.twig:52
+msgctxt "button"
+msgid "Update"
+msgstr ""
+
+#: report/licenses/licenses.php:75
+msgid "Used version"
+msgstr "Versiune utilizată"
+
+#: report/statticketsbyentity/statticketsbyentity.php:90
+msgid "Users count"
+msgstr "Număr utilizatori"
+
+#: src/Report.php:163 report/zombies/zombies.php:71
+msgid "Users with no right"
+msgstr ""
+
+#: report/licensesexpires/licensesexpires.php:58
+msgid "Valid to"
+msgstr "Valabilă până la"
+
+#: report/zombies/zombies.php:77
+msgid "With no ticket"
+msgstr "Fără tichet"
+
+#~ msgid "_report_title"
+#~ msgstr "_report_title"
+
+#~ msgid "Rights management by profil"
+#~ msgstr "Managementul drepturilor pe profil"
+
+#~ msgid "Profils rights"
+#~ msgstr "Managementul drepturilor"
+
+#~ msgid "applicationsbylocation_report_title"
+#~ msgstr "Aplicaţii pe locaţii şi versiuni"
+
+#~ msgid "Applications"
+#~ msgstr "Aplicaţii"
+
+#~ msgid "doublons_report_title"
+#~ msgstr "Calculatoare dublate"
+
+#~ msgid "equipmentbygroups_report_title"
+#~ msgstr "Lista echipamente pe grupe"
+
+#~ msgid "equipmentbylocation_report_title"
+#~ msgstr "Număr echipamente pe locaţie"
+
+#~ msgid "globalhisto_report_title"
+#~ msgstr "Istoric global "
+
+#~ msgid "histohard_report_title"
+#~ msgstr "Istoric ultimele modificări hard"
+
+#~ msgid "histoinst_report_title"
+#~ msgstr "Istoric ultimele instalări soft"
+
+#~ msgid "infocom_report_title"
+#~ msgstr "Informaţii financiare"
+
+#~ msgid "iteminstall_report_title"
+#~ msgstr "Implementare echipamente"
+
+#~ msgid "licensesexpires_report_title"
+#~ msgstr "Lista licenţe dupa data de exirare"
+
+#~ msgid "licenses_report_title"
+#~ msgstr "Statut  detaliat licenţe "
+
+#~ msgid "listequipmentbylocation_report_title"
+#~ msgstr "Lista echipamente pe locaţie"
+
+#~ msgid "listgroups_report_title"
+#~ msgstr "Lista grupuri şi membri"
+
+#~ msgid "location_report_title"
+#~ msgstr "Arborescenţă locaţii"
+
+#~ msgid "pcsbyentity_report_title"
+#~ msgstr "Număr echipamente pe entitate"
+
+#~ msgid "printers_report_title"
+#~ msgstr "Imprimante"
+
+#~ msgid "Computers in the group"
+#~ msgstr "Calculatoare în grup"
+
+#~ msgid "Users in the group"
+#~ msgstr "Utilizatori în grup"
+
+#~ msgid "Computers in the location"
+#~ msgstr "Calculatoare în locaţia"
+
+#~ msgid "Users in the location"
+#~ msgstr "Utilizatori în locaţia"
+
+#~ msgid "rules_report_title"
+#~ msgstr "Catalog de reguli"
+
+#~ msgid "searchinfocom_report_title"
+#~ msgstr "Căutatr în informaţiile financiare"
+
+#~ msgid "softnotinstalled_report_title"
+#~ msgstr "Soft important neinstalat"
+
+#~ msgid "statnightticketsbypriority_report_title"
+#~ msgstr "Tichete deschise  noaptea"
+
+#~ msgid "statticketsbyentity_report_title"
+#~ msgstr "Suport Scalabilitate"
+
+#~ msgid "statticketsbypriority_report_title"
+#~ msgstr "Tichete neînchise"
+
+#~ msgid "transferreditems_report_title"
+#~ msgstr "Lista obiectelor transferate"
+
+#~ msgid "zombies_report_title"
+#~ msgstr "Utilizatori fără drepturi"

@@ -1,0 +1,58 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * cmdb plugin for GLPI
+ * Copyright (C) 2020-2026 by the cmdb Development Team.
+ *
+ * https://github.com/InfotelGLPI/cmdb
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of cmdb.
+ *
+ * cmdb is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * cmdb is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with cmdb. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use Glpi\Exception\Http\BadRequestHttpException;
+use GlpiPlugin\Cmdb\ImpactInfo;
+use GlpiPlugin\Cmdb\ImpactInfoField;
+
+header("Content-Type: text/html; charset=UTF-8");
+Html::header_nocache();
+
+Session::checkRight('plugin_cmdb_impactinfos', UPDATE);
+
+$itemtype = null;
+if (isset($_POST['itemtype']) && $_POST['itemtype']) {
+    $itemtype = $_POST['itemtype'];
+}
+
+// Validate itemtype reflected into inline JS/HTML to prevent reflected XSS, and replay at
+// this sink the very allow-list ImpactInfo::prepareInputForAdd() applies on the write path:
+// resolving as a class is not enough. Any other resolvable class reaches a branch of
+// getFieldsForItemtype() that yields nothing usable, and the renderer fails open on it.
+if ($itemtype !== null && !in_array($itemtype, ImpactInfo::getAllowedItemtypes(), true)) {
+    throw new BadRequestHttpException();
+}
+
+$id = 0;
+if (isset($_POST['id']) && $_POST['id']) {
+    $id = $_POST['id'];
+
+    $impactInfoField = new ImpactInfoField();
+    $impactInfoField->showInfos($itemtype, $id);
+}

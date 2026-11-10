@@ -1,0 +1,147 @@
+{#
+ # -------------------------------------------------------------------------
+ # resources plugin for GLPI
+ # Copyright (C) 2015-2026 by the resources Development Team.
+ #
+ # https://github.com/InfotelGLPI/resources
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of resources.
+ #
+ # resources is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 2 of the License, or
+ # (at your option) any later version.
+ #
+ # resources is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with resources. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{% import 'components/form/basic_inputs_macros.html.twig' as inputs %}
+{% import 'components/form/fields_macros.html.twig' as fields %}
+
+{% set rand = random() %}
+{% set field_options = {
+    'field_class': 'col-4',
+} %}
+{% if can_edit %}
+    <form method="post" action="{{ params["target"] }}" {{ formoptions ?? '' }} enctype="multipart/form-data"
+          data-submit-once>
+        <div class="card">
+            {#            <div class="card-header"> #}
+            <h3 class="card-title alert alert-secondary" style="margin-top: 10px;">
+                    <span class="resources_wizard_resp_img">
+                        <i class=" {{ params["icon"] }} "></i>&nbsp;
+                        <img src=" {{ params["img"] }} ">&nbsp;
+                        {{ params["title"] }}
+                    </span>
+            </h3>
+            {#            </div> #}
+            <div class="card-body">
+                <div class='card-text'>
+
+                    <div class="form-field row align-items-center col-12 col-sm-12 mb-2">
+                        <label class="col-form-label col-xxl-5 text-xxl-end ">
+
+                        </label>
+                        <div class="col-xxl-7 field-container">
+
+                            {{ fields.dropdownField(
+                                "GlpiPlugin\\Resources\\ChoiceItem",
+                                "plugin_resources_choiceitems_id",
+                                null,
+                                __('Add a need', 'resources'),
+                                {
+                                    'entity': params['entities_id'],
+                                    'used': used,
+                                    'condition': {
+                                    is_helpdesk_visible: 1
+                                }
+                                }
+                            ) }}
+
+                            <div class="text-end">
+                                {{ inputs.submit('addchoice', _x('button', 'Add'), 1) }}
+                            </div>
+
+                            {{ inputs.hidden('plugin_resources_resources_id', params['plugin_resources_resources_id']) }}
+                            {{ inputs.hidden('_glpi_csrf_token', csrf_token()) }}
+                        </div>
+                    </div>
+
+                    <div class="hr mt-3 mb-3"></div>
+
+                    <h5 class="card-title" style="margin-top: 10px;">
+                        {{ __('IT needs identified', 'resources') }}
+                    </h5>
+
+
+                    {{ include('@resources/datatable.html.twig', datatable_params, with_context = false) }}
+
+                    <div class="hr mt-3 mb-3"></div>
+
+                    <h5 class="card-title" style="margin-top: 10px;">
+                        {{ __('Others needs', 'resources') }}
+                        {% do call('Html::showToolTip', [__('Will be added to the resource comment area', 'resources'), {}]) %}
+                    </h5>
+
+                    <div class="form-field row align-items-center col-12 col-sm-12 mb-2">
+                        <div class="col-xxl-12 field-container">
+                            {{ fields.textareaField(
+                                "comment",
+                                comment,
+                                null,
+                                {
+                                    'full_width': true
+                                }
+                            ) }}
+                            <div class="text-end">
+                                {{ inputs.submit('addcomment', _x('button', 'Add'), 1) }}
+                            </div>
+
+                            {{ inputs.hidden('plugin_resources_resources_id', params['plugin_resources_resources_id']) }}
+                            {{ inputs.hidden('_glpi_csrf_token', csrf_token()) }}
+                        </div>
+                    </div>
+
+                    <div class="hr mt-3 mb-3"></div>
+                    <div class="hstack gap-1">
+                        <div class="pe-5 ms-auto">
+                            {{ inputs.hidden('plugin_resources_resources_id', params["plugin_resources_resources_id"]) }}
+                            {{ inputs.hidden('id', params["id"]) }}
+                            {{ inputs.hidden('withtemplate', 0) }}
+                            {{ inputs.hidden('_glpi_csrf_token', csrf_token()) }}
+
+                            {% if can_purge %}
+                                {{ inputs.submit('cancel_request',
+                                    _x('button', 'Cancel the request', 'resources'),
+                                    1,
+                                    {class: 'btn btn-danger ms-1',
+                                        icon: 'ti ti-x'}) }}
+                            {% endif %}
+                            {{ inputs.submit('undo_four_step',
+                                _x('button', 'Previous', 'resources'),
+                                1,
+                                {class: 'btn btn-primary ms-1',
+                                    icon: 'ti ti-chevron-left'}) }}
+
+                            {{ inputs.submit('five_step',
+                                _x('button', 'Next', 'resources'),
+                                1,
+                                {class: 'btn btn-success ms-1',
+                                    icon: 'ti ti-chevron-right'}) }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+{% endif %}

@@ -1,0 +1,71 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * mydashboard plugin for GLPI
+ * Copyright (C) 2016-2026 by the mydashboard Development Team.
+ *
+ * https://github.com/InfotelGLPI/mydashboard
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of mydashboard.
+ *
+ * mydashboard is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * mydashboard is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with mydashboard. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use GlpiPlugin\Mydashboard\Widget;
+
+Session::checkRightsOr("plugin_mydashboard", [READ, CREATE + UPDATE]);
+
+
+$widgets = Widget::getCachedWidgetList();
+$wid = new Widget();
+
+if (isset($_POST['gsid']) && isset($_POST['id'])) {
+    $gsid = $_POST['gsid'];
+    $opt  = [];
+    if (isset($_POST['params']) && is_array($_POST['params'])) {
+        $opt = $_POST['params'];
+    }
+    if (isset($widgets[$gsid])) {
+        $class    = $widgets[$gsid]["class"];
+        $id_class = $widgets[$gsid]["id"];
+        $widget   = Widget::loadWidget($class, $id_class, "bt-col-md-11", $opt);
+        echo $widget;
+    }
+} else {
+    // Same defensive read as the branch above: the widget key is client supplied and
+    // optional, an unset value must not raise a warning before the lookup below.
+    $gsid = $_POST['gsid'] ?? '';
+    $data = [];
+    if (isset($widgets[$gsid])) {
+        $opt      = [];
+        if (isset($_POST['params']) && is_array($_POST['params'])) {
+            $opt = $_POST['params'];
+        }
+        $class    = $widgets[$gsid]["class"];
+        $id_class = $widgets[$gsid]["id"];
+        $widget   = Widget::loadWidget($class, $id_class, "bt-col-md-11", $opt);
+        $data     = ["id" => Widget::removeBackslashes($id_class), "widget" => $widget];
+    }
+    // Return a proper JSON content type and escape HTML-significant characters.
+    // The widget HTML stays intact (JSON unicode escapes are decoded by the client's
+    // JSON.parse before DOM insertion); this only prevents the raw response from
+    // being interpreted as HTML.
+    header('Content-Type: application/json');
+    echo json_encode($data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+}

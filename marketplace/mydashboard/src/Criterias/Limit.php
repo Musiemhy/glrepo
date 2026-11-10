@@ -1,0 +1,85 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * mydashboard plugin for GLPI
+ * Copyright (C) 2016-2026 by the mydashboard Development Team.
+ *
+ * https://github.com/InfotelGLPI/mydashboard
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of mydashboard.
+ *
+ * mydashboard is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * mydashboard is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with mydashboard. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Mydashboard\Criterias;
+
+use GlpiPlugin\Mydashboard\Criteria;
+use Dropdown;
+
+/**
+ * Class Limit
+ */
+class Limit
+{
+    public static $criteria_name = 'limit';
+
+    public static function getDefaultValue()
+    {
+
+        $limit = 10;
+
+        return $limit;
+    }
+
+    /**
+     * @param array $opt
+     *
+     * @return array<int, array{label: string, values: array<int, string>}>
+     */
+    public static function getDisplayValue($opt): array
+    {
+        if ($opt[self::$criteria_name] != 0) {
+            return [[
+                'label'  => __('Number of results'),
+                'values' => [(string) $opt[self::$criteria_name]],
+            ]];
+        }
+
+        return [];
+    }
+
+    public static function getDisplayForm($default, $opt, $count)
+    {
+
+        $params = [
+            'value' => $opt[self::$criteria_name] ?? $default[self::$criteria_name],
+            'min' => 0,
+            'max' => 200,
+            'step' => 1,
+            'toadd' => [0 => __('All')],
+        ];
+        return Criteria::getFieldHtml(
+            __('Number of results'),
+            $count,
+            [Dropdown::class, 'showNumber'],
+            [self::$criteria_name, $params],
+        );
+    }
+
+}

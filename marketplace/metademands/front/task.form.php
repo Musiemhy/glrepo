@@ -1,0 +1,179 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * metademands plugin for GLPI
+ * Copyright (C) 2018-2026 by the metademands Development Team.
+ *
+ * https://github.com/InfotelGLPI/metademands
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of metademands.
+ *
+ * metademands is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * metademands is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use Glpi\Exception\Http\AccessDeniedHttpException;
+use GlpiPlugin\Metademands\Metademand;
+use GlpiPlugin\Metademands\Task;
+use GlpiPlugin\Metademands\TicketTask;
+use GlpiPlugin\Metademands\MetademandTask;
+use GlpiPlugin\Metademands\MailTask;
+
+if (empty($_GET["id"])) {
+    $_GET["id"] = "";
+}
+
+$task           = new Task();
+$tickettask     = new TicketTask();
+$metademandtask = new MetademandTask();
+$mailtask = new MailTask();
+
+if (isset($_POST["add"])) {
+
+    if (isset($_POST['taskType'])) {
+        // Creation right: since Task no longer overrides canCreateItem(), this resolves the parent
+        // metademand carried by the input and applies its entity boundary.
+        $task->check(-1, CREATE, $_POST);
+        $_POST['plugin_metademands_tasks_id'] = isset($_POST['parent_tasks_id']) ? $_POST['parent_tasks_id'] : 0;
+
+        if (!isset($_POST['block_use']) || $_POST['block_use'] == '') {
+            $_POST['block_use'] = json_encode([]);
+        } else {
+            $_POST['block_use'] = json_encode($_POST['block_use']);
+        }
+        $_POST['type']  = $_POST['taskType'];
+        $_POST['level'] = 1;
+
+        if (isset($_POST['plugin_metademands_tasks_id']) && $_POST['plugin_metademands_tasks_id'] > 0) {
+            $parenttask = new Task();
+            $parenttask->getFromDB($_POST['plugin_metademands_tasks_id']);
+            $_POST['level'] = $parenttask->fields['level'] + 1;
+        }
+
+        if ($tickettask->isMandatoryField($_POST) && $tasks_id = $task->add($_POST)) {
+            if ($_POST['taskType'] == Task::TICKET_TYPE
+                || $_POST['taskType'] == Task::TASK_TYPE) {
+                $_POST['plugin_metademands_tasks_id'] = $tasks_id;
+                $_POST['type']                        = \Ticket::DEMAND_TYPE;
+                $tickettask->add($_POST);
+            } elseif ($_POST['taskType'] == Task::METADEMAND_TYPE) {
+                if ($_POST['link_metademands_id']) {
+                    // Replay at the sink the criteria of the dropdown built by
+                    // MetademandTask::showMetademandTaskForm(): its option list is restricted
+                    // client side only, and the linked metademand drives the ticket created
+                    // for the requester. can(READ) adds the global right and the entity
+                    // perimeter, which the criteria alone do not cover.
+                    $linked         = new Metademand();
+                    $criteria       = MetademandTask::getLinkableMetademandCriteria(
+                        (int) ($_POST['plugin_metademands_metademands_id'] ?? 0),
+                    );
+                    $criteria['id'] = (int) $_POST['link_metademands_id'];
+                    if (!$linked->getFromDBByCrit($criteria)
+                        || !$linked->can($linked->getID(), READ)) {
+                        throw new AccessDeniedHttpException();
+                    }
+
+                    $metademandtask->add(['plugin_metademands_tasks_id'       => $tasks_id,
+                        'plugin_metademands_metademands_id' => $linked->getID(),
+                        // Normalized and revalidated by MetademandTask::prepareInputForAdd().
+                        'destination_entities_id'           => $_POST['destination_entities_id'] ?? null]);
+                }
+            } elseif ($_POST['taskType'] == Task::MAIL_TYPE) {
+                $_POST['plugin_metademands_tasks_id'] = $tasks_id;
+                $_POST['type']                        = \Ticket::DEMAND_TYPE;
+                $mailtask->add($_POST);
+            }
+        }
+    }
+
+    Html::back();
+
+} elseif (isset($_POST["update"])) {
+    // Bind the control to the row actually written: with -1 the requested right was never
+    // evaluated and the parent metademand was never confronted with the session.
+    $task->check((int) $_POST['id'], UPDATE);
+
+    $input = $_POST;
+    $input['type'] = $_POST['taskType'] ?? 0;
+    $input['content'] = $_POST['content'];
+    if ($input['type'] == Task::MAIL_TYPE) {
+        $input['id'] = $_POST['mailtask_id'];
+        // The control above is on the Task, the write below on another class whose identifier is
+        // client supplied: authorise the MailTask on its own id, then replay the parent/child
+        // relation at the sink so that a notification task of another metademand cannot be
+        // hijacked through this form.
+        $mailtask->check((int) $input['id'], UPDATE);
+        if ((int) $mailtask->fields['plugin_metademands_tasks_id'] !== (int) $task->getID()) {
+            throw new AccessDeniedHttpException();
+        }
+        if ($mailtask->update($input)) {
+            if (!isset($_POST['block_use']) || $_POST['block_use'] == '') {
+                $input['block_use'] = json_encode([]);
+            } else {
+                $input['block_use'] = json_encode($_POST['block_use']);
+            }
+            $input['id'] = $_POST['id'];
+            $input['_no_message_link'] = 0;
+            $task->update($input);
+        }
+    } else {
+        $input['id'] = $_POST['tickettask_id'];
+        // Same reasoning as the MailTask branch above.
+        $tickettask->check((int) $input['id'], UPDATE);
+        if ((int) $tickettask->fields['plugin_metademands_tasks_id'] !== (int) $task->getID()) {
+            throw new AccessDeniedHttpException();
+        }
+        if ($tickettask->isMandatoryField($input) && $tickettask->update($input)) {
+
+            $tasks_id = $_POST['id'];
+            $parent_task = $_POST['parent_tasks_id'] ?? 0;
+            unset($input['content']);
+            if (!isset($_POST['block_use']) || $_POST['block_use'] == '') {
+                $input['block_use'] = json_encode([]);
+            } else {
+                $input['block_use'] = json_encode($_POST['block_use']);
+            }
+
+            if ($parent_task > 0) {
+                $parenttask = new Task();
+                $parenttask->getFromDB($parent_task);
+                $input['level'] = $parenttask->fields['level'] + 1;
+            } else {
+                $input['plugin_metademands_tasks_id'] = 0;
+                $input['level'] = 1;
+            }
+
+            $input['name'] = $_POST['name'];
+            $input['formatastable'] = $_POST['formatastable'];
+            $input['useBlock'] = $_POST['useBlock'];
+            $input['block_parent_ticket_resolution'] = $_POST['block_parent_ticket_resolution'];
+            $input['id'] = $tasks_id;
+            $input['plugin_metademands_tasks_id'] = $parent_task;
+            if (!empty($input)) {
+                $task->update($input);
+            }
+        }
+    }
+
+    Html::back();
+} elseif (isset($_POST["purge"])) {
+    // Deletion right, bound to the posted row rather than to a new id.
+    $task->check((int) $_POST['id'], DELETE);
+    $task->delete($_POST);
+    Html::back();
+}

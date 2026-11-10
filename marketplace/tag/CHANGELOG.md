@@ -1,0 +1,146 @@
+# Change Log
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](http://keepachangelog.com/)
+and this project adheres to [Semantic Versioning](http://semver.org/).
+
+## [2.14.7] - 2026-08-11
+
+### Fixed
+
+- Avoid a per-tag database lookup when rendering the tag column in item lists
+- Ignore submitted tags that are not visible in the user entities when saving an item
+
+## [2.14.6] - 2026-08-04
+
+### Fixed
+
+- Harden tag input handling and rendering across a few endpoints and templates
+- Fix massive update of associated item types when GLPI provides a scalar value
+- Allow selecting multiple associated item types in massive updates
+
+## [2.14.5] - 2026-06-25
+
+### Fixed
+
+- Clear twig cache on install
+
+## [2.14.4] - 2026-06-24
+
+### Fixed
+
+- Fix tag search
+- Fix `webapplication` plugin integration
+- Prevent SQL error when column `name` not exist from `Item_Device`
+- Prevent the tag field from appearing in the satisfaction survey.
+- Fix display translations
+- Removed tag rights during plugin uninstall
+- Fix tag dropdown to allow tag creation directly from the field
+
+## [2.14.3] - 2025-12-22
+
+### Fixed
+
+- Fix tag search
+- Fix quote display in tag destination field strategy labels
+
+## [2.14.2] - 2025-12-02
+
+### Fixed
+
+- Improve tag handling: correctly add, update, and remove tags
+
+## [2.14.1] - 2025-11-20
+
+### Fixed
+
+- Improve tag handling: correctly add, update, and remove tags
+
+## [2.14.0] - 2025-11-13
+
+### Fixed
+
+- Fix menu icon
+- Fix dropdown UI
+- Fix get linked items (move `glpi_computers_items` to `glpi_assets_assets_peripheralassets`)
+- Fig tag entity display
+
+### Added
+
+- Add `External Event` for associated item types
+- Implement `Tag` question type for new GLPI forms
+- Implement `Tag` config field for ITIL form destinations
+
+## [2.13.0] - 2025-09-30
+
+### Added
+
+- GLPI 11 compatibility
+
+## [2.12.5] - 2025-09-29
+
+### Fixed
+
+- Fix the addition of tag via rules when users in different time zones are notified during ticket creation (#273)
+
+## [2.12.4] - 2025-08-22
+
+### Fixed
+
+- Prevents FormCreator from deleting tags added via rules
+
+## [2.12.3] - 2025-06-17
+
+### Fixed
+
+- Fix the addition of tag from a rule when updating actors only
+- Fix the addition of multiple tags via rules
+
+## [2.12.2] - 2025-02-19
+
+### Fixed
+
+- Apply `tag`  based on rules in all cases (for example: the user is self-service)
+- Preventing the addition of tags to objects without creation rights
+- See tag only on active itemtypes
+
+## [2.12.1] - 2024-10-24
+
+### Fixed
+
+- Fix error message in search : "Unknown column 'is_active'" (#207)
+
+## [2.12.0] - 2024-10-16
+
+### Added
+
+- Enable/disable a tag (#204)
+- Allow to modify tag when itil object is closed
+
+### Fixed
+
+- Fix tag from cron
+
+## [2.6.0]
+
+### Added
+
+- Show tags on Kanban view.
+
+## [2.5.0]
+
+### Added
+
+- Add right management - Please review plugin rights after update.
+
+
+## [0.90-1.1] - 2016
+
+### Added
+
+- First version only for 0.90 : this version check version 0.90 on install
+- Important fix for datainjection : can use Tag and datainjection in the same GLPI
+- Add support of datainjection : Can import Tags, with the fields : name, color in format #hex (#aaaaaa)
+- Filter tags by type menu -> filter tags by itemtype(s)
+- Few fixes foe 0.90

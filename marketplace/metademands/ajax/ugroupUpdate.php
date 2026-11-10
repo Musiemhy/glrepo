@@ -1,0 +1,194 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * metademands plugin for GLPI
+ * Copyright (C) 2018-2026 by the metademands Development Team.
+ *
+ * https://github.com/InfotelGLPI/metademands
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of metademands.
+ *
+ * metademands is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * metademands is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use GlpiPlugin\Metademands\Config;
+use GlpiPlugin\Metademands\Field;
+use GlpiPlugin\Metademands\FieldParameter;
+use GlpiPlugin\Metademands\Fields\Dropdownobject;
+use GlpiPlugin\Metademands\Metademand;
+use GlpiPlugin\Metademands\Wizard;
+
+$AJAX_INCLUDE = 1;
+if (strpos($_SERVER['PHP_SELF'], "ugroupUpdate.php")) {
+    header("Content-Type: text/html; charset=UTF-8");
+    Html::header_nocache();
+}
+
+// Page guard. Gate on the same rights as the wizard entry point
+// (front/wizard.form.php), the only way in to this route, exactly as the already
+// hardened siblings ulocationUpdate.php, umanagerUpdate.php and utooltipUpdate.php
+// do. The checks further down protect the requester personal data per user; they
+// do not gate the profile allowed to run this route at all.
+Session::checkSeveralRightsOr([
+    'plugin_metademands' => READ,
+    'plugin_metademands_createmeta' => READ,
+    'plugin_metademands_fillform' => READ,
+]);
+
+// PII guard: only derive data from another user's groups when the caller may read that
+// user — prevents enumeration by id. The criterion itself lives in the helper shared by
+// the whole u*Update.php family; the closure only adds the shape checks this endpoint
+// needs, users_id being posted rather than read from a typed parameter.
+$md_can_read_target_user = static function (): bool {
+    if (!isset($_POST['users_id']) || is_array($_POST['users_id'])) {
+        return false;
+    }
+    $uid = (int) $_POST['users_id'];
+    if ($uid <= 0) {
+        return false;
+    }
+    if ($uid === (int) Session::getLoginUserID()) {
+        return true;
+    }
+    return Config::canCurrentUserViewRequester($uid);
+};
+
+if (!isset($_POST['fieldname'])) {
+    $_POST['fieldname'] = "field";
+}
+
+$fieldGroup = new Field();
+$fieldparameter = new FieldParameter();
+$cond       = [];
+
+if (!isset($_POST['fieldname'])) {
+    $_POST['fieldname'] = "field";
+}
+
+//Update donc $_POST['field'] doesn't exist
+if (isset($_POST['id_fielduser']) && $_POST["id_fielduser"] > 0) {
+    if (!isset($_POST['field'])) {
+
+        if ($fields = $fieldGroup->find(['type' => "dropdown_object",
+            'plugin_metademands_metademands_id' => $_POST['metademands_id'],
+            'item'                              => Group::getType()])) {
+            foreach ($fields as $field) {
+                if ($fieldparameter->getFromDBByCrit(['plugin_metademands_fields_id' => $field['id'],
+                    'link_to_user' => $_POST['id_fielduser']])) {
+                    $id             = $field['id'];
+                    $_POST["field"] = $_POST['fieldname'] . "[$id]";
+                    $fieldGroup->getFromDB($fieldparameter->fields['plugin_metademands_fields_id']);
+                    $_POST["fields_id"] = $id;
+                }
+            }
+        }
+    } else {
+        if (isset($_SESSION['plugin_metademands'][$_POST['metademands_id']]['fields'][$_POST['id_fielduser']])) {
+            $_POST['users_id'] = $_SESSION['plugin_metademands'][$_POST['metademands_id']]['fields'][$_POST['id_fielduser']];
+        }
+
+        $fieldGroup->getFromDB($_POST['fields_id']);
+        $fieldparameter->getFromDBByCrit(['plugin_metademands_fields_id' => $_POST['fields_id']]);
+        $name = $_POST['field'];
+    }
+
+    if (!empty($fieldparameter->fields['custom']) && isset($_POST["users_id"]) && $md_can_read_target_user()) {
+
+        $condition = ['is_requester' => 1] + getEntitiesRestrictCriteria(Group::getTable(), '', '', true);
+        $group_user_data = Group_User::getUserGroups($_POST["users_id"], $condition);
+
+        $requester_groups = [];
+        foreach ($group_user_data as $groups) {
+            $requester_groups[] = $groups['id'];
+        }
+
+        $options = FieldParameter::_unserialize($fieldparameter->fields['custom']);
+
+        foreach ($options as $type_group => $values) {
+            if ($type_group != 'user_group') {
+                $cond[$type_group] = $values;
+            } else {
+                if (count($requester_groups) > 0) {
+                    $cond["`glpi_groups`.`id`"] = $requester_groups;
+                }
+            }
+        }
+    }
+}
+
+unset($cond['user_group']);
+//chercher les champs de la meta avec param : updatefromthisfield
+$val = 0;
+if (isset($_POST['users_id']) && !is_array($_POST["users_id"]) && $_POST["users_id"] > 0
+    && isset($_POST['id_fielduser']) && $_POST["id_fielduser"] > 0) {
+    $user = new User();
+    if ($user->getFromDB($_POST["users_id"]) && $md_can_read_target_user()) {
+        $val = Field::getUserGroup(
+            $_SESSION['glpiactiveentities'],
+            $_POST["users_id"],
+            $cond,
+            true,
+        );
+    }
+}
+
+if (isset($_POST['fields_id'])
+    && isset($_SESSION['plugin_metademands'][$_POST['metademands_id']]['fields'][$_POST['fields_id']])) {
+    $val = $_SESSION['plugin_metademands'][$_POST['metademands_id']]['fields'][$_POST['fields_id']];
+}
+
+
+if (isset($_POST['groups_id']) && $_POST['groups_id'] > 0) {
+    $val = $_POST['groups_id'];
+}
+
+if (is_array($val)) {
+    $val = 0;
+}
+
+// [S3] Normalize the reflected form field name: it is echoed back as the name attribute
+// of the dropdown rendered below (shared rule for the whole u*Update.php family).
+$_POST['field'] = Config::normalizePostedFieldName($_POST['field'] ?? '');
+
+$rand = mt_rand();
+$opt  = ['name'      => $_POST['field'],
+    'entity'    => $_SESSION['glpiactiveentities'],
+    'value'     => $val,
+    'condition' => $cond,
+    'rand'      => $rand,
+    'width' => '200px',
+];
+
+if (isset($_POST["is_mandatory"]) && $_POST['is_mandatory'] == 1) {
+    $opt['specific_tags'] = ['required' => 'required'];
+}
+
+Group::dropdown($opt);
+
+$_POST['name'] = "group_user" . $_POST["id_fielduser"] . $_POST['fields_id'];
+$_POST['rand'] = $rand;
+
+Ajax::commonDropdownUpdateItem($_POST);
+$metademands = new Metademand();
+$metademands->getFromDB($_POST['metademands_id']);
+$metaconditionsparams = Wizard::getConditionsParams($metademands);
+$data['id'] = $_POST['fields_id'];
+$data['item'] = Group::getType();
+$data['plugin_metademands_metademands_id'] = $_POST['metademands_id'];
+Dropdownobject::checkConditions($data, $metaconditionsparams);

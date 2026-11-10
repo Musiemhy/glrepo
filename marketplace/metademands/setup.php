@@ -1,0 +1,315 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * metademands plugin for GLPI
+ * Copyright (C) 2018-2026 by the metademands Development Team.
+ *
+ * https://github.com/InfotelGLPI/metademands
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of metademands.
+ *
+ * metademands is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * metademands is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use Glpi\Form\ServiceCatalog\HomeSearchManager;
+use Glpi\Form\ServiceCatalog\ServiceCatalogManager;
+use Glpi\Helpdesk\Tile\TilesManager;
+use Glpi\Plugin\Hooks;
+use GlpiPlugin\Metademands\Basketobject;
+use GlpiPlugin\Metademands\BasketobjectTranslation;
+use GlpiPlugin\Metademands\Basketobjecttype;
+use GlpiPlugin\Metademands\BasketobjecttypeTranslation;
+use GlpiPlugin\Metademands\Export;
+use GlpiPlugin\Metademands\Form as MetaForm;
+use Glpi\Form\Form;
+use GlpiPlugin\Metademands\Form\MetademandProvider;
+use GlpiPlugin\Metademands\Helpdesk\Tile\MetademandPageTile;
+use GlpiPlugin\Metademands\Interticketfollowup;
+use GlpiPlugin\Metademands\Menu;
+use GlpiPlugin\Metademands\Field;
+use GlpiPlugin\Metademands\FieldTranslation;
+use GlpiPlugin\Metademands\Metademand;
+use GlpiPlugin\Metademands\MetademandTranslation;
+use GlpiPlugin\Metademands\Metademand_Resource;
+use GlpiPlugin\Metademands\MetademandValidation;
+use GlpiPlugin\Metademands\Profile;
+use GlpiPlugin\Metademands\Servicecatalog;
+use GlpiPlugin\Metademands\Stepform;
+use GlpiPlugin\Metademands\Ticket;
+use GlpiPlugin\Metademands\Ticket_Metademand;
+use GlpiPlugin\Metademands\TicketField;
+use GlpiPlugin\Resources\ContractType;
+use GlpiPlugin\Resources\Resource;
+
+use function Safe\define;
+
+define('PLUGIN_METADEMANDS_VERSION', '3.6.13');
+
+global $CFG_GLPI;
+
+
+if (!defined("PLUGIN_METADEMANDS_DIR")) {
+    define("PLUGIN_METADEMANDS_DIR", Plugin::getPhpDir("metademands"));
+    $root = $CFG_GLPI['root_doc'] . '/plugins/metademands';
+    define("PLUGIN_METADEMANDS_WEBDIR", $root);
+}
+
+include_once PLUGIN_METADEMANDS_DIR . "/vendor/autoload.php";
+
+// Init the hooks of the plugins -Needed
+function plugin_init_metademands()
+{
+    global $PLUGIN_HOOKS;
+
+    // Register custom service catalog content provider
+    $service_catalog_manager = ServiceCatalogManager::getInstance();
+    $service_catalog_manager->registerPluginProvider(new MetademandProvider());
+    // Register custom home page search provider
+    $home_manager = HomeSearchManager::getInstance();
+    $home_manager->registerPluginProvider(new MetademandProvider());
+
+    $tiles_manager = TilesManager::getInstance();
+    $tiles_manager->registerPluginTileType(new MetademandPageTile());
+
+    $PLUGIN_HOOKS[Hooks::CHANGE_PROFILE]['metademands'] = [Profile::class, 'initProfile'];
+    $PLUGIN_HOOKS[Hooks::ADD_JAVASCRIPT]['metademands'] = ['scripts/metademands.js', 'scripts/metademands_freelines.js', 'scripts/dropdownobject_linked_text_fields.js', 'scripts/wizard_form.js', 'scripts/dropdownmeta_device.js'];
+    $PLUGIN_HOOKS[Hooks::ADD_CSS]['metademands'] = ['css/metademands.css'];
+    //    $PLUGIN_HOOKS['add_css']['metademands'] = ['css/range.scss'];
+    // add minidashboard
+    $PLUGIN_HOOKS[Hooks::DASHBOARD_CARDS]['metademands'] = 'plugin_metademands_hook_dashboard_cards';
+
+    $PLUGIN_HOOKS[Hooks::USE_MASSIVE_ACTION]['metademands'] = 1;
+    $_SESSION["glpi_plugin_metademands_loaded"] = 0;
+
+    if (Session::getLoginUserID()) {
+        $PLUGIN_HOOKS[Hooks::ADD_JAVASCRIPT]['metademands'][] = 'lib/fuse.js';
+        $PLUGIN_HOOKS[Hooks::ADD_JAVASCRIPT]['metademands'][] = 'lib/diacritics.js';
+        $PLUGIN_HOOKS[Hooks::ADD_JAVASCRIPT]['metademands'][] = 'lib/md_fuzzysearch.js';
+        //        $PLUGIN_HOOKS["javascript"]['metademands'] = [PLUGIN_METADEMANDS_WEBDIR . "/lib/fuse.js"];
+        //        $PLUGIN_HOOKS["javascript"]['metademands'] = [PLUGIN_METADEMANDS_WEBDIR . "/lib/fuzzysearch.js.php"];
+
+        if (isset($_SESSION['glpiactiveprofile']['interface'])
+            && $_SESSION['glpiactiveprofile']['interface'] == 'central') {
+            $PLUGIN_HOOKS[Hooks::ADD_JAVASCRIPT]['metademands'][] = "scripts/plugin_metademands_sortable.js";
+            $PLUGIN_HOOKS[Hooks::ADD_JAVASCRIPT]['metademands'][] = "scripts/fieldoption_valuetocheck.js";
+        }
+
+        Plugin::registerClass(Metademand::class, ['addtabon' => 'Ticket']);
+        Plugin::registerClass(MetaForm::class, ['addtabon' => ['Ticket', 'Problem', 'Change', 'User']]);
+        Plugin::registerClass(Profile::class, ['addtabon' => 'Profile']);
+        Plugin::registerClass(Metademand_Resource::class, ['addtabon' => ContractType::class]);
+
+        Plugin::registerClass(
+            MetademandTranslation::class,
+            ['addtabon' => [Metademand::class]],
+        );
+        Plugin::registerClass(
+            BasketobjectTranslation::class,
+            ['addtabon' => [Basketobject::class]],
+        );
+        Plugin::registerClass(
+            BasketobjecttypeTranslation::class,
+            ['addtabon' => [Basketobjecttype::class]],
+        );
+
+        Plugin::registerClass(
+            Interticketfollowup::class,
+            ['notificationtemplates_types' => true],
+        );
+        Plugin::registerClass(
+            Stepform::class,
+            ['notificationtemplates_types' => true],
+        );
+        $PLUGIN_HOOKS['item_show']['metademands'] = [
+            Resource::class
+                => [Metademand_Resource::class, 'redirectFormForResource'],
+        ];
+        $PLUGIN_HOOKS[Hooks::ITEM_EMPTY]['metademands'] = [
+            'Ticket'
+                => [Ticket::class, 'emptyTicket'],
+        ];
+
+        $PLUGIN_HOOKS[Hooks::PRE_ITEM_PURGE]['metademands'] = [
+            'Profile'
+                => [Profile::class, 'purgeProfiles'],
+            'Ticket' => 'plugin_metademands_item_purge',
+            'TicketTemplateMandatoryField'
+                => [TicketField::class, 'post_delete_mandatoryField'],
+            'TicketTemplatePredefinedField'
+                => [TicketField::class, 'post_delete_predefinedField'],
+        ];
+
+        $PLUGIN_HOOKS[Hooks::ITEM_UPDATE]['metademands'] = [
+            'Ticket'
+                => [Ticket::class, 'post_update_ticket'],
+            'ITILCategory'
+                => [TicketField::class, 'update_category_fields'],
+        ];
+
+        $PLUGIN_HOOKS[Hooks::PRE_ITEM_UPDATE]['metademands'] = [
+            'Ticket'
+                => [Ticket::class, 'pre_update_ticket'],
+        ];
+
+        $PLUGIN_HOOKS[Hooks::ITEM_ADD]['metademands'] = [
+            'TicketTemplateMandatoryField'
+                => [TicketField::class, 'post_add_mandatoryField'],
+            'TicketTemplatePredefinedField'
+                => [TicketField::class, 'post_add_predefinedField'],
+            'ITILCategory'
+                => [TicketField::class, 'update_category_fields'],
+            'Ticket'
+                => [Ticket::class, 'post_add_ticket'],
+        ];
+
+        $PLUGIN_HOOKS[Hooks::PRE_ITEM_ADD]['metademands'] = [
+            'Ticket'
+                => [Ticket::class, 'pre_add_ticket'],
+            Ticket_Metademand::class
+            => [Ticket_Metademand::class, 'post_add_ticket'],
+            // In GLPI 11 a solution is a separate ITILSolution created BEFORE the
+            // parent ticket flips to SOLVED, so blocking the ticket status update
+            // alone no longer prevents the solution from being persisted. Abort
+            // the solution creation itself when child tickets are still open.
+            'ITILSolution'
+                => [Ticket::class, 'pre_add_solution'],
+        ];
+
+        $PLUGIN_HOOKS[Hooks::ITEM_TRANSFER]['metademands'] = 'plugin_item_transfer_metademands';
+
+        if (Session::haveRight("plugin_metademands", READ)
+            || Session::haveRight('plugin_metademands_createmeta', READ)) {
+            $PLUGIN_HOOKS[Hooks::MENU_TOADD]['metademands'] = [
+                'helpdesk' => Menu::class,
+                'management' => Basketobject::class,
+            ];
+        }
+
+        if (Session::haveRight("plugin_metademands", READ)
+            && !Plugin::isPluginActive('servicecatalog')
+            && !Session::haveRight("plugin_metademands_in_menu", READ)) {
+            $PLUGIN_HOOKS[Hooks::HELPDESK_MENU_ENTRY]['metademands'] = PLUGIN_METADEMANDS_WEBDIR . '/front/wizard.form.php';
+            $PLUGIN_HOOKS[Hooks::HELPDESK_MENU_ENTRY_ICON]['metademands'] = Metademand::getIcon();
+        }
+
+        if (!isset($_SESSION["plugin_metademands_on_login_loaded"])
+            || (isset($_SESSION["plugin_metademands_on_login_loaded"])
+            && $_SESSION["plugin_metademands_on_login_loaded"] == 0)) {
+            if (Session::getCurrentInterface() == "helpdesk"
+                && Session::haveRight('plugin_metademands_on_login', READ)) {
+                $_SESSION["plugin_metademands_on_login_loaded"] = 1;
+                //                Html::redirect(PLUGIN_METADEMANDS_WEBDIR . '/front/wizard.form.php');
+
+
+                Html::redirect(PLUGIN_METADEMANDS_WEBDIR . '/front/wizard.form.php');
+                exit();
+
+            }
+        }
+
+        if (isset($_SESSION["plugin_metademands_on_login_loaded"])
+            && $_SESSION["plugin_metademands_on_login_loaded"] == 1
+            && isset($_SESSION['glpiactiveprofile']['interface'])
+                && $_SESSION['glpiactiveprofile']['interface'] == 'helpdesk') {
+            if (str_contains($_SERVER['REQUEST_URI'], "create_ticket")
+                || str_contains($_SERVER['REQUEST_URI'], "Helpdesk")
+                || str_contains($_SERVER['REQUEST_URI'], "ServiceCatalog")) {
+                Html::redirect(PLUGIN_METADEMANDS_WEBDIR . '/front/wizard.form.php');
+                exit();
+            }
+        }
+        // END TEST Redirect
+
+        if (Session::haveRight("config", UPDATE)) {
+            $PLUGIN_HOOKS[Hooks::CONFIG_PAGE]['metademands'] = 'front/config.form.php';
+        }
+
+        // Template
+        $PLUGIN_HOOKS['tickettemplate']['metademands'] = [Ticket::class, 'getAllowedFields'];
+
+        // Rule
+        $PLUGIN_HOOKS[Hooks::USE_RULES]['metademands'] = ['RuleTicket'];
+
+        // Notifications
+        $PLUGIN_HOOKS[Hooks::ITEM_GET_DATA]['metademands'] = [
+            'NotificationTargetTicket'
+                => [Ticket::class, 'addNotificationDatas'],
+        ];
+
+        if (Plugin::isPluginActive('servicecatalog')) {
+            $PLUGIN_HOOKS['servicecatalog']['metademands'] = [Servicecatalog::class];
+        }
+
+        $PLUGIN_HOOKS['plugin_datainjection_populate']['metademands'] = 'plugin_datainjection_populate_basketobjects';
+
+        Plugin::registerClass(Export::class, ['addtabon' => Form::class]);
+    }
+
+    $PLUGIN_HOOKS[Hooks::TIMELINE_ACTIONS]['metademands'] = [
+        MetademandValidation::class,
+        'showActionsForm',
+    ];
+
+    //Add another actions into answer
+    $PLUGIN_HOOKS[Hooks::TIMELINE_ANSWER_ACTIONS]['metademands'] = [
+        Interticketfollowup::class,
+        'addToTimeline',
+    ];
+    $PLUGIN_HOOKS[Hooks::TIMELINE_ITEMS]['metademands'] = [
+        Interticketfollowup::class,
+        'getlistItems',
+    ];
+}
+
+/**
+ * Get the name and the version of the plugin - Needed
+ *e
+ * @return array
+ */
+function plugin_version_metademands()
+{
+    return [
+        'name' => _n('Meta-Demand', 'Meta-Demands', 2, 'metademands'),
+        'version' => PLUGIN_METADEMANDS_VERSION,
+        'author' => "<a href='https://blogglpi.infotel.com'>Infotel</a>, Xavier CAILLAUD",
+        'license' => 'GPLv3+',
+        'homepage' => 'https://github.com/InfotelGLPI/metademands',
+        'requirements' => [
+            'glpi' => [
+                'min' => '11.0',
+                'max' => '12.0',
+                'dev' => false,
+            ],
+        ],
+    ];
+}
+
+/**
+ * @return bool
+ */
+function plugin_metademands_check_prerequisites()
+{
+    if (!is_readable(__DIR__ . '/vendor/autoload.php')
+        || !is_file(__DIR__ . '/vendor/autoload.php')) {
+        echo "Run composer install --no-dev in the plugin directory<br>";
+        return false;
+    }
+
+    return true;
+}

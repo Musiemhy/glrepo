@@ -1,0 +1,1034 @@
+<?php
+
+include('../../../inc/includes.php');
+
+Session::checkLoginUser();
+
+if (!Session::haveRight('ticket', READ)) {
+    Html::displayErrorAndDie(__('You do not have permission to view ticket data.'));
+}
+
+require_once __DIR__ . '/../inc/menu.class.php';
+
+global $DB, $CFG_GLPI;
+
+/*
+ * ============================================================
+ * User Performance KPI Dashboard
+ * GLPI 11.0.9 compatible
+ * ============================================================
+ */
+
+$date_from = isset($_GET['date_from']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date_from'])
+    ? $_GET['date_from']
+    : date('Y-m-01');
+
+$date_to = isset($_GET['date_to']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date_to'])
+    ? $_GET['date_to']
+    : date('Y-m-d');
+
+$group_id = isset($_GET['group_id']) ? (int)$_GET['group_id'] : 0;
+$user_id = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
+$category_id = isset($_GET['category_id']) ? (int)$_GET['category_id'] : 0;
+$status = isset($_GET['status']) ? (int)$_GET['status'] : -1;
+$priority = isset($_GET['priority']) ? (int)$_GET['priority'] : -1;
+
+/*
+ * Make end date exclusive.
+ */
+$date_to_exclusive = date(
+    'Y-m-d',
+    strtotime($date_to . ' +1 day')
+);
+
+/*
+ * ------------------------------------------------------------
+ * Determine technicians belonging to selected group.
+ * ------------------------------------------------------------
+ */
+$group_user_ids = [];
+
+if ($group_id > 0) {
+    $group_users = $DB->request([
+        'SELECT' => 'users_id',
+        'FROM'   => 'glpi_groups_users',
+        'WHERE'  => [
+            'groups_id' => $group_id
+        ]
+    ]);
+
+    foreach ($group_users as $group_user) {
+        $group_user_ids[] = (int)$group_user['users_id'];
+    }
+
+    /*
+     * No users in selected group => no KPI records.
+     */
+    if (!$group_user_ids) {
+        $group_user_ids = [-1];
+    }
+}
+
+/*
+ * ------------------------------------------------------------
+ * Main ticket/technician query.
+ *
+ * No raw SQL is passed to DB->request().
+ * ------------------------------------------------------------
+ */
+
+$criteria = [
+    'SELECT' => [
+        'glpi_users' => [
+            'id',
+            'firstname',
+            'realname'
+        ],
+        'glpi_tickets' => [
+            'id',
+            'name',
+            'type',
+            'status',
+            'priority',
+            'itilcategories_id',
+            'date',
+            'solvedate',
+            'closedate',
+            'time_to_resolve'
+        ]
+    ],
+
+    'FROM' => 'glpi_tickets_users',
+
+    'INNER JOIN' => [
+        'glpi_users' => [
+            'ON' => [
+                'glpi_tickets_users' => 'users_id',
+                'glpi_users' => 'id'
+            ]
+        ],
+
+        'glpi_tickets' => [
+            'ON' => [
+                'glpi_tickets_users' => 'tickets_id',
+                'glpi_tickets' => 'id'
+            ]
+        ]
+    ],
+
+    'WHERE' => [
+        'glpi_tickets_users.type' => 2,
+        'glpi_tickets.is_deleted' => 0,
+        'glpi_tickets.date' => [
+            '>=',
+            $date_from . ' 00:00:00'
+        ],
+
+        [
+            'glpi_tickets.date' => [
+                '<',
+                $date_to_exclusive . ' 00:00:00'
+            ]
+        ]
+    ]
+];
+
+/*
+ * Technician filter.
+ */
+if ($user_id > 0) {
+    $criteria['WHERE']['glpi_users.id'] = $user_id;
+} elseif ($group_id > 0) {
+    $criteria['WHERE']['glpi_users.id'] = $group_user_ids;
+}
+
+/*
+ * Category filter.
+ */
+if ($category_id > 0) {
+    $criteria['WHERE']['glpi_tickets.itilcategories_id'] = $category_id;
+}
+
+/*
+ * Status filter.
+ */
+if ($status >= 0) {
+    $criteria['WHERE']['glpi_tickets.status'] = $status;
+}
+
+/*
+ * Priority filter.
+ */
+if ($priority >= 0) {
+    $criteria['WHERE']['glpi_tickets.priority'] = $priority;
+}
+
+$ticket_iterator = $DB->request($criteria);
+
+/*
+ * ------------------------------------------------------------
+ * Build technician KPI structure.
+ * ------------------------------------------------------------
+ */
+
+$rows = [];
+
+$ticket_keys = [];
+
+foreach ($ticket_iterator as $ticket) {
+
+    $uid = (int)$ticket['glpi_users.id'];
+    $ticket_id = (int)$ticket['glpi_tickets.id'];
+
+    $firstname = $ticket['glpi_users.firstname'] ?? '';
+    $realname  = $ticket['glpi_users.realname'] ?? '';
+
+    $technician = trim($firstname . ' ' . $realname);
+
+    if ($technician === '') {
+        $technician = '(No name)';
+    }
+
+    if (!isset($rows[$uid])) {
+        $rows[$uid] = [
+            'user_id'          => $uid,
+            'technician'       => $technician,
+            'assigned_tickets' => 0,
+            'resolved_closed'  => 0,
+            'pending'          => 0,
+            'processing'       => 0,
+            'new_tickets'      => 0,
+            'written_tickets'  => 0,
+            'followups'        => 0,
+            'sla_breaches'     => 0,
+            'sla_eligible'     => 0,
+            'resolution_rate'  => 0,
+            'sla_compliance'   => null,
+            'avg_ttr_hours'    => null,
+            'avg_tto_minutes'  => null,
+
+            '_ttr_minutes'     => [],
+            '_tto_minutes'     => [],
+            '_ticket_ids'      => []
+        ];
+    }
+
+    /*
+     * Prevent duplicate assignment records.
+     */
+    $ticket_key = $uid . ':' . $ticket_id;
+
+    if (isset($ticket_keys[$ticket_key])) {
+        continue;
+    }
+
+    $ticket_keys[$ticket_key] = true;
+
+    $rows[$uid]['assigned_tickets']++;
+    $rows[$uid]['_ticket_ids'][] = $ticket_id;
+
+    $ticket_status = (int)$ticket['glpi_tickets.status'];
+
+    /*
+     * GLPI ticket status:
+     *
+     * 1 = New
+     * 2 = Processing (assigned)
+     * 3 = Pending
+     * 4 = Planning
+     * 5 = Solved
+     * 6 = Closed
+     */
+
+    switch ($ticket_status) {
+        case 1:
+            $rows[$uid]['new_tickets']++;
+            break;
+
+        case 2:
+            $rows[$uid]['processing']++;
+            break;
+
+        case 3:
+            $rows[$uid]['pending']++;
+            break;
+
+        case 5:
+        case 6:
+            $rows[$uid]['resolved_closed']++;
+            break;
+    }
+
+    /*
+     * SLA eligibility.
+     */
+    $time_to_resolve = $ticket['glpi_tickets.time_to_resolve'];
+
+    if (!empty($time_to_resolve)) {
+
+        $rows[$uid]['sla_eligible']++;
+
+        $solvedate = $ticket['glpi_tickets.solvedate'];
+
+        $breached = false;
+
+        if (!empty($solvedate)) {
+            $breached = strtotime($solvedate) > strtotime($time_to_resolve);
+        } else {
+            $breached = time() > strtotime($time_to_resolve);
+        }
+
+        if ($breached) {
+            $rows[$uid]['sla_breaches']++;
+        }
+    }
+
+    /*
+     * TTR.
+     */
+    $opened = $ticket['glpi_tickets.date'];
+    $solved = $ticket['glpi_tickets.solvedate'];
+
+    if (!empty($opened) && !empty($solved)) {
+        $minutes = (strtotime($solved) - strtotime($opened)) / 60;
+
+        if ($minutes >= 0) {
+            $rows[$uid]['_ttr_minutes'][] = $minutes;
+        }
+    }
+
+    /*
+     * Store technician-ticket relationship.
+     */
+    $ticket_keys[$ticket_key] = true;
+}
+
+/*
+ * ------------------------------------------------------------
+ * Retrieve follow-ups for assigned tickets.
+ * ------------------------------------------------------------
+ */
+
+$all_ticket_ids = [];
+
+foreach ($rows as $row) {
+    foreach ($row['_ticket_ids'] as $ticket_id) {
+        $all_ticket_ids[] = $ticket_id;
+    }
+}
+
+$all_ticket_ids = array_values(array_unique($all_ticket_ids));
+
+if ($all_ticket_ids) {
+
+    $followup_iterator = $DB->request([
+        'SELECT' => [
+            'glpi_itilfollowups' => [
+                'id',
+                'items_id',
+                'users_id',
+                'date'
+            ]
+        ],
+
+        'FROM' => 'glpi_itilfollowups',
+
+        'WHERE' => [
+            'itemtype' => 'Ticket',
+            'items_id' => $all_ticket_ids
+        ]
+    ]);
+
+    /*
+     * Map ticket -> technician(s).
+     */
+    $ticket_technicians = [];
+
+    foreach ($rows as $uid => $row) {
+        foreach ($row['_ticket_ids'] as $ticket_id) {
+            $ticket_technicians[$ticket_id][] = $uid;
+        }
+    }
+
+    $first_response = [];
+
+    foreach ($followup_iterator as $followup) {
+
+        $ticket_id = (int)$followup['glpi_itilfollowups.items_id'];
+        $followup_user_id = (int)$followup['glpi_itilfollowups.users_id'];
+        $followup_date = $followup['glpi_itilfollowups.date'];
+
+        /*
+         * Only count follow-ups written by the technician.
+         */
+        if (
+            !isset($ticket_technicians[$ticket_id])
+            || !in_array($followup_user_id, $ticket_technicians[$ticket_id], true)
+        ) {
+            continue;
+        }
+
+        if (!isset($rows[$followup_user_id])) {
+            continue;
+        }
+
+        $rows[$followup_user_id]['followups']++;
+
+        /*
+         * A ticket is considered "written" once the technician
+         * has written at least one follow-up.
+         */
+        $written_key = $followup_user_id . ':' . $ticket_id;
+
+        if (!isset($first_response[$written_key])) {
+            $first_response[$written_key] = $followup_date;
+
+            $rows[$followup_user_id]['written_tickets']++;
+        } else {
+            if (strtotime($followup_date) < strtotime($first_response[$written_key])) {
+                $first_response[$written_key] = $followup_date;
+            }
+        }
+    }
+
+    /*
+     * Calculate TTO using first technician response.
+     */
+    foreach ($first_response as $key => $response_date) {
+
+        [$uid, $ticket_id] = explode(':', $key, 2);
+
+        $uid = (int)$uid;
+        $ticket_id = (int)$ticket_id;
+
+        /*
+         * Retrieve ticket opening date.
+         */
+        $ticket_request = $DB->request([
+            'SELECT' => [
+                'date'
+            ],
+            'FROM' => 'glpi_tickets',
+            'WHERE' => [
+                'id' => $ticket_id
+            ],
+            'LIMIT' => 1
+        ]);
+
+        $ticket_data = $ticket_request->current();
+
+        if (!$ticket_data) {
+            continue;
+        }
+
+        if (!empty($ticket_data['date']) && !empty($response_date)) {
+
+            $minutes = (strtotime($response_date) - strtotime($ticket_data['date'])) / 60;
+
+            if ($minutes >= 0) {
+                $rows[$uid]['_tto_minutes'][] = $minutes;
+            }
+        }
+    }
+}
+
+/*
+ * ------------------------------------------------------------
+ * Final KPI calculations.
+ * ------------------------------------------------------------
+ */
+
+foreach ($rows as &$row) {
+
+    $row['resolution_rate'] = $row['assigned_tickets'] > 0
+        ? round(
+            100 * $row['resolved_closed'] / $row['assigned_tickets'],
+            2
+        )
+        : 0;
+
+    $row['sla_compliance'] = $row['sla_eligible'] > 0
+        ? round(
+            100 * (
+                $row['sla_eligible'] - $row['sla_breaches']
+            ) / $row['sla_eligible'],
+            2
+        )
+        : null;
+
+    if ($row['_ttr_minutes']) {
+        $row['avg_ttr_hours'] = round(
+            array_sum($row['_ttr_minutes'])
+            / count($row['_ttr_minutes'])
+            / 60,
+            2
+        );
+    }
+
+    if ($row['_tto_minutes']) {
+        $row['avg_tto_minutes'] = round(
+            array_sum($row['_tto_minutes'])
+            / count($row['_tto_minutes']),
+            2
+        );
+    }
+
+    unset($row['_ttr_minutes']);
+    unset($row['_tto_minutes']);
+    unset($row['_ticket_ids']);
+}
+
+unset($row);
+
+$rows = array_values($rows);
+
+/*
+ * Sort technicians.
+ */
+usort($rows, static function ($a, $b) {
+
+    if ($a['resolved_closed'] !== $b['resolved_closed']) {
+        return $b['resolved_closed'] <=> $a['resolved_closed'];
+    }
+
+    if ($a['assigned_tickets'] !== $b['assigned_tickets']) {
+        return $b['assigned_tickets'] <=> $a['assigned_tickets'];
+    }
+
+    return strcasecmp(
+        $a['technician'],
+        $b['technician']
+    );
+});
+
+/*
+ * ------------------------------------------------------------
+ * Overall totals.
+ * ------------------------------------------------------------
+ */
+
+$totals = [
+    'assigned_tickets' => 0,
+    'resolved_closed'  => 0,
+    'pending'          => 0,
+    'processing'       => 0,
+    'new_tickets'      => 0,
+    'written_tickets'  => 0,
+    'followups'        => 0,
+    'sla_breaches'     => 0,
+    'sla_eligible'     => 0
+];
+
+$ttr_values = [];
+$tto_values = [];
+
+foreach ($rows as $row) {
+
+    foreach ($totals as $key => $_) {
+        $totals[$key] += (int)$row[$key];
+    }
+
+    if ($row['avg_ttr_hours'] !== null) {
+        $ttr_values[] = (float)$row['avg_ttr_hours'];
+    }
+
+    if ($row['avg_tto_minutes'] !== null) {
+        $tto_values[] = (float)$row['avg_tto_minutes'];
+    }
+}
+
+$overall_resolution = $totals['assigned_tickets'] > 0
+    ? round(
+        100 * $totals['resolved_closed']
+        / $totals['assigned_tickets'],
+        2
+    )
+    : 0;
+
+$overall_sla = $totals['sla_eligible'] > 0
+    ? round(
+        100 * (
+            $totals['sla_eligible']
+            - $totals['sla_breaches']
+        ) / $totals['sla_eligible'],
+        2
+    )
+    : 0;
+
+$avg_ttr = $ttr_values
+    ? round(array_sum($ttr_values) / count($ttr_values), 2)
+    : 0;
+
+$avg_tto = $tto_values
+    ? round(array_sum($tto_values) / count($tto_values), 2)
+    : 0;
+
+/*
+ * ------------------------------------------------------------
+ * Filter lists.
+ * ------------------------------------------------------------
+ */
+
+    'SELECT' => [
+        'id',
+        'name'
+    ],
+    'FROM' => 'glpi_groups',
+    'WHERE' => [
+        'is_deleted' => 0
+    ],
+    'ORDER' => 'name'
+]);$groups = $DB->request([
+    'SELECT' => [
+        'id',
+        'name'
+    ],
+    'FROM' => 'glpi_groups',
+    'ORDER' => 'name'
+]);
+
+$users = $DB->request([
+    'SELECT' => [
+        'id',
+        'firstname',
+        'realname'
+    ],
+    'FROM' => 'glpi_users',
+    'WHERE' => [
+        'is_deleted' => 0
+    ],
+    'ORDER' => [
+        'realname',
+        'firstname'
+    ]
+]);
+
+$categories = $DB->request([
+    'SELECT' => [
+        'id',
+        'completename'
+    ],
+    'FROM' => 'glpi_itilcategories',
+    'WHERE' => [
+        'is_deleted' => 0
+    ],
+    'ORDER' => 'completename'
+]);
+
+/*
+ * ------------------------------------------------------------
+ * Display
+ * ------------------------------------------------------------
+ */
+
+Html::header(
+    __('User Performance KPI', 'userperformance'),
+    '',
+    'tools',
+    'PluginUserperformanceMenu'
+);
+
+?>
+
+<link
+    rel="stylesheet"
+    href="<?= htmlspecialchars(
+        $CFG_GLPI['root_doc']
+    ) ?>/plugins/userperformance/css/dashboard.css"
+>
+
+<div class="up-container">
+
+    <div class="up-header">
+
+        <div>
+            <h1>
+                <?= htmlspecialchars(
+                    __('User Performance KPI', 'userperformance')
+                ) ?>
+            </h1>
+
+            <p>
+                <?= htmlspecialchars(
+                    __('Comparison of technician workload, productivity, responsiveness and SLA indicators.')
+                ) ?>
+            </p>
+        </div>
+
+        <div class="up-actions">
+
+            <a
+                class="up-btn"
+                href="<?= htmlspecialchars(
+                    $CFG_GLPI['root_doc']
+                ) ?>/plugins/userperformance/front/export.php?<?= htmlspecialchars(
+                    http_build_query($_GET)
+                ) ?>"
+            >
+                CSV Export
+            </a>
+
+            <button
+                class="up-btn"
+                onclick="window.print()"
+            >
+                Print / PDF
+            </button>
+
+        </div>
+
+    </div>
+
+    <form method="get" class="up-filters">
+
+        <label>
+            From
+            <input
+                type="date"
+                name="date_from"
+                value="<?= htmlspecialchars($date_from) ?>"
+            >
+        </label>
+
+        <label>
+            To
+            <input
+                type="date"
+                name="date_to"
+                value="<?= htmlspecialchars($date_to) ?>"
+            >
+        </label>
+
+        <label>
+            Technician
+
+            <select name="user_id">
+
+                <option value="0">All</option>
+
+                <?php foreach ($users as $u): ?>
+
+                    <option
+                        value="<?= (int)$u['id'] ?>"
+                        <?= $user_id == $u['id'] ? 'selected' : '' ?>
+                    >
+                        <?= htmlspecialchars(
+                            trim(
+                                ($u['firstname'] ?? '')
+                                . ' '
+                                . ($u['realname'] ?? '')
+                            )
+                        ) ?>
+                    </option>
+
+                <?php endforeach; ?>
+
+            </select>
+
+        </label>
+
+        <label>
+            Group
+
+            <select name="group_id">
+
+                <option value="0">All</option>
+
+                <?php foreach ($groups as $g): ?>
+
+                    <option
+                        value="<?= (int)$g['id'] ?>"
+                        <?= $group_id == $g['id'] ? 'selected' : '' ?>
+                    >
+                        <?= htmlspecialchars($g['name']) ?>
+                    </option>
+
+                <?php endforeach; ?>
+
+            </select>
+
+        </label>
+
+        <label>
+            Category
+
+            <select name="category_id">
+
+                <option value="0">All</option>
+
+                <?php foreach ($categories as $c): ?>
+
+                    <option
+                        value="<?= (int)$c['id'] ?>"
+                        <?= $category_id == $c['id'] ? 'selected' : '' ?>
+                    >
+                        <?= htmlspecialchars($c['completename']) ?>
+                    </option>
+
+                <?php endforeach; ?>
+
+            </select>
+
+        </label>
+
+        <label>
+            Status
+
+            <select name="status">
+
+                <option value="-1">All</option>
+
+                <option value="1" <?= $status === 1 ? 'selected' : '' ?>>
+                    New
+                </option>
+
+                <option value="2" <?= $status === 2 ? 'selected' : '' ?>>
+                    Processing
+                </option>
+
+                <option value="3" <?= $status === 3 ? 'selected' : '' ?>>
+                    Pending
+                </option>
+
+                <option value="4" <?= $status === 4 ? 'selected' : '' ?>>
+                    Planning
+                </option>
+
+                <option value="5" <?= $status === 5 ? 'selected' : '' ?>>
+                    Solved
+                </option>
+
+                <option value="6" <?= $status === 6 ? 'selected' : '' ?>>
+                    Closed
+                </option>
+
+            </select>
+
+        </label>
+
+        <label>
+            Priority
+
+            <select name="priority">
+
+                <option value="-1">All</option>
+
+                <?php foreach (
+                    [
+                        1 => 'Very Low',
+                        2 => 'Low',
+                        3 => 'Medium',
+                        4 => 'High',
+                        5 => 'Very High',
+                        6 => 'Major'
+                    ] as $pid => $pname
+                ): ?>
+
+                    <option
+                        value="<?= $pid ?>"
+                        <?= $priority === $pid ? 'selected' : '' ?>
+                    >
+                        <?= htmlspecialchars($pname) ?>
+                    </option>
+
+                <?php endforeach; ?>
+
+            </select>
+
+        </label>
+
+        <button
+            class="up-btn up-primary"
+            type="submit"
+        >
+            Apply
+        </button>
+
+    </form>
+
+    <div class="up-cards">
+
+        <?php
+
+        $cards = [
+            ['Assigned', $totals['assigned_tickets']],
+            ['Resolved / Closed', $totals['resolved_closed']],
+            ['Written / Follow-ups', $totals['written_tickets']],
+            ['Resolution Rate', $overall_resolution . '%'],
+            ['SLA Compliance', $overall_sla . '%'],
+            ['SLA Breaches', $totals['sla_breaches']],
+            ['Avg. TTO', $avg_tto . ' min'],
+            ['Avg. TTR', $avg_ttr . ' hrs']
+        ];
+
+        foreach ($cards as $card):
+
+        ?>
+
+            <div class="up-card">
+
+                <div class="up-card-label">
+                    <?= htmlspecialchars($card[0]) ?>
+                </div>
+
+                <div class="up-card-value">
+                    <?= htmlspecialchars((string)$card[1]) ?>
+                </div>
+
+            </div>
+
+        <?php endforeach; ?>
+
+    </div>
+
+    <div class="up-panel">
+
+        <h2>Technician Comparison</h2>
+
+        <div class="up-table-wrap">
+
+            <table class="up-table">
+
+                <thead>
+
+                    <tr>
+                        <th>Technician</th>
+                        <th>Assigned</th>
+                        <th>Resolved/Closed</th>
+                        <th>Pending</th>
+                        <th>Processing</th>
+                        <th>New</th>
+                        <th>Written</th>
+                        <th>Resolution %</th>
+                        <th>SLA Breaches</th>
+                        <th>SLA %</th>
+                        <th>TTO (min)</th>
+                        <th>TTR (hrs)</th>
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                <?php foreach ($rows as $r): ?>
+
+                    <tr>
+
+                        <td>
+                            <?= htmlspecialchars(
+                                $r['technician']
+                            ) ?>
+                        </td>
+
+                        <td>
+                            <?= (int)$r['assigned_tickets'] ?>
+                        </td>
+
+                        <td>
+                            <?= (int)$r['resolved_closed'] ?>
+                        </td>
+
+                        <td>
+                            <?= (int)$r['pending'] ?>
+                        </td>
+
+                        <td>
+                            <?= (int)$r['processing'] ?>
+                        </td>
+
+                        <td>
+                            <?= (int)$r['new_tickets'] ?>
+                        </td>
+
+                        <td>
+                            <?= (int)$r['written_tickets'] ?>
+                        </td>
+
+                        <td>
+                            <?= htmlspecialchars(
+                                (string)$r['resolution_rate']
+                            ) ?>%
+                        </td>
+
+                        <td>
+                            <?= (int)$r['sla_breaches'] ?>
+                        </td>
+
+                        <td>
+
+                            <?=
+                                $r['sla_compliance'] === null
+                                ? 'N/A'
+                                : htmlspecialchars(
+                                    (string)$r['sla_compliance']
+                                ) . '%'
+                            ?>
+
+                        </td>
+
+                        <td>
+
+                            <?=
+                                $r['avg_tto_minutes'] === null
+                                ? 'N/A'
+                                : htmlspecialchars(
+                                    (string)$r['avg_tto_minutes']
+                                )
+                            ?>
+
+                        </td>
+
+                        <td>
+
+                            <?=
+                                $r['avg_ttr_hours'] === null
+                                ? 'N/A'
+                                : htmlspecialchars(
+                                    (string)$r['avg_ttr_hours']
+                                )
+                            ?>
+
+                        </td>
+
+                    </tr>
+
+                <?php endforeach; ?>
+
+                <?php if (!$rows): ?>
+
+                    <tr>
+                        <td
+                            colspan="12"
+                            class="up-empty"
+                        >
+                            No data found for the selected filters.
+                        </td>
+                    </tr>
+
+                <?php endif; ?>
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+    <div class="up-note">
+
+        <strong>Evaluation note:</strong>
+
+        This dashboard provides comparable operational indicators
+        including workload, productivity, responsiveness and SLA
+        compliance. It does not assign an overall performance score.
+
+    </div>
+
+</div>
+
+<?php
+
+Html::footer();
+
+

@@ -1,0 +1,168 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# Xavier CAILLAUD <thetsmr@gmail.com>, 2026
+# DWXXX, 2026
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-06-24 09:22+0200\n"
+"PO-Revision-Date: 2026-05-22 06:32+0000\n"
+"Last-Translator: DWXXX, 2026\n"
+"Language-Team: English (United Kingdom) (https://app.transifex.com/pluginsGLPI/teams/73419/en_GB/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: en_GB\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: templates/config.html.twig:51
+msgid "Allow Transfer function"
+msgstr "Allow Transfer function"
+
+#: templates/config.html.twig:67
+msgid "Assigned group required"
+msgstr "Assigned group required"
+
+#: src/Profile.php:124
+msgid "Authorized entity transfer"
+msgstr "Authorized entity transfer"
+
+#: src/Ticket.php:582
+msgid ""
+"Category will be set to null but its configured as mandatory in GLPIs "
+"template, please contact your administrator."
+msgstr ""
+"Category will be set to null but its configured as mandatory in GLPIs "
+"template, please contact your administrator."
+
+#: templates/ticket.html.twig:147
+msgid "Confirm"
+msgstr "Confirm"
+
+#: templates/config.html.twig:109
+msgid "Default category"
+msgstr "Default category"
+
+#: templates/ticket.html.twig:119
+msgid "Justification"
+msgstr "Justification"
+
+#: templates/config.html.twig:74
+msgid "Justification required"
+msgstr "Justification required"
+
+#: templates/config.html.twig:81
+msgid "Keep category after transfer"
+msgstr "Keep category after transfer"
+
+#: src/Ticket.php:168
+msgid "No entity available found, transfer impossible."
+msgstr "No entity available found, transfer impossible."
+
+#: ajax/showentitygroups.php:60
+msgid ""
+"No group found with « Assigned to » right while a group is required. "
+"Transfer impossible."
+msgstr ""
+"No group found with « Assigned to » right while a group is required. "
+"Transfer impossible."
+
+#: templates/ticket.html.twig:51
+msgid ""
+"Once the transfer has been completed, the ticket will remain visible only if"
+" you have the required rights."
+msgstr ""
+"Once the transfer has been completed, the ticket will remain visible only if"
+" you have the required rights."
+
+#: src/Ticket.php:480
+msgid "Please explain your transfer"
+msgstr "Please explain your transfer"
+
+#: front/ticket.form.php:43 src/Ticket.php:526
+msgid "Please select a valid entity"
+msgstr "Please select a valid entity"
+
+#: src/Ticket.php:497 src/Ticket.php:538
+msgid "Please select a valid group"
+msgstr "Please select a valid group"
+
+#: templates/config.html.twig:142 templates/profile.html.twig:36
+msgctxt "button"
+msgid "Save"
+msgstr "Save"
+
+#: templates/ticket.html.twig:106
+msgid "Select the group to assign"
+msgstr "Select the group to assign"
+
+#: templates/ticket.html.twig:56
+msgid "Select ticket entity to transfer"
+msgstr "Select ticket entity to transfer"
+
+#: templates/config.html.twig:42
+msgid "Settings Transfer Ticket Entity"
+msgstr "Settings Transfer Ticket Entity"
+
+#: src/Ticket.php:672
+msgid "Successful transfer for ticket"
+msgstr "Successful transfer for ticket"
+
+#: front/entity.form.php:56 templates/config.html.twig:133
+msgid ""
+"The category is mandatory in the ticket template assigned to the entity"
+msgstr ""
+"The category is mandatory in the ticket template assigned to the entity"
+
+#: src/Entity.php:161 src/Profile.php:75 src/Ticket.php:397
+msgid "Transfer Ticket Entity"
+msgstr "Transfer Ticket Entity"
+
+#: src/Profile.php:131
+msgid ""
+"Transfer authorized without assignment of technician or associated group"
+msgstr ""
+"Transfer authorized without assignment of technician or associated group"
+
+#: templates/config.html.twig:91
+msgid "Transfer log type"
+msgstr "传输日志类型"
+
+#: templates/ticket.html.twig:44
+msgid "Transfer the ticket"
+msgstr "Transfer the ticket"
+
+#: src/Ticket.php:637
+msgid "Transfer to"
+msgstr "传输到"
+
+#: src/Ticket.php:179
+msgid "Unauthorized transfer on closed ticket."
+msgstr "Unauthorized transfer on closed ticket."
+
+#: templates/ticket.html.twig:139
+msgid ""
+"Warning, category will be reset if it does not exist in the target entity."
+msgstr ""
+"Warning, category will be reset if it does not exist in the target entity."
+
+#: src/Ticket.php:158
+msgid ""
+"You don't have right to update tickets. Please contact your administrator."
+msgstr ""
+"You don't have right to update tickets. Please contact your administrator."
+
+#: src/Ticket.php:146 src/Ticket.php:514
+msgid "You must be assigned to the ticket to be able to transfer it"
+msgstr "You must be assigned to the ticket to be able to transfer it"
+
+#: src/Ticket.php:642
+msgid "in the group"
+msgstr "in the group"

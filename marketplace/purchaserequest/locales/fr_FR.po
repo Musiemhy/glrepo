@@ -1,0 +1,328 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+# Translators:
+# Xavier CAILLAUD <thetsmr@gmail.com>, 2026
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-10-02 10:16+0000\n"
+"PO-Revision-Date: 2021-05-27 08:40+0000\n"
+"Last-Translator: Xavier CAILLAUD <thetsmr@gmail.com>, 2026\n"
+"Language-Team: French (France) (https://app.transifex.com/infotelGLPI/"
+"teams/121073/fr_FR/)\n"
+"Language: fr_FR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n == 0 || n == 1) ? 0 : n != 0 && n % "
+"1000000 == 0 ? 1 : 2;\n"
+
+#: templates/pr_validation.html.twig:51
+#: templates/validation_showvalidation.html.twig:39
+msgid "Accept purchase request"
+msgstr "Valider la demande d'achat"
+
+#: templates/threshold.html.twig:51 templates/pr_add.html.twig:43
+msgctxt "button"
+msgid "Add"
+msgstr "Ajouter"
+
+#: templates/pr_add.html.twig:33
+msgid "Add a purchase request"
+msgstr "Ajouter une demande d'achat"
+
+#: src/PurchaseRequest.php:782 src/PurchaseRequest.php:987
+#: src/PurchaseRequest.php:1353 src/NotificationTargetPurchaseRequest.php:80
+#: src/NotificationTargetPurchaseRequest.php:188
+#: templates/pr_fields.html.twig:106
+msgid "Amount"
+msgstr "Montant"
+
+#: templates/pr_validation.html.twig:62 templates/pr_validation.html.twig:88
+#: templates/validation_showvalidation.html.twig:50
+msgid "Approval comments"
+msgstr "Commentaires de validation"
+
+#: templates/pr_validation.html.twig:37
+msgid "Approval requester"
+msgstr "Demandeur de la validation"
+
+#: templates/validation_for_order.html.twig:51
+#: templates/pr_order_list.html.twig:49
+msgid "Approval status"
+msgstr "Statut de la validation"
+
+#: src/Validation.php:589
+msgid "Approvals for the purchase request"
+msgstr "Validations de la demande d'achat"
+
+#: templates/pr_validation.html.twig:41
+#: templates/validation_for_order.html.twig:50
+#: templates/pr_order_list.html.twig:48
+msgid "Approver"
+msgstr "Valideur"
+
+#: src/NotificationTargetPurchaseRequest.php:380
+msgid "Author of the purchase request"
+msgstr "Auteur de la demande d'achat"
+
+#: templates/order_list_actions.html.twig:30
+msgid "Check all"
+msgstr "Tout cocher"
+
+#: templates/config.html.twig:35
+msgid "Configuration purchase request"
+msgstr "Configurer la demande d'achat"
+
+#: src/PurchaseRequest.php:1553
+msgid "Delete link to order"
+msgstr "Supprimer le lien à la commande"
+
+#: templates/pr_fields.html.twig:74
+msgid "Description"
+msgstr "Description"
+
+#: templates/pr_validation.html.twig:34
+msgid "Do you approve this purchase request ?"
+msgstr "Validez-vous la demande d'achat ?"
+
+#: src/PurchaseRequest.php:884 src/PurchaseRequest.php:1351
+#: src/NotificationTargetPurchaseRequest.php:95
+#: src/NotificationTargetPurchaseRequest.php:184
+#: templates/pr_fields.html.twig:98 templates/validation_for_order.html.twig:48
+#: templates/pr_order_list.html.twig:46
+msgid "Due date"
+msgstr "Date d'échéance"
+
+#: src/NotificationTargetPurchaseRequest.php:190
+msgid "Editor of validation"
+msgstr "Editeur de la validation"
+
+#: templates/config.html.twig:41
+msgid "General Services Manager"
+msgstr "Responsable des services généraux"
+
+#: src/PurchaseRequest.php:233 src/PurchaseRequest.php:283
+#: src/Threshold.php:150
+msgid "Invalid item type."
+msgstr "Type d'objet invalide."
+
+#: src/Validation.php:147
+msgid "Invalid purchase request."
+msgstr "Demande d'achat invalide."
+
+#: templates/pr_fields.html.twig:82 templates/validation_for_order.html.twig:46
+#: templates/pr_order_list.html.twig:44
+msgid "Item type"
+msgstr "Type d'objet"
+
+#: src/PurchaseRequest.php:1552
+msgid "Link to an order"
+msgstr "Lier à une commande"
+
+#: templates/pr_fields.html.twig:112
+msgid "Linked to the order"
+msgstr "Liée à la commande"
+
+#: templates/pr_fields.html.twig:116
+msgid "Linked to ticket"
+msgstr "Liée au ticket"
+
+#: templates/pr_fields.html.twig:66 templates/validation_for_order.html.twig:44
+#: templates/pr_order_list.html.twig:42
+msgid "Location"
+msgstr "Lieu"
+
+#: templates/pr_fields.html.twig:34 templates/pr_fields.html.twig:36
+#: templates/validation_for_order.html.twig:41
+#: templates/pr_order_list.html.twig:39
+msgid "Name"
+msgstr "Nom"
+
+#: templates/requester_group.html.twig:31
+msgid "No groups for this user"
+msgstr "Pas de groupes pour cet utilisateur"
+
+#: templates/validation_summary.html.twig:62
+#: templates/validation_for_order.html.twig:33
+#: templates/pr_order_list.html.twig:29
+msgid "No results found"
+msgstr "Pas de résultats trouvés"
+
+#: hook.php:263
+msgctxt "quantity"
+msgid "Number of purchase request"
+msgstr "Nombre de demande d'achats"
+
+#: front/config.form.php:60
+msgid "Please activate the plugin"
+msgstr "S’il vous plaît activer le plugin"
+
+#: front/purchaserequest.php:64 front/validation.form.php:88
+#: front/purchaserequest.form.php:126
+msgid "Please activate the plugin order"
+msgstr "Merci d'activer le plugin gestion de commandes"
+
+#: src/Config.php:65
+msgid "Plugin setup"
+msgstr "Configuration du plugin"
+
+#: templates/order_list_actions.html.twig:38
+#: templates/massive_action_subform.html.twig:35
+msgctxt "button"
+msgid "Post"
+msgstr "Envoyer"
+
+#: setup.php:120 src/PurchaseRequest.php:95 src/Profile.php:60
+#: src/Profile.php:117
+msgid "Purchase request"
+msgid_plural "Purchase requests"
+msgstr[0] "Demande d'achat"
+msgstr[1] "Demande d'achats"
+msgstr[2] "Demande d'achats"
+
+#: src/NotificationTargetPurchaseRequest.php:130
+msgid "Purchase request canceled"
+msgstr "Demande d'achat annulée"
+
+#: src/NotificationTargetPurchaseRequest.php:126
+msgid "Purchase request is validated"
+msgstr "La demande d’achat est validée"
+
+#: src/PurchaseRequestState.php:40 hook.php:164
+msgid "Purchase request status"
+msgstr "Statut de la demande d'achat"
+
+#: src/NotificationTargetPurchaseRequest.php:56
+#: src/NotificationTargetPurchaseRequest.php:122 src/Profile.php:123
+msgid "Purchase request validation"
+msgstr "Validation de la demande d'achat"
+
+#: src/Threshold.php:77 templates/threshold.html.twig:33
+#: templates/threshold.html.twig:37 templates/threshold.html.twig:42
+msgid "Purchase threshold"
+msgid_plural "Purchase thresholds"
+msgstr[0] "Seuil d'achat"
+msgstr[1] "Seuils d'achat"
+msgstr[2] "Seuils d'achat"
+
+#: src/NotificationTargetPurchaseRequest.php:55
+msgid "Refusal of validation request"
+msgstr "Refus de la demande de validation"
+
+#: templates/pr_validation.html.twig:57
+#: templates/validation_showvalidation.html.twig:45
+msgid "Refuse purchase request"
+msgstr "Refuser la demande d'achat"
+
+#: src/NotificationTargetPurchaseRequest.php:54
+msgid "Request for validation of the purchase request"
+msgstr "Demande de validation de la demande d’achat"
+
+#: templates/pr_fields.html.twig:44 templates/pr_fields.html.twig:62
+#: templates/validation_for_order.html.twig:42
+#: templates/pr_order_list.html.twig:40
+msgid "Requester"
+msgstr "Demandeur"
+
+#: templates/pr_fields.html.twig:60 templates/pr_fields.html.twig:63
+#: templates/validation_for_order.html.twig:43
+#: templates/pr_order_list.html.twig:41
+msgid "Requester group"
+msgstr "Groupe demandeur"
+
+#: templates/profile.html.twig:34 templates/config.html.twig:47
+#: templates/threshold.html.twig:56
+msgctxt "button"
+msgid "Save"
+msgstr "Sauvegarder"
+
+#: src/Servicecatalog.php:199
+msgid "See your purchase requests to validate"
+msgstr "Voir les demandes d’achat à valider"
+
+#: templates/pr_fields.html.twig:70 templates/validation_for_order.html.twig:45
+#: templates/pr_order_list.html.twig:43
+msgid "Status"
+msgstr "Statut"
+
+#: templates/pr_validation.html.twig:47 templates/pr_validation.html.twig:75
+#: templates/validation_showvalidation.html.twig:35
+msgid "Status of the approval request"
+msgstr "Statut de la demande de validation"
+
+#: src/PurchaseRequest.php:996 src/PurchaseRequest.php:1354
+#: src/NotificationTargetPurchaseRequest.php:83
+#: src/NotificationTargetPurchaseRequest.php:189
+#: templates/pr_fields.html.twig:108
+msgid "To be rebilled to the customer"
+msgstr "A refacturer au client"
+
+#: src/PurchaseRequest.php:467 src/PurchaseRequest.php:783
+#: templates/pr_fields.html.twig:100
+msgid "To be validated by"
+msgstr "A valider par"
+
+#: templates/pr_fields.html.twig:123
+msgid "Treated"
+msgstr "Traité"
+
+#: src/PurchaseRequest.php:969 src/PurchaseRequest.php:1352
+#: templates/pr_fields.html.twig:125
+#: templates/validation_for_order.html.twig:49
+#: templates/pr_order_list.html.twig:47
+msgid "Treated on"
+msgstr "Traité le"
+
+#: templates/pr_fields.html.twig:96 templates/validation_for_order.html.twig:47
+#: templates/pr_order_list.html.twig:45
+msgid "Type"
+msgstr "Type"
+
+#: templates/order_list_actions.html.twig:32
+msgid "Uncheck all"
+msgstr "Tout décocher"
+
+#: src/PurchaseRequest.php:1556
+msgid "Validate purchasing requests"
+msgstr "Valider les demandes d'achats"
+
+#: src/Servicecatalog.php:66 src/Servicecatalog.php:68
+#: src/Servicecatalog.php:77
+msgid "Validate your purchase requests"
+msgstr "Valider vos demandes d’achat"
+
+#: templates/pr_fields.html.twig:40
+msgid "Validated by"
+msgstr "Validé par"
+
+#: src/Validation.php:66
+msgid "Validation"
+msgid_plural "Validations"
+msgstr[0] "Validation"
+msgstr[1] "Validations"
+msgstr[2] "Validations"
+
+#: src/NotificationTargetPurchaseRequest.php:379
+msgid "Validator of the purchase request"
+msgstr "Valideur de la demande d'achat"
+
+#: src/PurchaseRequest.php:309 src/PurchaseRequest.php:691
+#: src/Validation.php:207 src/Validation.php:225
+msgid "You are not allowed to approve or refuse this purchase request."
+msgstr ""
+"Vous n'êtes pas autorisé à approuver ou à refuser cette demande d'achat."
+
+#: src/Servicecatalog.php:204
+#, php-format
+msgid "You have %d purchase request to validate !"
+msgid_plural "You have %d purchase requests to validate !"
+msgstr[0] "Vous avez %d demande d'achat à valider !"
+msgstr[1] "Vous avez %d demandes d'achats à valider !"
+msgstr[2] "Vous avez %d demandes d'achats à valider !"

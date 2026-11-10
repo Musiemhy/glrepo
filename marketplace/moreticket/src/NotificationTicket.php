@@ -1,0 +1,164 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * moreticket plugin for GLPI
+ * Copyright (C) 2015-2026 by the moreticket Development Team.
+ *
+ * https://github.com/InfotelGLPI/moreticket
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of moreticket.
+ *
+ * moreticket is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * moreticket is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with moreticket. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Moreticket;
+
+use CommonDBTM;
+use ITILFollowup;
+use Ticket_User;
+
+if (!defined('GLPI_ROOT')) {
+    die("Sorry. You can't access directly to this file");
+}
+
+/**
+ * Class NotificationTicket
+ */
+class NotificationTicket extends CommonDBTM
+{
+    use ParentTicketRights;
+
+    public static $types     = ['Ticket'];
+    public $dohistory = true;
+    public static $rightname = "plugin_moreticket";
+
+    /**
+     * @param \Ticket $ticket
+     */
+    public static function afterAddTicket(\Ticket $ticket)
+    {
+        $notification = new NotificationTicket();
+        if (!$notification->getFromDBByCrit(['tickets_id' => $ticket->getID()])) {
+            $notification->add(
+                [
+                    'tickets_id'           => $ticket->getID(),
+                    'users_id_lastupdater' => $ticket->getField('users_id_lastupdater'),
+                ],
+            );
+        } else {
+            $notification->update(
+                [
+                    'id'                   => $notification->getID(),
+                    'tickets_id'           => $ticket->getID(),
+                    'users_id_lastupdater' => $ticket->getField('users_id_lastupdater'),
+                ],
+            );
+        }
+    }
+
+    /**
+     * @param \Ticket $ticket
+     */
+    public static function afterUpdateTicket(\Ticket $ticket)
+    {
+        $notification = new NotificationTicket();
+        if (!$notification->getFromDBByCrit(['tickets_id' => $ticket->getID()])) {
+            $notification->add(
+                [
+                    'tickets_id'           => $ticket->getID(),
+                    'users_id_lastupdater' => $ticket->getField('users_id_lastupdater'),
+                ],
+            );
+        } else {
+            $notification->update(
+                [
+                    'id'                   => $notification->getID(),
+                    'tickets_id'           => $ticket->getID(),
+                    'users_id_lastupdater' => $ticket->getField('users_id_lastupdater'),
+                ],
+            );
+        }
+    }
+
+    /**
+     * @param \ITILFollowup $followup
+     *
+     * @return bool
+     */
+    public static function afterAddFollowup(ITILFollowup $followup)
+    {
+        global $DB;
+        // !$x == 'Ticket' reads as (!$x) == 'Ticket', which is always false: the guard
+        // let every followup through, whatever its item. Compare the value itself, the
+        // way Ticket::afterAddFollowupTech() does.
+        if ($followup->getField('itemtype') !== \Ticket::class) {
+            return false;
+        }
+
+        $notification = new NotificationTicket();
+        $ticket       = new \Ticket();
+        $ticket->getFromDB($followup->getField('items_id'));
+        if ($ticket->getID() > 0) {
+            if (!$notification->getFromDBByCrit(['tickets_id' => $ticket->getID()])) {
+                $notification->add(
+                    [
+                        'tickets_id'           => $ticket->getID(),
+                        'users_id_lastupdater' => $ticket->getField('users_id_lastupdater'),
+                    ],
+                );
+            } else {
+                $notification->update(
+                    [
+                        'id'                   => $notification->getID(),
+                        'tickets_id'           => $ticket->getID(),
+                        'users_id_lastupdater' => $ticket->getField('users_id_lastupdater'),
+                    ],
+                );
+            }
+        }
+    }
+
+    public static function getSpecificValueToDisplay($field, $values, array $options = [])
+    {
+
+        if (!is_array($values)) {
+            $values = [$field => $values];
+        }
+        switch ($field) {
+            case 'users_id_lastupdater':
+                $res         = " ";
+                $ticketUsers = new Ticket_User();
+                //            if ($values['users_id_lastupdater'] != Session::getLoginUserID()) {
+                //               if ($ticketUsers->getFromDBByCrit(['tickets_id' => $values['tickets_id'],
+                //                                                  'users_id' => $values['users_id_lastupdater'],
+                //                                                  'type' => Ticket_User::REQUESTER])) {
+                //                  if (!$ticketUsers->getFromDBByCrit(['tickets_id' => $values['tickets_id'],
+                //                                                      'users_id' => $values['users_id_lastupdater'],
+                //                                                      'type' => Ticket_User::ASSIGN])) {
+                $res = "<i class='itilstatus ti ti-bell waiting'></i>";
+                //                  }
+                //               }
+                //            }
+
+                return $res;
+                break;
+        }
+        return parent::getSpecificValueToDisplay($field, $values, $options);
+    }
+}

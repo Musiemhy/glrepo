@@ -1,0 +1,214 @@
+/*!
+ * -------------------------------------------------------------------------
+ * manageentities plugin for GLPI
+ * Copyright (C) 2017-2026 by the manageentities Development Team.
+ *
+ * https://github.com/InfotelGLPI/manageentities
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of manageentities.
+ *
+ * manageentities is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * manageentities is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with manageentities. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+.tab_cadre_me {
+   /*font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;*/
+   border-collapse: collapse;
+   width: 95%;
+}
+
+.tab_cadre_me td, .tab_cadre_me th {
+   border: 1px solid #ddd;
+   padding: 8px;
+}
+
+.tab_cadre_me tr:nth-child(even){
+   /*background-color: #f2f2f2;*/
+}
+
+.tab_cadre_me th {
+   padding-top: 12px;
+   padding-bottom: 12px;
+   text-align: left;
+   /*background-color: #00507B;*/
+   /*color: white;*/
+}
+
+.plugin_manageentities_tab_cadre_fixe {
+   margin: 0 auto;
+   -moz-border-radius: 4px;
+   -webkit-border-radius: 4px;
+   border-radius: 4px;
+   border: 1px solid #d4d1ce;
+   text-align: left;
+   font-size: 11px;
+   /*background-color: #FFF;*/
+   -moz-box-shadow: 0px 0px 5px #8FBBE7;
+}
+
+.tab_cadre_fixe .styleLargeTitle, .tab_cadre_navigation_center .styleLargeTitle {
+   font-size: 18px;
+}
+
+.tab_cadre_navigation_center {
+   margin: 10px auto 5px auto;
+   padding: 4px;
+   border: 1px solid #aaaaaa;
+   background-color: #ffffff;
+   -moz-border-radius: 5px;
+   -webkit-border-radius: 5px;
+   -o-border-radius: 5px;
+   font-size: 12px;
+   font-weight: bold;
+}
+
+/*
+ * GANTT tab (Gantt::showGantt), drawn with the FullCalendar bundle of the core in its
+ * resourceTimeline view. Loaded on every page through ADD_CSS, which is what the tab
+ * needs: its own response is served by ajax/common.tabs.php, with no header to add a
+ * stylesheet to.
+ */
+.manageentities-gantt {
+   max-width: 100%;
+   text-align: left;
+   font-size: 12px;
+}
+
+.manageentities-gantt .manageentities-gantt-day,
+.manageentities-gantt .manageentities-gantt-contract {
+   border-radius: 2px;
+}
+
+/* Keep long contract names from widening the left column instead of wrapping. */
+.manageentities-gantt .fc-resource-area .fc-cell-text {
+   overflow: hidden;
+   text-overflow: ellipsis;
+   white-space: nowrap;
+}
+
+div#tabcontent {
+   width: 95%;
+   text-align: center;
+   margin: 0 auto;
+}
+
+.manageentities_button {
+   padding: 10px!important;
+}
+
+.tech-tag-div {
+   /*margin-top: -20px;*/
+   float: right;
+   min-height: 50px;
+}
+
+.tech-tag {
+   padding: 2px 16px 16px 16px;
+   height: 22px;
+   text-shadow: 1px 1px #fff;
+   /* Sits on tag.png, a light-grey sprite used by both palettes: keep the
+      label dark, otherwise --tblr-body-color turns it light and unreadable. */
+   color: #1f2937;
+   border-radius: 2px;
+   font-size: 12px;
+
+}
+
+/*
+ * Intervention-report generation dialog (opened by manageentities_loadCriForm("showCriForm", ...)
+ * through glpi_html_dialog, whose modal receives id="showCriForm"). glpi_html_dialog ignores the
+ * width/height params, so size it here: ~2x the Bootstrap default width (500px -> 1000px) and a
+ * taller body (~1.5x). The #id selector out-specifies Bootstrap's .modal-dialog rules, and
+ * max-width keeps it responsive (it still shrinks below 1000px viewports).
+ */
+#showCriForm .modal-dialog {
+   max-width: 1000px;
+}
+
+#showCriForm .modal-content {
+   min-height: 600px;
+}
+
+/*
+ * Contract-state colours (Followup) are user-configured light tints, #F2F2F2 by default.
+ * Rendered as-is they become bright bands in a dark palette, and forcing a dark text
+ * colour on the row does not reach the <a> children, which keep --tblr-link-color.
+ * The row therefore blends its configured colour into the theme surface instead. The mix
+ * is 0% in light palettes, so the colour comes out exactly as configured there.
+ */
+:root {
+   --me-state-mix: 0%;
+}
+
+:root[data-glpi-theme-dark="1"] {
+   --me-state-mix: 80%;
+}
+
+/*
+ * Caption swatches (Followup::showLegendary). The configured contract-state colour is
+ * carried by --me-state-color so the same blend as the report rows applies, and the
+ * legend keeps matching them in both palettes.
+ */
+.manageentities-legend-swatch {
+   display: inline-block;
+   width: 1rem;
+   height: 1rem;
+   border: 1px solid var(--tblr-border-color);
+   border-radius: 2px;
+   background-color: color-mix(in srgb, var(--me-state-color, transparent), var(--tblr-bg-surface) var(--me-state-mix, 0%));
+}
+
+/*
+ * Tinted rows of the reports: contract-state rows and client headings of the general
+ * follow-up (followup_report.html.twig), exceeding and to-invoice lines of the monthly one
+ * (monthly_report.html.twig). The blend is set on the cells, which Tabler paints over the row.
+ */
+.manageentities-state-row > td,
+.manageentities-state-row > th {
+   background-color: color-mix(in srgb, var(--me-state-color, transparent), var(--tblr-bg-surface) var(--me-state-mix, 0%));
+}
+
+/*
+ * "Tech lead by clients" (templates/techlead/clients_by_tech.html.twig): filter of the client
+ * lists on the "Main tech lead" column, driven by the radio buttons of the card header.
+ * The placeholder row only shows when the filter hides every client of a tech lead.
+ */
+.me-techlead-card:has(input[value="main"]:checked) tr[data-me-main="0"],
+.me-techlead-card:has(input[value="other"]:checked) tr[data-me-main="1"] {
+   display: none;
+}
+
+.me-techlead-card tr.me-techlead-filter-empty {
+   display: none;
+}
+
+.me-techlead-card:has(input[value="main"]:checked) tbody:not(:has(tr[data-me-main="1"])) tr.me-techlead-filter-empty,
+.me-techlead-card:has(input[value="other"]:checked) tbody:not(:has(tr[data-me-main="0"])) tr.me-techlead-filter-empty {
+   display: table-row;
+}
+
+/* Counts of the tech lead cards and of the unfolded lists follow the same filter */
+.me-techlead-card .me-techlead-count:not([data-me-count="all"]),
+.me-techlead-card:has(input[value="main"]:checked) .me-techlead-count[data-me-count="all"],
+.me-techlead-card:has(input[value="other"]:checked) .me-techlead-count[data-me-count="all"] {
+   display: none;
+}
+
+.me-techlead-card:has(input[value="main"]:checked) .me-techlead-count[data-me-count="main"],
+.me-techlead-card:has(input[value="other"]:checked) .me-techlead-count[data-me-count="other"] {
+   display: inline;
+}

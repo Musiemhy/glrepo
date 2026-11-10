@@ -1,0 +1,414 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# 
+# Translators:
+# Jens Hyllegaard <jens.hyllegaard@gmail.com>, 2013,2015-2016
+msgid ""
+msgstr ""
+"Project-Id-Version: GLPI Project - reports plugin\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-16 17:10+0200\n"
+"PO-Revision-Date: 2021-03-05 12:54+0000\n"
+"Last-Translator: Nelly Mahu-Lasson <nini.lasson@orange.fr>\n"
+"Language-Team: Danish (Denmark) (http://www.transifex.com/yllen/GLPI_reports/"
+"language/da_DK/)\n"
+"Language: da_DK\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: report/applicationsbylocation/applicationsbylocation.php:66
+msgid "Application"
+msgstr ""
+
+#: src/Report.php:138
+#: report/applicationsbylocation/applicationsbylocation.php:57
+msgid "Applications by locations and versions"
+msgstr ""
+
+#: src/PriorityCriteria.php:80
+msgid "At least"
+msgstr "Mindst"
+
+#: report/applicationsbylocation/applicationsbylocation.php:69
+#: report/softversioninstallations/softversioninstallations.php:69
+msgid "Computer status"
+msgstr "Computer status"
+
+#: src/DateIntervalCriteria.php:223 src/TimeIntervalCriteria.php:176
+msgid "Date interval"
+msgstr "Datointerval"
+
+#: report/histohard/histohard.php:55
+msgid "Date of inventory"
+msgstr "Dato for inventering"
+
+#: src/Report.php:147 report/licenses/licenses.php:56
+msgid "Detailed license report"
+msgstr ""
+
+#: src/Report.php:156 report/softnotinstalled/softnotinstalled.php:56
+msgid "Detailed report of software installation by status"
+msgstr ""
+
+#: report/pcsbyentity/pcsbyentity.php:287
+msgid "Display"
+msgstr "Vis"
+
+#. TRANS: The name of the report = Duplicate computers
+#: src/Report.php:139 report/doublons/doublons.php:46
+#: report/doublons/doublons.php:78 report/doublons/doublons.php:620
+msgid "Duplicate computers"
+msgstr "Duplikerede computere"
+
+#: report/pcsbyentity/pcsbyentity.php:288
+msgid "Entity tree"
+msgstr "Entitetstræ"
+
+#: src/Report.php:145 report/infocom/infocom.php:78
+msgid "Financial information"
+msgstr ""
+
+#: report/doublons/doublons.php:497
+msgid "First computer"
+msgstr "Første computer"
+
+#: src/Report.php:142 report/globalhisto/globalhisto.php:65
+msgid "Global History (for Test / example only)"
+msgstr ""
+
+#: src/Report.php:159 report/statticketsbyentity/statticketsbyentity.php:65
+msgid "Helpdesk requesters and tickets by entity"
+msgstr ""
+
+#: src/Report.php:143 report/histohard/histohard.php:46
+#: report/histohard/histohard.php:53
+msgid "History of last hardware's installations"
+msgstr "Historik for nyeste hardware installationer"
+
+#: src/Report.php:144 report/histoinst/histoinst.php:48
+#: report/histoinst/histoinst.php:55
+msgid "History of last software's installations"
+msgstr "Historik for nyeste software installationer"
+
+#: report/doublons/doublons.php:514 report/doublons/doublons.php:529
+msgid "Last inventory date"
+msgstr "Sidste inverteringsdato"
+
+#: src/Report.php:148 report/licensesexpires/licensesexpires.php:56
+msgid "Licenses by expiration date"
+msgstr ""
+
+#: report/location/location.php:59
+msgid "Link"
+msgid_plural "Links"
+msgstr[0] "Link"
+msgstr[1] "Links"
+
+#: src/Report.php:140 report/equipmentbygroups/equipmentbygroups.php:38
+msgid "List all devices of a group, ordered by users"
+msgstr ""
+
+#: src/Report.php:149
+#: report/listequipmentbylocation/listequipmentbylocation.php:52
+msgid "List of equipments by location"
+msgstr ""
+
+#: src/Report.php:150 report/listgroups/listgroups.php:52
+msgid "List of groups and members"
+msgstr ""
+
+#: src/Report.php:162 report/transferreditems/transferreditems.php:49
+msgid "List of transfered objects"
+msgstr ""
+
+#: report/listequipmentbylocation/listequipmentbylocation.php:141
+msgid "Location not selected"
+msgstr ""
+
+#: src/Report.php:151 report/location/location.php:49
+msgid "Location tree"
+msgstr ""
+
+#: report/histohard/histohard.php:59
+msgid "Modification"
+msgstr "Ændring"
+
+#: report/statticketsbyentity/statticketsbyentity.php:107
+msgid "Newer"
+msgstr "Aldrig"
+
+#: src/Profile.php:133
+msgid "No right on Assistance / Statistics"
+msgstr "Ingen rettigheder på Assistance / Statistikker"
+
+#: src/Profile.php:134
+msgid "No right on Tools / Reports"
+msgstr "Ingen rettigheder på Værktøjer / Rapporter"
+
+#: report/statusertask/statusertask.php:65
+msgid "Number created tasks"
+msgstr ""
+
+#: src/Report.php:141 report/equipmentbylocation/equipmentbylocation.php:46
+msgid "Number of equipments by location"
+msgstr ""
+
+#. TRANS: The name of the report = Number of items by entity
+#: src/Report.php:152 report/pcsbyentity/pcsbyentity.php:241
+#: report/pcsbyentity/pcsbyentity.php:250
+msgid "Number of items by entity"
+msgstr "Antal emner per entitet"
+
+#: src/TimeIntervalCriteria.php:75 src/TimeIntervalCriteria.php:84
+msgid "Number pending"
+msgstr "Antal afventende"
+
+#: report/statticketsbyentity/statticketsbyentity.php:102
+msgid "Older"
+msgstr "Ældre"
+
+#: templates/report_config.html.twig:53
+msgctxt "button"
+msgid "Post"
+msgstr ""
+
+#: src/Report.php:153 report/printers/printers.php:68
+msgid "Printers"
+msgstr ""
+
+#: src/Profile.php:130
+msgid "Profiles rights"
+msgstr ""
+
+#: front/report.form.php:93 front/report.form.php:129 src/AutoReport.php:250
+msgid "Report"
+msgstr ""
+
+#: front/report.form.php:40 front/report.form.php:127
+msgid "Reports plugin configuration"
+msgstr "Rapporter plugin konfiguration"
+
+#: front/report.form.php:128
+msgid "Rights management by report"
+msgstr "Rettighedshåndtering per rapport"
+
+#. TRANS: The name of the report = Rule's catalog
+#: src/Report.php:154 report/rules/rules.php:50 report/rules/rules.php:103
+#: report/rules/rules.php:121
+msgid "Rule's catalog"
+msgstr ""
+
+#: templates/profile.html.twig:37
+msgctxt "button"
+msgid "Save"
+msgstr ""
+
+#: src/AutoReport.php:946
+msgid "Search criteria"
+msgstr "Søgekritterie"
+
+#: src/Report.php:155 report/searchinfocom/searchinfocom.php:60
+msgid "Search in the financial information"
+msgstr ""
+
+#: report/doublons/doublons.php:498
+msgid "Second computer"
+msgstr "Anden computer"
+
+#: report/pcsbyentity/pcsbyentity.php:357
+msgid "Selection of type is mandatory"
+msgstr ""
+
+#: src/Report.php:157
+#: report/softversioninstallations/softversioninstallations.php:57
+msgid "Software version installations"
+msgstr ""
+
+#: report/softversioninstallations/softversioninstallations.php:62
+msgid "Software version status"
+msgstr "Software version status"
+
+#: report/pcsbyentity/pcsbyentity.php:291
+msgid "Sort by count"
+msgstr "Sorter efter antal"
+
+#: report/transferreditems/transferreditems.php:94
+msgid "Source entity"
+msgstr "Kildeentitet"
+
+#: report/transferreditems/transferreditems.php:95
+msgid "Target entity"
+msgstr "Målentitet"
+
+#: report/statusertask/statusertask.php:51
+msgid "Tasks created"
+msgstr ""
+
+#: src/Report.php:161 report/statusertask/statusertask.php:48
+msgid "Tasks list per user"
+msgstr ""
+
+#: report/histohard/histohard.php:204
+msgid "The list is limited to 100 items and 21 days"
+msgstr "Listen er begrænset til 100 emner og 21 dage"
+
+#: report/histoinst/histoinst.php:143
+msgid "The list is limited to 200 items and 21 days"
+msgstr "Listen er begrænset til 200 emner og 21 dage"
+
+#: report/statticketsbyentity/statticketsbyentity.php:96
+msgid "Tickets count"
+msgstr "Sagsantal"
+
+#: src/Report.php:160 report/statticketsbypriority/statticketsbypriority.php:54
+msgid "Tickets no closed, sorted by priority"
+msgstr ""
+
+#: src/Report.php:158
+#: report/statnightticketsbypriority/statnightticketsbypriority.php:54
+msgid "Tickets opened at night, sorted by priority"
+msgstr ""
+
+#: src/Report.php:146 report/iteminstall/iteminstall.php:58
+msgid "Time before equipment start-up"
+msgstr ""
+
+#: src/DateIntervalCriteria.php:225 src/TimeIntervalCriteria.php:178
+msgid "Time interval"
+msgstr "Tidsinterval"
+
+#: report/transferreditems/transferreditems.php:96
+msgid "Transfert date"
+msgstr "Overførselsdato"
+
+#: report/pcsbyentity/pcsbyentity.php:314
+#: report/pcsbyentity/pcsbyentity.php:343
+msgid "Unknown"
+msgstr "Ukendt"
+
+#: templates/report_rights.html.twig:52
+msgctxt "button"
+msgid "Update"
+msgstr ""
+
+#: report/licenses/licenses.php:75
+msgid "Used version"
+msgstr "Brugt version"
+
+#: report/statticketsbyentity/statticketsbyentity.php:90
+msgid "Users count"
+msgstr "Brugerantal"
+
+#: src/Report.php:163 report/zombies/zombies.php:71
+msgid "Users with no right"
+msgstr ""
+
+#: report/licensesexpires/licensesexpires.php:58
+msgid "Valid to"
+msgstr "Gyldig til"
+
+#: report/zombies/zombies.php:77
+msgid "With no ticket"
+msgstr "Uden nogen sager"
+
+#~ msgid "_report_title"
+#~ msgstr "Rapporter"
+
+#~ msgid "Rights management by profil"
+#~ msgstr "Rettighedshåndtering per profil"
+
+#~ msgid "Profils rights"
+#~ msgstr "Profilrettigheder"
+
+#~ msgid "applicationsbylocation_report_title"
+#~ msgstr "Programmer per lokation og version"
+
+#~ msgid "Applications"
+#~ msgstr "Programmer"
+
+#~ msgid "doublons_report_title"
+#~ msgstr "Duplikerede computere"
+
+#~ msgid "equipmentbygroups_report_title"
+#~ msgstr "Alle enheder i en gruppe, sorteret efter brugere"
+
+#~ msgid "equipmentbylocation_report_title"
+#~ msgstr "Antal udstyr per lokation"
+
+#~ msgid "globalhisto_report_title"
+#~ msgstr "Global historik (kun til test / eksempel)"
+
+#~ msgid "histohard_report_title"
+#~ msgstr "Historik for nyeste hardware installationer"
+
+#~ msgid "histoinst_report_title"
+#~ msgstr "Historik for nyeste software installationer"
+
+#~ msgid "infocom_report_title"
+#~ msgstr "Finansiel information"
+
+#~ msgid "iteminstall_report_title"
+#~ msgstr "Tid før opstart af udstyr"
+
+#~ msgid "licensesexpires_report_title"
+#~ msgstr "Licenser efter udløbsdato"
+
+#~ msgid "licenses_report_title"
+#~ msgstr "Detaljeret licensrapport"
+
+#~ msgid "listequipmentbylocation_report_title"
+#~ msgstr "Liste over udstyr per lokation"
+
+#~ msgid "listgroups_report_title"
+#~ msgstr "Liste over grupper og medlemmer"
+
+#~ msgid "location_report_title"
+#~ msgstr "Lokationstræ"
+
+#~ msgid "pcsbyentity_report_title"
+#~ msgstr "Antal emner per entitet"
+
+#~ msgid "printers_report_title"
+#~ msgstr "Printere"
+
+#~ msgid "Computers in the group"
+#~ msgstr "Computere i gruppen"
+
+#~ msgid "Users in the group"
+#~ msgstr "Brugere i gruppen"
+
+#~ msgid "Computers in the location"
+#~ msgstr "Computere på lokationen"
+
+#~ msgid "Users in the location"
+#~ msgstr "Brugere på lokationen"
+
+#~ msgid "rules_report_title"
+#~ msgstr "Regelkatalog"
+
+#~ msgid "searchinfocom_report_title"
+#~ msgstr "Søg i finansielle informationer"
+
+#~ msgid "softnotinstalled_report_title"
+#~ msgstr "Detaljeret rapport over softwareinstallationer efter status"
+
+#~ msgid "softversioninstallations_report_title"
+#~ msgstr "Ikke installeret vigtig software"
+
+#~ msgid "statnightticketsbypriority_report_title"
+#~ msgstr "Sager åbnet om aftenen, sorteret efter prioritet"
+
+#~ msgid "statticketsbyentity_report_title"
+#~ msgstr "Helpdesk forespørgere og sager efter entitet"
+
+#~ msgid "statticketsbypriority_report_title"
+#~ msgstr "Sager der ikke er lukket, sorteret efter prioritet"
+
+#~ msgid "transferreditems_report_title"
+#~ msgstr "Liste over overførte objekter"
+
+#~ msgid "zombies_report_title"
+#~ msgstr "Brugere uden rettigheder"

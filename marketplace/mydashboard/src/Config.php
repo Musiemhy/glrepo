@@ -1,0 +1,557 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * mydashboard plugin for GLPI
+ * Copyright (C) 2016-2026 by the mydashboard Development Team.
+ *
+ * https://github.com/InfotelGLPI/mydashboard
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of mydashboard.
+ *
+ * mydashboard is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * mydashboard is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with mydashboard. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Mydashboard;
+
+use CommonDBTM;
+use CommonGLPI;
+use DBConnection;
+use Glpi\Application\View\TemplateRenderer;
+use ITILCategory;
+use Migration;
+use Session;
+
+/**
+ * This class handles the general configuration of mydashboard
+ *
+ */
+class Config extends CommonDBTM
+{
+    /**
+     * @param int $nb
+     *
+     * @return translated
+     */
+    public static $rightname         = "plugin_mydashboard_config";
+    public $can_be_translated = true;
+
+    public static function getTypeName($nb = 0)
+    {
+        return __('Plugin setup', 'mydashboard');
+    }
+
+    public function getName($options = [])
+    {
+        return __('My Dashboard', 'mydashboard');
+    }
+
+
+    /**
+     * @return string
+     */
+    public static function getIcon()
+    {
+        return Menu::getIcon();
+    }
+
+    /**
+     * Config constructor.
+     */
+    public function __construct()
+    {
+        global $DB;
+
+        if ($DB->tableExists($this->getTable())) {
+            $this->getFromDB(1);
+        }
+    }
+
+    /**
+     * The impact_* colors are re-emitted verbatim inside `style` attributes, including on
+     * the anonymous login page (DISPLAY_LOGIN hook). The color picker only ever produces
+     * a hex value, so reject anything that is not a plain CSS hex color at write time to
+     * close the stored-XSS path at the source (display sites also escape, defense in depth).
+     *
+     * @param array $input
+     *
+     * @return array|false
+     */
+    public function prepareInputForUpdate($input)
+    {
+        foreach (['impact_1', 'impact_2', 'impact_3', 'impact_4', 'impact_5'] as $field) {
+            if (isset($input[$field])
+                && !preg_match('/^#[0-9a-fA-F]{3,8}$/', (string) $input[$field])) {
+                // Drop the malformed value so the stored (safe) color is kept unchanged.
+                unset($input[$field]);
+            }
+        }
+        return $input;
+    }
+
+    /**
+     * Have I the global right to "view" the Object
+     *
+     * Default is true and check entity if the objet is entity assign
+     *
+     * May be overloaded if needed
+     *
+     * @return booleen
+     **/
+    public static function canView(): bool
+    {
+        return (Session::haveRight(self::$rightname, UPDATE));
+    }
+
+    /**
+     * Have I the global right to "create" the Object
+     * May be overloaded if needed (ex KnowbaseItem)
+     *
+     * @return booleen
+     **/
+    public static function canCreate(): bool
+    {
+        return (Session::haveRight(self::$rightname, CREATE));
+    }
+
+
+    /**
+     * @param string $interface
+     *
+     * @return array
+     */
+    public function getRights($interface = 'central')
+    {
+        $values = parent::getRights();
+
+        unset($values[READ], $values[DELETE]);
+        return $values;
+    }
+
+
+    /**
+     * @param CommonGLPI $item
+     * @param int        $tabnum
+     * @param int        $withtemplate
+     *
+     * @return bool
+     */
+    public static function displayTabContentForItem(CommonGLPI $item, $tabnum = 1, $withtemplate = 0)
+    {
+        if ($item->getType() == __CLASS__) {
+            switch ($tabnum) {
+                case 1:
+                    $item->showForm($item->getID());
+                    break;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @param CommonGLPI $item
+     * @param int        $withtemplate
+     *
+     * @return string
+     */
+    public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0)
+    {
+        return self::createTabEntry(self::getTypeName());
+    }
+
+    /**
+     * @see CommonGLPI::defineTabs()
+     */
+    public function defineTabs($options = [])
+    {
+        $ong = [];
+        $this->addStandardTab(__CLASS__, $ong, $options);
+        $this->addStandardTab(ConfigTranslation::class, $ong, $options);
+        $this->addStandardTab(CheckSchema::class, $ong, $options);
+        return $ong;
+    }
+
+    /**
+     * Get a specific field of the config
+     *
+     * @param string $fieldname
+     *
+     * @return mixed
+     */
+    public static function getConfigField($fieldname)
+    {
+        $config = new Config();
+        if (!$config->getFromDB(Session::getLoginUserID())) {
+            $config->initConfig();
+        }
+        $config->getFromDB("1");
+
+        return (isset($config->fields[$fieldname])) ? $config->fields[$fieldname] : 0;
+    }
+
+    /**
+     * @return mixed
+     */
+    public static function getDisplayMenu()
+    {
+        return Config::getConfigField("display_menu");
+    }
+
+    /**
+     * @return mixed
+     */
+    public static function getReplaceCentralConf()
+    {
+        return Config::getConfigField("replace_central");
+    }
+
+    /**
+     * Get the Search options for the given Type
+     *
+     * This should be overloaded in Class
+     *
+     * @return array an *indexed* array of search options
+     *
+     * @see https://glpi-developer-documentation.rtfd.io/en/master/devapi/search.html
+     **/
+    public function rawSearchOptions()
+    {
+        $tab = [];
+
+        $tab[] = [
+            'id'   => 'common',
+            'name' => self::getTypeName(2),
+        ];
+
+        $tab[] = [
+            'id'         => '2',
+            'table'      => $this->getTable(),
+            'field'      => 'title_alerts_widget',
+            'name'       => __("Title of alerts widget", "mydashboard"),
+            'searchtype' => 'equals',
+            'datatype'   => 'text',
+        ];
+
+        $tab[] = [
+            'id'         => '3',
+            'table'      => $this->getTable(),
+            'field'      => 'title_maintenances_widget',
+            'name'       => __("Title of scheduled maintenances widget", "mydashboard"),
+            'searchtype' => 'equals',
+            'datatype'   => 'text',
+        ];
+
+        $tab[] = [
+            'id'         => '4',
+            'table'      => $this->getTable(),
+            'field'      => 'title_informations_widget',
+            'name'       => __("Title of informations widget", "mydashboard"),
+            'searchtype' => 'equals',
+            'datatype'   => 'text',
+        ];
+
+        return $tab;
+    }
+
+    /**
+     * @param       $ID
+     * @param array $options
+     */
+    public function showForm($ID, $options = [])
+    {
+        // Single row configuration
+        $this->initForm(1, $options);
+
+        //The configuration is not deletable
+        $options['candel'] = false;
+
+        $itilCat = new ITILCategory();
+        $levelsCat = [];
+        foreach ($itilCat->find() as $categorie) {
+            $levelsCat[$categorie['level']] = $categorie['level'];
+        }
+        ksort($levelsCat);
+
+        TemplateRenderer::getInstance()->display('@mydashboard/config_form.html.twig', [
+            'item' => $this,
+            'params' => $options,
+            'level_cats' => $levelsCat,
+        ]);
+
+        return true;
+    }
+
+    /*
+     * Initialize the original configuration
+     */
+    public function initConfig()
+    {
+        global $DB;
+
+        //We first check if there is no configuration
+        $iterator = $DB->request([
+            'SELECT'    => '*',
+            'FROM'      => $this->getTable(),
+            'LIMIT'    => 1,
+        ]);
+
+        if (count($iterator) == 0) {
+            $input                              = [];
+            $input['id']                        = "1";
+            $input['enable_fullscreen']         = "1";
+            $input['display_menu']              = "1";
+            $input['replace_central']           = "0";
+            $input['title_alerts_widget']       = _n("Network alert", "Network alerts", 2, 'mydashboard');
+            $input['title_maintenances_widget'] = _n("Scheduled maintenance", "Scheduled maintenances", 2, 'mydashboard');
+            $input['title_informations_widget'] = _n("Information", "Informations", 2, 'mydashboard');
+            $this->add($input);
+        }
+    }
+
+    /*
+     * Get the original config
+     */
+    public function getConfig()
+    {
+        if (!$this->getFromDB("1")) {
+            $this->initConfig();
+            $this->getFromDB("1");
+        }
+    }
+
+    /**
+     * Returns the translation of the field, HTML-escaped
+     *
+     * @param Config $item
+     * @param string $field
+     *
+     * @return string
+     */
+    public static function displayField($item, $field)
+    {
+        // These configuration titles are rendered as raw HTML by every caller
+        // (including the alert banner shown to anonymous users on the login page).
+        // GLPI 11 stores the values raw, so escape them here at the single point of
+        // use to close a stored-XSS path without touching each display site.
+        return htmlspecialchars(self::getTranslatedField($item, $field), ENT_QUOTES, 'UTF-8');
+    }
+
+    /**
+     * Unescaped counterpart of displayField(), for Twig templates that escape on output.
+     *
+     * @param Config $item
+     * @param string $field
+     *
+     * @return string
+     */
+    public static function getTranslatedField($item, $field): string
+    {
+        global $DB;
+
+        // Make new database object and fill variables
+        $iterator = $DB->request([
+            'FROM'  => 'glpi_plugin_mydashboard_configtranslations',
+            'WHERE' => [
+                'itemtype' => Config::class,
+                'items_id' => '1',
+                'field'    => $field,
+                'language' => $_SESSION['glpilanguage'],
+            ]]);
+
+        foreach ($iterator as $data) {
+            return (string) $data['value'];
+        }
+        return (string) ($item->fields[$field] ?? '');
+    }
+
+    /**
+     * @return string
+     */
+    public function getGridTheme(): string
+    {
+        if (str_contains($_SESSION['glpipalette'], 'darker') == true
+            || str_contains($_SESSION['glpipalette'], 'midnight') == true) {
+            return '';
+        } else {
+            return '#fbfbfb!important;';
+        }
+    }
+
+    /**
+     * @return string
+     */
+    public function getWidgetTheme(): string
+    {
+        if (str_contains($_SESSION['glpipalette'], 'darker') == true
+            || str_contains($_SESSION['glpipalette'], 'midnight') == true) {
+            return '';
+        } else {
+            return '#FFFFFF!important;';
+        }
+    }
+
+    /**
+     * @return string
+     */
+    public function getSlidePanelTheme(): string
+    {
+        if (str_contains($_SESSION['glpipalette'], 'darker') == true
+            || str_contains($_SESSION['glpipalette'], 'midnight') == true) {
+            return '#242323';
+        } else {
+            return '#FFFFFF!important;';
+        }
+    }
+
+    /**
+     * @return string
+     */
+    public function getSlideLinkTheme(): string
+    {
+        if (str_contains($_SESSION['glpipalette'], 'darker') == true
+            || str_contains($_SESSION['glpipalette'], 'midnight') == true) {
+            return '#FFFFFF';
+        } else {
+            return '#000000';
+        }
+    }
+
+    public static function install(Migration $migration)
+    {
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+        $table  = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $query = "CREATE TABLE `$table` (
+                        `id` int {$default_key_sign} NOT NULL auto_increment,
+                        `enable_fullscreen`         tinyint      NOT NULL DEFAULT '1',
+                        `display_menu`              tinyint      NOT NULL DEFAULT '1',
+                        `replace_central`           int {$default_key_sign} NOT NULL DEFAULT '0',
+                        `impact_1`                  varchar(200) NOT NULL DEFAULT '#228b22',
+                        `impact_2`                  varchar(200) NOT NULL DEFAULT '#fff03a',
+                        `impact_3`                  varchar(200) NOT NULL DEFAULT '#ffa500',
+                        `impact_4`                  varchar(200) NOT NULL DEFAULT '#cd5c5c',
+                        `impact_5`                  varchar(200) NOT NULL DEFAULT '#8b0000',
+                        `levelCat`                  int {$default_key_sign} NOT NULL DEFAULT '2',
+                        `title_alerts_widget`       varchar(255) COLLATE utf8mb4_unicode_ci,
+                        `title_maintenances_widget` varchar(255) COLLATE utf8mb4_unicode_ci,
+                        `title_informations_widget` varchar(255) COLLATE utf8mb4_unicode_ci,
+                        PRIMARY KEY (`id`)
+               ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
+
+            $DB->doQuery($query);
+
+        }
+
+        if (!$DB->fieldExists($table, "replace_central")) {
+            $migration->addField($table, "replace_central", "int {$default_key_sign} NOT NULL DEFAULT '0'");
+            $migration->migrationOneTable($table);
+        }
+
+        if (!$DB->fieldExists($table, "impact_1")) {
+            $migration->addField($table, "impact_1", "varchar(200) NOT NULL DEFAULT '#228b22'");
+            $migration->migrationOneTable($table);
+        }
+
+        if (!$DB->fieldExists($table, "impact_2")) {
+            $migration->addField($table, "impact_2", "varchar(200) NOT NULL DEFAULT '#fff03a'");
+            $migration->migrationOneTable($table);
+        }
+
+        if (!$DB->fieldExists($table, "impact_3")) {
+            $migration->addField($table, "impact_3", "varchar(200) NOT NULL DEFAULT '#ffa500'");
+            $migration->migrationOneTable($table);
+        }
+
+        if (!$DB->fieldExists($table, "impact_4")) {
+            $migration->addField($table, "impact_4", "varchar(200) NOT NULL DEFAULT '#cd5c5c'");
+            $migration->migrationOneTable($table);
+        }
+
+        if (!$DB->fieldExists($table, "impact_5")) {
+            $migration->addField($table, "impact_5", "varchar(200) NOT NULL DEFAULT '#8b0000'");
+            $migration->migrationOneTable($table);
+        }
+
+        if (!$DB->fieldExists($table, "levelCat")) {
+            $migration->addField($table, "levelCat", "int {$default_key_sign} NOT NULL DEFAULT '2'");
+            $migration->migrationOneTable($table);
+        }
+
+        if (!$DB->fieldExists($table, "title_alerts_widget")) {
+            $migration->addField($table, "title_alerts_widget", "varchar(255) COLLATE utf8mb4_unicode_ci");
+            $migration->migrationOneTable($table);
+        }
+
+        if (!$DB->fieldExists($table, "title_maintenances_widget")) {
+            $migration->addField($table, "title_maintenances_widget", "varchar(255) COLLATE utf8mb4_unicode_ci");
+            $migration->migrationOneTable($table);
+        }
+
+        if (!$DB->fieldExists($table, "title_informations_widget")) {
+            $migration->addField($table, "title_informations_widget", "varchar(255) COLLATE utf8mb4_unicode_ci");
+            $migration->migrationOneTable($table);
+
+            $config                             = new self();
+            $input['id']                        = "1";
+            $input['title_alerts_widget']       = _n("Network alert", "Network alerts", 2, 'mydashboard');
+            $input['title_maintenances_widget'] = _n("Scheduled maintenance", "Scheduled maintenances", 2, 'mydashboard');
+            $input['title_informations_widget'] = _n("Information", "Informations", 2, 'mydashboard');
+            $config->update($input);
+
+        }
+
+        if ($DB->fieldExists($table, "display_plugin_widget")) {
+            $migration->dropField($table, "display_plugin_widget");
+            $migration->migrationOneTable($table);
+        }
+
+        if ($DB->fieldExists($table, "display_special_plugin_widget")) {
+            $migration->dropField($table, "display_special_plugin_widget");
+            $migration->migrationOneTable($table);
+        }
+
+        if ($DB->fieldExists($table, "google_api_key")) {
+            $migration->dropField($table, "google_api_key");
+            $migration->migrationOneTable($table);
+        }
+
+        $migration->changeField($table, "levelCat", "levelCat", "int {$default_key_sign} NOT NULL DEFAULT '2'");
+        $migration->migrationOneTable($table);
+
+        $migration->changeField($table, "replace_central", "replace_central", "int {$default_key_sign} NOT NULL DEFAULT '0'");
+        $migration->migrationOneTable($table);
+
+        $config = new self();
+        if (!$config->getFromDB("1")) {
+            $config->initConfig();
+        }
+    }
+
+    public static function uninstall()
+    {
+        global $DB;
+
+        $DB->dropTable(self::getTable(), true);
+
+    }
+}

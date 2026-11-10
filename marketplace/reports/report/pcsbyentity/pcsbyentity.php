@@ -1,0 +1,360 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ *  LICENSE
+ *
+ * This file is part of Reports plugin for GLPI.
+ *
+ * Reports is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Reports is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with Reports. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * @authors   Nelly Mahu-Lasson, Remi Collet, Alexandre Delaunay, Xavier Caillaud, Infotel
+ * @copyright Copyright (c) 2009-2026 Reports plugin team
+ * @license   AGPL License 3.0 or (at your option) any later version
+ * @link      https://github.com/InfotelGLPI/reports
+ * @link      http://www.glpi-project.org/
+ * @package   reports
+ * @since     2009
+ *            http://www.gnu.org/licenses/agpl-3.0-standalone.html
+ * --------------------------------------------------------------------------
+ */
+
+function cmpStat($a, $b)
+{
+    return $a["tot"] - $b["tot"];
+}
+
+
+function doStatBis($table, $entities, $header)
+{
+    global $DB;
+
+    // Compute stat
+    $counts = [];
+    foreach ($entities as $entity) {
+        // Count for this entity
+        $criteria = [
+            'SELECT' => ['states_id',
+                'COUNT' => 'id AS cpt'],
+            'FROM' => $table,
+            'WHERE' => [
+                'is_deleted' => 0,
+                'is_template' => 0,
+                'entities_id' => $entity,
+            ],
+            'GROUPBY' => ['states_id'],
+        ];
+
+        $iterator = $DB->request($criteria);
+
+        $counts[$entity] = [];
+        foreach ($iterator as $data) {
+            $counts[$entity][$data["states_id"]] = $data["cpt"];
+        }
+
+        $counts[$entity]["tot"] = 0;
+        foreach ($header as $id => $name) {
+            if (isset($counts[$entity][$id])) {
+                $counts[$entity]["tot"] += $counts[$entity][$id];
+            } else {
+                $counts[$entity][$id] = 0;
+            }
+        }
+    }
+
+    // Sort result
+    uasort($counts, "cmpStat");
+
+    // Display result
+    $total["tot"] = 0;
+    foreach ($header as $id => $name) {
+        $total[$id] = 0;
+    }
+    foreach ($counts as $entity => $count) {
+        if ($count["tot"]) {
+            $Ent = new Entity();
+            $Ent->getFromDB($entity);
+
+            echo "<tr class='tab_bg_2'><td class='left'>";
+            if ($entity) {
+                echo htmlescape($Ent->fields["name"]);
+            } else {
+                echo __('Root entity');
+            }
+            echo "</td><td class='right'>" . $count["tot"] . "</td>";
+            $total["tot"] += $count["tot"];
+            foreach ($header as $id => $name) {
+                echo "<td class='right'>" . $count[$id] . "</td>";
+                $total[$id] += $count[$id];
+            }
+        }
+        echo "</tr>\n";
+    }
+
+    // Display total
+    if (count($entities) > 1) {
+        echo "<tr class='tab_bg_1'><td class='left'>" . __('Total') . "</td>";
+        echo "<td class='right'>" . $total["tot"] . "</td>";
+        foreach ($header as $id => $name) {
+            echo "<td class='right'>" . $total[$id] . "</td>";
+        }
+        echo "</tr>\n";
+    }
+}
+
+
+function doStat($table, $entity, $header, $level = 0)
+{
+    global $DB;
+
+    $Ent = new Entity();
+    $Ent->getFromDB($entity);
+
+    // Count for this entity
+    $criteria = [
+        'SELECT' => ['states_id',
+            'COUNT' => 'id AS cpt'],
+        'FROM' => $table,
+        'WHERE' => [
+            'is_deleted' => 0,
+            'is_template' => 0,
+            'entities_id' => $entity,
+        ],
+        'GROUPBY' => ['states_id'],
+    ];
+
+    $iterator = $DB->request($criteria);
+    $count  = [];
+    foreach ($iterator as $data) {
+        $count[$data["states_id"]] = $data["cpt"];
+    }
+
+    $count["tot"] = 0;
+    foreach ($header as $id => $name) {
+        if (isset($count[$id])) {
+            $count["tot"] += $count[$id];
+        } else {
+            $count[$id] = 0;
+        }
+    }
+
+    // Display counters for this entity
+    if ($count["tot"] > 0) {
+        echo "<tr class='tab_bg_2'><td>";
+        for ($i = 0 ; $i < $level ; $i++) {
+            echo "&nbsp;&nbsp;&nbsp;";
+        }
+        if ($entity) {
+            echo htmlescape($Ent->fields["name"]);
+        } else {
+            echo __('Root entity');
+        }
+        echo "</td>";
+        echo "<td class='right'>" . $count["tot"] . "</td>";
+        foreach ($header as $id => $name) {
+            echo "<td class='right'>" . $count[$id] . "</td>";
+        }
+        echo "</tr>\n";
+    }
+
+    // Call for Childs
+    $save = $count["tot"];
+    doStatChilds($table, $entity, $header, $count, $level + 1);
+
+    // Display total (Current+Childs)
+    if ($save != $count["tot"]) {
+        echo "<tr class='tab_bg_1'><td>";
+        for ($i = 0 ; $i < $level ; $i++) {
+            echo "&nbsp;&nbsp;&nbsp;";
+        }
+        echo __('Total');
+
+        if ($entity) {
+            echo "&nbsp;" . htmlescape($Ent->fields["name"]);
+        } else {
+            echo "&nbsp;" . __('Root entity');
+        }
+        echo "</td>";
+        echo "<td class='right'>" . $count["tot"] . "</td>";
+        foreach ($header as $id => $name) {
+            echo "<td class='right'>" . $count[$id] . "</td>";
+        }
+        echo "</tr>\n";
+    }
+    return $count;
+}
+
+
+function doStatChilds($table, $entity, $header, &$total, $level)
+{
+    global $DB;
+
+    // Search child entities, restricted to the entities the current profile is allowed to see.
+    // Without this restriction, the recursion walks down the whole sub tree of the active entity,
+    // including children the profile has no access to (non recursive entity assignment).
+    $criteria = ['SELECT' => ['id', 'name'],
+        'FROM' => 'glpi_entities',
+        'WHERE'  => ['entities_id' => $entity],
+        'ORDER'  => 'name'];
+    $criteria['WHERE'][] = getEntitiesRestrictCriteria(
+        'glpi_entities',
+        'id',
+        $_SESSION['glpiactiveentities'] ?? [],
+        false,
+    );
+
+    $result = $DB->request($criteria);
+
+    foreach ($result as $data) {
+        // Defense in depth: never descend into an entity outside the active perimeter
+        if (!Session::haveAccessToEntity($data["id"])) {
+            continue;
+        }
+        $fille = doStat($table, $data["id"], $header, $level);
+        foreach ($header as $id => $name) {
+            $total[$id] += $fille[$id];
+        }
+        $total["tot"] += $fille["tot"];
+    }
+}
+
+$USEDBREPLICATE        = 1;
+$DBCONNECTION_REQUIRED = 0;
+
+global $DB;
+
+$dbu = new DbUtils();
+
+Session::checkRight("plugin_reports_pcsbyentity", READ);
+//TRANS: The name of the report = Number of items by entity
+Html::header(__('Number of items by entity', 'reports'), '', "utils", "report");
+
+Report::title();
+
+echo "<div class='center'>";
+
+// ---------- Form ------------
+echo "<form action='" . htmlescape($_SERVER["REQUEST_URI"]) . "' method='post'>";
+echo "<table class='tab_cadre' cellpadding='5'>\n";
+echo "<tr class='tab_bg_1 center'><th colspan='2'>" . __('Number of items by entity', 'reports')
+      . "</th></tr>\n";
+echo "<tr class='tab_bg_1'><td class='right'>" . __('Item type') . "</td>";
+echo "<td><select name='type'><option value=''>" . Dropdown::EMPTY_VALUE . "</option>";
+
+$choix = [\Computer::class         => _n('Computer', 'Computers', 2),
+    \Monitor::class          => _n('Monitor', 'Monitors', 2),
+    \Printer::class          => _n('Printer', 'Printers', 2),
+    \NetworkEquipment::class => __('Networking'),
+    \Phone::class            => _n('Phone', 'Phones', 2)];
+
+// The types the profile is allowed to read are computed once: the dropdown below is built from
+// this list and so is the guard of the result branch, which used to test membership of the static
+// list only and produced the report for any type once the POST was replayed.
+$allowed_types = [];
+foreach ($choix as $id => $name) {
+    $item = new $id();
+    if ($item->canView()) {
+        $allowed_types[$id] = $name;
+    }
+}
+
+$posted_type = (isset($_POST["type"]) && is_scalar($_POST["type"])) ? (string) $_POST["type"] : '';
+
+foreach ($allowed_types as $id => $name) {
+    echo "<option value='" . htmlescape($id);
+    if ($posted_type === $id) {
+        echo "' selected='selected'>";
+    } else {
+        echo "'>";
+    }
+    // Translated labels only, today; escape anyway so a future entry cannot reach the markup.
+    echo htmlescape($name) . "</option>";
+}
+echo "</select></td></tr>\n";
+
+if (count($_SESSION["glpiactiveentities"]) > 1) {
+    echo "<tr class='tab_bg_1'><td class='right'>" . __('Display', 'reports') . "</td>";
+    echo "<td><select name='sort'><option value='0'>" . __('Entity tree', 'reports') . "</option>";
+    $sel = (isset($_POST["sort"]) && $_POST["sort"] ? "selected='selected'" : "");
+
+    echo "<option value='1' $sel>" . __('Sort by count', 'reports') . "</option>"
+         . "</select></td></tr>\n";
+}
+
+echo "<tr class='tab_bg_1 center'>"
+     . "<td colspan='2'>";
+echo Html::submit(__('Search'), ['class' => 'btn btn-primary']);
+//     <input type='submit' value='Search' class='submit'/></td>";
+echo "</td></tr>\n";
+echo "</table>\n";
+Html::closeForm();
+echo "</div>\n";
+
+// --------------- Result -------------
+if ($posted_type !== '' && !array_key_exists($posted_type, $allowed_types)) {
+    throw new \Glpi\Exception\Http\AccessDeniedHttpException();
+}
+
+if ($posted_type !== '') {
+    echo "<br><table class='tab_cadre'>\n";
+
+    echo "<tr><th>" . __('Entity') . "</th>"
+          . "<th>&nbsp;" . __('Total') . "&nbsp;</th>"
+          . "<th>&nbsp;" . __('Unknown', 'reports') . "&nbsp;</th>";
+
+    $criteria = [
+        'SELECT' => [\State::getTable() . '.id', \State::getTable() . '.name'],
+        'FROM' => \State::getTable(),
+        'LEFT JOIN' => [
+            DropdownVisibility::getTable() => [
+                'ON' => [
+                    DropdownVisibility::getTable() => 'items_id',
+                    \State::getTable() => 'id', [
+                        'AND' => [
+                            DropdownVisibility::getTable() . '.itemtype' => \State::getType(),
+                        ],
+                    ],
+                ],
+            ],
+        ],
+        'WHERE' => [
+            DropdownVisibility::getTable() . '.itemtype' => \State::getType(),
+            DropdownVisibility::getTable() . '.visible_itemtype' => strtolower($posted_type),
+            DropdownVisibility::getTable() . '.is_visible' => 1,
+        ],
+    ];
+    $criteria['WHERE'][] = getEntitiesRestrictCriteria(
+        \State::getTable(),
+    );
+
+    $iterator = $DB->request($criteria);
+
+    $header[0] = __('Unknown', 'reports');
+    foreach ($iterator as $data) {
+        $header[$data["id"]] = $data["name"];
+        echo "<th>&nbsp;" . htmlescape($data["name"]) . "&nbsp;</th>";
+    }
+    echo "</tr>\n";
+
+    if (isset($_POST["sort"]) && is_scalar($_POST["sort"]) && ($_POST["sort"] > 0)) {
+        doStatBis($dbu->getTableForItemType($posted_type), $_SESSION["glpiactiveentities"], $header);
+    } else {
+        doStat($dbu->getTableForItemType($posted_type), $_SESSION["glpiactive_entity"], $header);
+    }
+    echo "</table></div>";
+} elseif (isset($_POST["type"])) {
+    echo "<p class='center red'>" . __('Selection of type is mandatory', 'reports') . "</p>";
+}
+
+Html::footer();

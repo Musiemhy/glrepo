@@ -1,0 +1,147 @@
+{#
+ # -------------------------------------------------------------------------
+ # manageentities plugin for GLPI
+ # Copyright (C) 2017-2026 by the manageentities Development Team.
+ #
+ # https://github.com/InfotelGLPI/manageentities
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of manageentities.
+ #
+ # manageentities is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # manageentities is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with manageentities. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{% import 'components/form/basic_inputs_macros.html.twig' as _inputs %}
+
+<div class="red styleContractTitle" style="display:none" id="manageentities_cri_error"></div>
+
+<form action="{{ form_action }}" method="post" name="formReport">
+    <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="REPORT_ID" value="{{ report_id }}">
+    {% if contract_id and contractday_id %}
+        <input type="hidden" name="CONTRAT" value="{{ contract_id }}">
+        <input type="hidden" name="CONTRACTDAY" value="{{ contractday_id }}">
+    {% endif %}
+    {% if noprice %}
+        <input type="hidden" name="REPORT_ACTIVITE" value="noprice">
+    {% endif %}
+    {% if without_contract %}
+        <input type="hidden" name="WITHOUTCONTRACT" value="1">
+    {% endif %}
+
+    <div class="center">
+        <table class="tab_cadre_fixe">
+            <tr class="tab_bg_1">
+                <th>{{ _n('Contract', 'Contracts', 1) }}</th>
+                <td colspan="2">{{ include('@manageentities/contract_link_dropdown.html.twig', contract_data, with_context = false) }}</td>
+            </tr>
+
+            <tr class="tab_bg_1">
+                <th>{{ __('Technicians', 'manageentities') }}</th>
+                <td>
+                    {% if is_task_list %}
+                        {% for tech in technicians %}
+                            {{ tech.name }}
+                            {% if tech.delete_onclick is not empty %}
+                                &nbsp;<a class="pointer" name="deleteTech{{ loop.index }}_{{ add_tech_rand }}" onclick="{{ tech.delete_onclick }}">
+                                    <i class="ti ti-trash" title="{{ _x('button', 'Delete permanently') }}"></i>
+                                </a>
+                            {% endif %}
+                            {% if not loop.last %}<br>{% endif %}
+                        {% else %}
+                            <span style="font-weight:bold; color:red">{{ __('Please assign a technician to your tasks', 'manageentities') }}</span>
+                        {% endfor %}
+                    {% endif %}
+                </td>
+                <td>
+                    {{ 'User'|itemtype_dropdown({
+                        'name': 'users_id',
+                        'entity': entities_id,
+                        'used': used_technicians,
+                        'right': 'all',
+                        'width': width,
+                    }) }}
+                    &nbsp;<a class="pointer" name="add_tech{{ add_tech_rand }}" onclick="{{ add_tech_onclick }}">
+                        <i class="ti ti-plus" title="{{ __('Add a technician', 'manageentities') }}"></i>
+                    </a>
+                </td>
+            </tr>
+
+            {% if critypes is not null %}
+                <tr class="tab_bg_1">
+                    <th>{{ critype_label }}</th>
+                    <td colspan="2">
+                        {% do call('Dropdown::showFromArray', ['REPORT_ACTIVITE', critypes, {
+                            'value': critype_default,
+                            'width': width,
+                        }]) %}
+                    </td>
+                </tr>
+            {% endif %}
+
+            {% if number_moving is not null %}
+                <tr class="tab_bg_1">
+                    <th>{{ __('Number of moving', 'manageentities') }}</th>
+                    <td colspan="2">
+                        {% do call('Dropdown::showNumber', ['number_moving', {
+                            'value': number_moving,
+                            'width': width,
+                        }]) %}
+                    </td>
+                </tr>
+            {% endif %}
+
+            {% if is_task %}
+                {% if has_tasks %}
+                    <tr class="tab_bg_1">
+                        <th>{{ __('Detail of the realized works', 'manageentities') }}</th>
+                        <td colspan="2">
+                            {# The report form is loaded over AJAX in a modal: load the editor library it needs #}
+                            <script src="{{ js_path('lib/tinymce.js') }}"></script>
+                            {{ _inputs.textarea('REPORT_DESCRIPTION', description, {
+                                'id': 'comment' ~ description_rand,
+                                'rand': description_rand,
+                                'enable_richtext': true,
+                                'enable_images': false,
+                            }) }}
+                        </td>
+                    </tr>
+                    {% if generate_button is not null %}
+                        <tr class="tab_bg_2">
+                            <td class="center" colspan="3">
+                                <button type="button" name="{{ generate_button.name }}" class="submit btn btn-primary manageentities_button"
+                                        onclick="{{ generate_button.onclick }}">
+                                    {{ generate_button.label }}
+                                </button>
+                            </td>
+                        </tr>
+                    {% endif %}
+                {% else %}
+                    <tr class="tab_bg_1">
+                        <td class="center red" colspan="3">{{ no_tasks_message }}</td>
+                    </tr>
+                {% endif %}
+            {% else %}
+                <tr class="tab_bg_1">
+                    <td colspan="3">
+                        <div class="alert alert-warning d-flex">{{ not_task_message }}</div>
+                    </td>
+                </tr>
+            {% endif %}
+        </table>
+    </div>
+</form>

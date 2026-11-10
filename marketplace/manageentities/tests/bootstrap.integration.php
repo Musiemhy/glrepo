@@ -1,0 +1,47 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * manageentities plugin for GLPI
+ * Copyright (C) 2017-2026 by the manageentities Development Team.
+ *
+ * https://github.com/InfotelGLPI/manageentities
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of manageentities.
+ *
+ * manageentities is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * manageentities is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with manageentities. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+// Bootstrap GLPI's test environment (DB connection, session, etc.)
+require_once dirname(__DIR__, 3) . '/tests/bootstrap.php';
+
+// Register manageentities classes into the already-loaded Composer autoloader
+$loader = require dirname(__DIR__, 3) . '/vendor/autoload.php';
+$loader->addPsr4('GlpiPlugin\\Manageentities\\', dirname(__DIR__) . '/src/');
+$loader->addPsr4('GlpiPlugin\\Manageentities\\Tests\\', dirname(__DIR__) . '/tests/');
+$loader->addPsr4('GlpiPlugin\\Manageentities\\Tests\\Integration\\', dirname(__DIR__) . '/tests/integration/');
+
+// Install plugin tables in the test DB if they do not yet exist
+if (!defined('PLUGIN_MANAGEENTITIES_VERSION')) {
+    require_once dirname(__DIR__) . '/setup.php';
+}
+global $DB;
+if (!$DB->tableExists('glpi_plugin_manageentities_contracts')) {
+    require_once dirname(__DIR__) . '/hook.php';
+    plugin_manageentities_install();
+}

@@ -1,0 +1,585 @@
+/**
+ * -------------------------------------------------------------------------
+ * metademands plugin for GLPI
+ * Copyright (C) 2018-2026 by the metademands Development Team.
+ *
+ * https://github.com/InfotelGLPI/metademands
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of metademands.
+ *
+ * metademands is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * metademands is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+var i = 0;
+
+// metademandfreelinesparams.existLine = '$existLine';
+// metademandfreelinesparams.rand = '$rand';
+// metademandfreelinesparams.root = '$root';
+// metademandfreelinesparams.encoded_fields = $encoded_fields;
+// metademandfreelinesparams.mandatory_encoded_fields = $mandatory_encoded_fields;
+// metademandfreelinesparams.types_encoded_fields = $types_encoded_fields;
+// metademandfreelinesparams.dropdown_values_encoded_fields = $dropdown_values_encoded_fields;
+// metademandfreelinesparams.orderfollowup_is_active = $orderfollowup_is_active;
+// metademandfreelinesparams.size = $size;
+// metademandfreelinesparams.empty_value = '$empty_value';
+// metademandfreelinesparams.plugin_metademands_metademands_id = $plugin_metademands_metademands_id;
+// metademandfreelinesparams.style = '$style';
+// metademandfreelinesparams.lastid = $lastid;
+// metademandfreelinesparams.text = $texttype;
+// metademandfreelinesparams.select = $selecttype;
+// metademandfreelinesparams.number = $numbertype;
+// metademandfreelinesparams.readonly = $readonlytype;
+// metademandfreelinesparams.date = $datetype;
+// metademandfreelinesparams.time = $timetype;
+
+
+function addLine(metademandfreelinesparams)
+{
+
+    window.metademandfreelinesparams = metademandfreelinesparams;
+
+    var fields_id = metademandfreelinesparams.rand;
+
+    var fields = metademandfreelinesparams.encoded_fields;
+
+    var type_fields = metademandfreelinesparams.types_encoded_fields;
+    var dropdown_values_fields = metademandfreelinesparams.dropdown_values_encoded_fields;
+    var lastid = metademandfreelinesparams.lastid;
+    let tabtr, tabbutton;
+
+    const tabfields = [];
+
+    if (!document.querySelector('#freetable_table' + fields_id + '.add_item')) {
+
+        if ($('#freetable_table'+ fields_id + ' tr[id^=line_' + fields_id + '_]:first').length > 0) {
+            // console.log(lastid);
+            if (lastid > 0 && lastid > i) {
+                i = lastid;
+            }
+            i++;
+            // console.log("existe deja");
+            // console.log(i);
+
+            tabtr = '<tr class=\"tab_bg_1\" id=\"line_' + fields_id + '_' + i + '\">';
+
+            $.each(fields, function (index, valuej) {
+
+                if (type_fields[index] == metademandfreelinesparams.text) {
+                    tabfields.push('<td><input id = \"' + index + '\" type=\"text\" name=\"' + index + '\" size=\"' + metademandfreelinesparams.size + '\" ></td>');
+                } else if (type_fields[index] == metademandfreelinesparams.select) {
+                    var select_open = '<td><select class=\"form-select\" id = \"' + index + '\" name=\"' + index + '\">';
+                    var select_options = '';
+                    $.each(dropdown_values_fields, function (indexv, values) {
+                        $.each(values, function (indexd, valued) {
+                            if (index == indexv) {
+                                select_options += '<option value=\"' + valued + '\">' + valued + '</option>';
+                            }
+                        });
+                    });
+                    var select_close = '</select></td>';
+                    var select = [select_open, select_options, select_close].join(' ');
+                    tabfields.push(select);
+                } else if (type_fields[index] == metademandfreelinesparams.number) {
+                    tabfields.push('<td><input add=0 id = \"' + index + '\" type=\"number\" min=\"0\" name=\"' + index + '\" style=\"width: 7em;\" ></td>');
+                } else if (type_fields[index] == metademandfreelinesparams.readonly && metademandfreelinesparams.orderfollowupisactive) {
+                    tabfields.push('<td></td>');
+                } else if (type_fields[index] == metademandfreelinesparams.date) {
+                    tabfields.push('<td><input add=0 id = \"' + index + '\" type=\"date\" name=\"' + index + '\" ></td>');
+                } else if (type_fields[index] == metademandfreelinesparams.time) {
+                    tabfields.push('<td><input add=0 id = \"' + index + '\" type=\"time\" name=\"' + index + '\" ></td>');
+                }
+
+            });
+
+            var str = '<button class =\"btn btn-success add_item\" type = \"button\" name =\"add_item\" onclick=\"confirmUpdateLine(this, '+ i +', 1, ' + fields_id + ', window.metademandfreelinesparams' + fields_id + ')\">';
+            tabbutton = '<td style=\"text-align: right;\" colspan=\"2\">'
+                + str
+                + '<i class =\"ti ti-check\"></i></button></td>'
+                + '<td style=\"text-align: center;\"><button onclick =\"removeLine(' + i + ', ' + fields_id +')\" class =\"btn btn-danger\" type = \"button\" name =\"delete_item\">'
+                + '<i class =\"ti ti-trash\"></i></button></td>'
+                + '</tr>';
+
+            var joined = [tabtr, tabfields, tabbutton].join(' ');
+
+            $('#freetable_table'+ fields_id + ' tr[id^=line_' + fields_id + '_]:last').after(joined);
+        } else {
+            // console.log("n existe pas");
+            // console.log(i);
+            tabtr = '<tr class=\"tab_bg_1\" id=\"line_' + fields_id + '_' + i + '\">';
+            $.each(fields, function (index, valuej) {
+                if (type_fields[index] == metademandfreelinesparams.text) {
+                    tabfields.push('<td><input id = \"' + index + '\" type=\"text\" name=\"' + index + '\" size=\"' + metademandfreelinesparams.size + '\" ></td>');
+                } else if (type_fields[index] == metademandfreelinesparams.select) {
+                    var select_open = '<td><select class=\"form-select\" id = \"' + index + '\" name=\"' + index + '\">';
+                    var select_options = '';
+                    $.each(dropdown_values_fields, function (indexv, values) {
+                        $.each(values, function (indexd, valued) {
+                            if (index == indexv) {
+                                select_options += '<option value=\"' + valued + '\">' + valued + '</option>';
+                            }
+                        });
+                    });
+                    var select_close = '</select></td>';
+                    var select = [select_open, select_options, select_close].join(' ');
+                    tabfields.push(select);
+                } else if (type_fields[index] == metademandfreelinesparams.number) {
+                    tabfields.push('<td><input add=1 id=\"' + index + '\" value=\"0\" type=\"number\" min=\"0\" name=\"' + index + '\" style=\"width: 7em;\" ></td>');
+                } else if (type_fields[index] == metademandfreelinesparams.readonly && metademandfreelinesparams.orderfollowupisactive) {
+                    tabfields.push('<td></td>');
+                } else if (type_fields[index] == metademandfreelinesparams.date) {
+                    tabfields.push('<td><input add=1 id=\"' + index + '\" value=\"0\" type=\"date\" name=\"' + index + '\" ></td>');
+                } else if (type_fields[index] == metademandfreelinesparams.time) {
+                    tabfields.push('<td><input add=1 id=\"' + index + '\" value=\"0\" type=\"time\" name=\"' + index + '\" ></td>');
+                }
+            });
+            var btn = '<button class="btn btn-success add_item" type="button" name="add_item" ' +
+                'onclick="confirmUpdateLine(this,' + i + ',1,' + fields_id + ',window.metademandfreelinesparams' + fields_id + ')">' +
+                '<i class="ti ti-check"></i></button>';
+
+            tabbutton = '<td style="text-align:center;" colspan="2">'
+                + btn
+                + '</td>'
+                + '<td style="text-align:center;">'
+                + '<button onclick="removeLine(' + i + ',' + fields_id + ')" class="btn btn-danger" type="button">'
+                + '<i class="ti ti-trash"></i></button>'
+                + '</td></tr>';
+            var joined = [tabtr, tabfields, tabbutton].join(' ');
+            $('#freetable_table'+ fields_id + ' tr[class^=tab_bg_1]:last').after(joined);
+        }
+    } else {
+        alert(metademandfreelinesparams.existLine);
+    }
+
+
+}
+
+
+function confirmUpdateLine(node, nb, typepost, field_id, newparams)
+{
+
+    const params = newparams || window.metademandfreelinesparams;
+
+    var fields = params.encoded_fields;
+    var type_fields = params.types_encoded_fields;
+    var dropdown_values_fields = params.dropdown_values_encoded_fields;
+    var mandatory_fields = params.mandatory_encoded_fields;
+    var empty_value = params.empty_value;
+    var elem_parent = $(node).parent().parent();
+    var tabfields = [];
+    let tabtr, tabbutton;
+
+    const l = {
+        'id': nb,
+    };
+    $.each(fields, function (index, valuej) {
+        if (type_fields[index] == params.text) {
+            l[index] = elem_parent.find('input[name=' + index + ']').val();
+        } else if (type_fields[index] == params.select) {
+            l[index] = elem_parent.find('select[name=' + index + ']').val();
+        } else if (type_fields[index] == params.number) {
+            l[index] = elem_parent.find('input[name=' + index + ']').val();
+        } else if (type_fields[index] == params.date) {
+            l[index] = elem_parent.find('input[name=' + index + ']').val();
+        } else if (type_fields[index] == params.time) {
+            l[index] = elem_parent.find('input[name=' + index + ']').val();
+        }
+        l['type'] = type_fields[index];
+    });
+    var unit_price = elem_parent.find('input[name=unit_price]').val();
+    var quantity = elem_parent.find('input[name=quantity]').val();
+    //orderfollowup
+    if (params.orderfollowupisactive) {
+        var total = quantity * unit_price;
+        l[4] = total;
+    }
+
+    if (typepost == 1) {
+        var line = {
+            'add': l,
+            'metademands_id': params.plugin_metademands_metademands_id,
+            'fields_id': field_id
+        };
+    } else {
+        var line = {
+            'update': l,
+            'metademands_id': params.plugin_metademands_metademands_id,
+            'fields_id': field_id
+        };
+    }
+
+    let ko = 0;
+
+    $.each(fields, function (index, valuej) {
+
+        if (mandatory_fields.includes(index)) {
+            if (type_fields[index] == params.text) {
+                if (elem_parent.find('input[name=' + index + ']').val() === '') {
+                    elem_parent.find('input[name=' + index + ']').css('border-color', 'red');
+                    ko = 1;
+                } else {
+                    elem_parent.find('input[name=' + index + ']').css('border-color', '');
+                }
+            } else if (type_fields[index] == params.select) {
+                // Scoped to the edited row like every other branch here: the column ids are
+                // the raw internal names, so they are duplicated from one row to the next and
+                // from one free table to the next inside the same form. A document wide
+                // lookup validated the first matching select of the page, which is another
+                // table's select as soon as the form holds several free tables.
+                var select = elem_parent.find('select[name=' + index + ']');
+                if (select.length > 0) {
+                    if (select.find('option:selected').text() == empty_value) {
+                        select.css('border-color', 'red');
+                        ko = 1;
+                    } else {
+                        select.css('border-color', '');
+                    }
+                }
+            } else if (type_fields[index] == params.number) {
+                if (elem_parent.find('input[name=' + index + ']').val() == 0) {
+                    elem_parent.find('input[name=' + index + ']').css('border-color', 'red');
+                    ko = 1;
+                } else {
+                    elem_parent.find('input[name=' + index + ']').css('border-color', '');
+                }
+            } else if (type_fields[index] == params.date) {
+                if (elem_parent.find('input[name=' + index + ']').val() == 0) {
+                    elem_parent.find('input[name=' + index + ']').css('border-color', 'red');
+                    ko = 1;
+                } else {
+                    elem_parent.find('input[name=' + index + ']').css('border-color', '');
+                }
+            } else if (type_fields[index] == params.time) {
+                if (elem_parent.find('input[name=' + index + ']').val() == 0) {
+                    elem_parent.find('input[name=' + index + ']').css('border-color', 'red');
+                    ko = 1;
+                } else {
+                    elem_parent.find('input[name=' + index + ']').css('border-color', '');
+                }
+            }
+        }
+
+    });
+    //orderfollowup
+    if (params.orderfollowupisactive) {
+        total = Math.round((total + Number.EPSILON) * 100) / 100;
+    }
+    if (ko == 0) {
+        // Persisted only once the mandatory fields of the row have been checked:
+        // the request used to be sent before the loop above, so a line holding an
+        // empty mandatory field was stored anyway while the form only turned the
+        // offending input red.
+        $.ajax({
+            url: params.root + '/ajax/freetable_item.php',
+            type: 'POST',
+            data: {datas: line}
+        });
+
+        if ($('[id^=line_' + field_id + '_]').length == 0) {
+            tabtr = '<tr name=\"data\" $style id=\"line_' + field_id + '_' + i + '\" disabled>';
+
+            $.each(fields, function (index, valuej) {
+
+                if (type_fields[index] == params.text) {
+                    tabfields.push('<td $style><input id = \"' + index + '_' + i + '\" type=\"text\" name=\"' + index + '\" size=\"' + params.size + '\" disabled ></td>');
+                } else if (type_fields[index] == params.select) {
+                    var select_open = '<td $style><select class=\"form-select\" id = \"' + index + '_' + i + '\" name=\"' + index + '\">';
+                    var select_options = '';
+                    $.each(dropdown_values_fields, function (indexv, values) {
+                        $.each(values, function (indexd, valued) {
+                            if (index == indexv) {
+                                select_options += '<option value=\"' + valued + '\">' + valued + '</option>';
+                            }
+                        });
+                    });
+                    var select_close = '</select></td>';
+                    var select = [select_open, select_options, select_close].join(' ');
+                    tabfields.push(select);
+                } else if (type_fields[index] == params.number) {
+                    tabfields.push('<td $style><input add=2 id= \"' + index + '_' + i + '\" type=\"number\" min=\"0\" name=\"' + index + '\" style=\"width: 7em;\" disabled ></td>');
+                } else if (type_fields[index] == params.readonly && params.orderfollowupisactive) {
+                    //orderfollowup
+                    tabfields.push('<td $style id=\"linetotal\">' + total.toFixed(2) + ' €</td>');
+                } else if (type_fields[index] == params.date) {
+                    tabfields.push('<td $style><input add=2 id= \"' + index + '_' + i + '\" type=\"date\" name=\"' + index + '\" disabled ></td>');
+                } else if (type_fields[index] == params.time) {
+                    tabfields.push('<td $style><input add=2 id= \"' + index + '_' + i + '\" type=\"time\" name=\"' + index + '\" disabled ></td>');
+                }
+
+            });
+            tabbutton = '<td></td><td style=\"text-align: center;\"><button onclick =\"editLine(' + i +', ' + field_id +')\" class =\"btn btn-info\" type = \"button\" name =\"edit_item\">'
+                + '<i class =\"ti ti-pencil\"></i></button></td>'
+                + '<td style=\"text-align: center;\"><button onclick =\"removeLine( ' + i + ', ' + field_id +')\" class =\"btn btn-danger\" type = \"button\" name =\"delete_item\">'
+                + '<i class =\"ti ti-trash\"></i></button></td></tr>'
+
+            var joined = [tabtr, tabfields, tabbutton].join(' ');
+
+            $('#freetable_table' + field_id + ' tr:last').before(joined);
+            elem_parent.find('input[name=name' + field_id + ']').val('');
+            $.each(fields, function (index, valuej) {
+                if (type_fields[index] == params.text) {
+                    $('#line_' + field_id + '_' + i + ' #' + index + '_' + i).val(elem_parent.find('input[name=' + index + ']').val());
+                    elem_parent.find('input[name=' + index + ']').val('');
+                } else if (type_fields[index] == params.select) {
+                    $('#line_' + field_id + '_' + i + ' #' + index + '_' + i).val(elem_parent.find('select[name=' + index + ']').val());
+                    elem_parent.find('select[name=' + index + ']').val('');
+                } else if (type_fields[index] == params.number) {
+                    $('#line_' + field_id + '_' + i + ' #' + index + '_' + i).val(elem_parent.find('input[name=' + index + ']').val());
+                    elem_parent.find('input[name=' + index + ']').val(0);
+                } else if (type_fields[index] == params.date) {
+                    $('#line_' + field_id + '_' + i + ' #' + index + '_' + i).val(elem_parent.find('input[name=' + index + ']').val());
+                    elem_parent.find('input[name=' + index + ']').val(0);
+                } else if (type_fields[index] == params.time) {
+                    $('#line_' + field_id + '_' + i + ' #' + index + '_' + i).val(elem_parent.find('input[name=' + index + ']').val());
+                    elem_parent.find('input[name=' + index + ']').val(0);
+                }
+            });
+        } else if (typepost == 'add') {
+            tabtr = '<tr name=\"data\" $style id=\"line_' + field_id + '_' + i + '\" disabled>';
+
+            $.each(fields, function (index, valuej) {
+
+                if (type_fields[index] == params.text) {
+                    tabfields.push('<td $style><input id = \"' + index + '_' + i + '\" type=\"text\" name=\"' + index + '\" size=\"' + params.size + '\" disabled ></td>');
+                } else if (type_fields[index] == params.select) {
+                    var select_open = '<td $style><select class=\"form-select\" id = \"' + index + '_' + i + '\" name=\"' + index + '\">';
+                    var select_options = '';
+                    $.each(dropdown_values_fields, function (indexv, values) {
+                        $.each(values, function (indexd, valued) {
+                            if (index == indexv) {
+                                select_options += '<option value=\"' + valued + '\">' + valued + '</option>';
+                            }
+                        });
+                    });
+                    var select_close = '</select></td>';
+                    var select = [select_open, select_options, select_close].join(' ');
+                    tabfields.push(select);
+                } else if (type_fields[index] == params.number) {
+                    tabfields.push('<td $style><input add=3 id=\"' + index + '_' + i + '\" type=\"number\" min=\"0\" name=\"' + index + '\" style=\"width: 7em;\" disabled ></td>');
+                } else if (type_fields[index] == params.readonly && params.orderfollowupisactive) {
+                    //orderfollowup
+                    tabfields.push('<td $style id=\"linetotal\">' + total.toFixed(2) + ' €</td>');
+                } else if (type_fields[index] == params.date) {
+                    tabfields.push('<td $style><input add=3 id=\"' + index + '_' + i + '\" type=\"date\" name=\"' + index + '\" disabled ></td>');
+                } else if (type_fields[index] == params.time) {
+                    tabfields.push('<td $style><input add=3 id=\"' + index + '_' + i + '\" type=\"time\" name=\"' + index + '\" disabled ></td>');
+                }
+
+            });
+            tabbutton = '<td></td><td style=\"text-align: center;\"><button onclick=\"editLine(' + i +', ' + field_id +')\" class =\"btn btn-info\" type = \"button\" name =\"edit_item\">'
+                + '<i class =\"ti ti-pencil\"></i></button></td>'
+                + '<td style=\"text-align: center;\"><button onclick =\"removeLine( ' + i + ', ' + field_id +')\" class =\"btn btn-danger\" type = \"button\" name =\"delete_item\">'
+                + '<i class =\"ti ti-trash\"></i></button></td></tr>'
+
+            var joined = [tabtr, tabfields, tabbutton].join(' ');
+
+            $('#freetable_table' + field_id + ' tr[id^=line_' + field_id + '_]:last').after(joined);
+            elem_parent.find('input[name=name' + field_id + ']').val('');
+
+            $.each(fields, function (index, valuej) {
+                if (type_fields[index] == params.text) {
+                    $('#line_' + field_id + '_' + i + ' #' + index + '_' + i).val(elem_parent.find('input[name=' + index + ']').val());
+                    elem_parent.find('input[name=' + index + ']').val('');
+                } else if (type_fields[index] == params.select) {
+                    $('#line_' + field_id + '_' + i + ' #' + index + '_' + i).val(elem_parent.find('select[name=' + index + ']').val());
+                    elem_parent.find('select[name=' + index + ']').val('');
+                } else if (type_fields[index] == params.number) {
+                    $('#line_' + field_id + '_' + i + ' #' + index + '_' + i).val(elem_parent.find('input[name=' + index + ']').val());
+                    elem_parent.find('input[name=' + index + ']').val(0);
+                } else if (type_fields[index] == params.date) {
+                    $('#line_' + field_id + '_' + i + ' #' + index + '_' + i).val(elem_parent.find('input[name=' + index + ']').val());
+                    elem_parent.find('input[name=' + index + ']').val(0);
+                } else if (type_fields[index] == params.time) {
+                    $('#line_' + field_id + '_' + i + ' #' + index + '_' + i).val(elem_parent.find('input[name=' + index + ']').val());
+                    elem_parent.find('input[name=' + index + ']').val(0);
+                }
+            });
+        } else {
+            tabtr = '<tr name=\"data\" $style id=\"line_' + field_id + '_' + i + '\">';
+
+            $.each(fields, function (index, valuej) {
+
+                if (type_fields[index] == params.text) {
+                    tabfields.push('<td $style><input id = \"' + index + '_' + i + '\" type=\"text\" name=\"' + index + '\" size=\"' + params.size + '\" disabled ></td>');
+                } else if (type_fields[index] == params.select) {
+                    var select_open = '<td $style><select class=\"form-select\" disabled id = \"' + index + '_' + i + '\" name=\"' + index + '\">';
+                    var select_options = '';
+                    $.each(dropdown_values_fields, function (indexv, values) {
+                        $.each(values, function (indexd, valued) {
+                            if (index == indexv) {
+                                select_options += '<option value=\"' + valued + '\">' + valued + '</option>';
+                            }
+                        });
+                    });
+                    var select_close = '</select></td>';
+                    var select = [select_open, select_options, select_close].join(' ');
+                    tabfields.push(select);
+                } else if (type_fields[index] == params.number) {
+                    tabfields.push('<td $style><input add=4 id=\"' + index + '_' + i + '\" type=\"number\" min=\"0\" name=\"' + index + '\" style=\"width: 7em;\" disabled ></td>');
+                } else if (type_fields[index] == params.readonly && params.orderfollowupisactive) {
+                    //orderfollowup
+                    tabfields.push('<td $style id=\"linetotal\">' + total.toFixed(2) + ' €</td>');
+                } else if (type_fields[index] == params.date) {
+                    tabfields.push('<td $style><input add=4 id=\"' + index + '_' + i + '\" type=\"date\" name=\"' + index + '\"  disabled ></td>');
+                } else if (type_fields[index] == params.time) {
+                    tabfields.push('<td $style><input add=4 id=\"' + index + '_' + i + '\" type=\"time\" name=\"' + index + '\"  disabled ></td>');
+                }
+            });
+            tabbutton = '<td></td><td style=\"text-align: center;\"><button onclick=\"editLine(' + i +', ' + field_id +')\" class =\"btn btn-info\" type = \"button\" name =\"edit_item\">'
+                + '<i class =\"ti ti-pencil\"></i></button></td>'
+                + '<td style=\"text-align: center;\"><button onclick=\"removeLine( ' + i + ', ' + field_id +')\" class =\"btn btn-danger\" type = \"button\" name =\"delete_item\">'
+                + '<i class =\"ti ti-trash\"></i></button></td></tr>'
+
+            var joined = [tabtr, tabfields, tabbutton].join(' ');
+
+            $('#freetable_table' + field_id + ' tr[id^=line_' + field_id + '_]:last').after(joined);
+
+            $('#freetable_table' + field_id + ' tr[id^=line_' + field_id + '_]:last #name_' + i).val(name);
+            $.each(fields, function (index, valuej) {
+                if (type_fields[index] == params.text) {
+                    $('#freetable_table' + field_id + ' tr[id^=line_' + field_id + '_]:last #' + index + '_' + i).val(elem_parent.find('input[name=' + index + ']').val());
+                } else if (type_fields[index] == params.select) {
+                    $('#freetable_table' + field_id + ' tr[id^=line_' + field_id + '_]:last #' + index + '_' + i).val(elem_parent.find('select[name=' + index + ']').val());
+                } else if (type_fields[index] == params.number) {
+                    $('#freetable_table' + field_id + ' tr[id^=line_' + field_id + '_]:last #' + index + '_' + i).val(elem_parent.find('input[name=' + index + ']').val());
+                } else if (type_fields[index] == params.date) {
+                    $('#freetable_table' + field_id + ' tr[id^=line_' + field_id + '_]:last #' + index + '_' + i).val(elem_parent.find('input[name=' + index + ']').val());
+                } else if (type_fields[index] == params.time) {
+                    $('#freetable_table' + field_id + ' tr[id^=line_' + field_id + '_]:last #' + index + '_' + i).val(elem_parent.find('input[name=' + index + ']').val());
+                }
+            });
+        }
+        node.parentNode.parentNode.remove();
+        if (typepost == 'add') {
+            nb++;
+            localStorage.setItem('nextnb', nb);
+            i++;
+        }
+        //orderfollowup0
+        if (params.orderfollowupisactive) {
+            showConfirmButton(field_id);
+        }
+    }
+}
+
+//orderfollowup
+function showConfirmButton(field_id)
+{
+    var tabdatas = $('[id^=line_' + field_id + '_]');
+    $('#nextBtn').hide();
+
+    if (tabdatas.length == 0) {
+        $('#add_freeinputs_' + field_id).css('display', 'none');
+        $('#div_save_draft').css('display', 'none');
+        if ($('#button_save_mydraft')) {
+            $('#button_save_mydraft').css('display', 'none');
+        }
+    } else {
+        $('#add_freeinputs_' + field_id).css('display', 'inline-block');
+        $('#div_save_draft').css('display', 'inline-block');
+        if ($('#button_save_mydraft')) {
+            $('#button_save_mydraft').css('display', 'inline-block');
+        }
+    }
+}
+
+function removeLine(l, field_id, newparams)
+{
+    const params = newparams || window.metademandfreelinesparams;
+
+    $('#line_' + field_id + '_' + l).remove();
+    var line = {
+        'remove': l,
+        'metademands_id': params.plugin_metademands_metademands_id,
+        'fields_id': field_id
+    };
+
+    $.ajax({
+        url: params.root + '/ajax/freetable_item.php',
+        type: 'POST',
+        data: {type: 'remove', datas: line}
+    });
+    var tabdatas = $('[id^=line_' + field_id + '_]');
+    if (tabdatas.length == 0) {
+        $('#add_freeinputs_' + field_id).css('display', 'none');
+        $('#div_save_draft').css('display', 'none');
+        if ($('#button_save_mydraft')) {
+            $('#button_save_mydraft').css('display', 'none');
+        }
+    }
+    if (document.querySelector('tr[id=\"tr_valid' + field_id + '\"]')) {
+        document.querySelector('tr[id=\"tr_valid' + field_id + '\"]').remove();
+    }
+}
+
+function editLine(l, field_id, newparams)
+{
+    const params = newparams || window.metademandfreelinesparams;
+
+    let line = document.querySelector('#line_' + field_id + '_' + l);
+
+    let inputs = line.querySelectorAll('input');
+    let selects = line.querySelectorAll('select');
+    let areas = line.querySelectorAll('textarea');
+
+    for (var i = 0; i < inputs.length; i++) {
+        inputs[i].disabled = false;
+    }
+
+    for (var i = 0; i < selects.length; i++) {
+        selects[i].disabled = false;
+    }
+
+    for (var i = 0; i < areas.length; i++) {
+        areas[i].disabled = false;
+    }
+
+    line.querySelector('button[name=\"delete_item\"]').parentNode.remove();
+    line.querySelector('button[name=\"edit_item\"]').parentNode.remove();
+
+    let td = document.createElement('td');
+    td.setAttribute('class', 'tbl-center');
+    let button = document.createElement('button');
+    button.className = 'btn btn-success';
+    button.type = 'button';
+
+    let ico = document.createElement('i');
+    ico.className = 'ti ti-check';
+    button.appendChild(ico);
+    button.dataset.id = l;
+    button.addEventListener('click', function () {
+        confirmUpdateLine(this, l, 2, field_id, newparams);
+    });
+    td.appendChild(button);
+    line.appendChild(td);
+
+    let td1 = document.createElement('td');
+    td1.setAttribute('class', 'tbl-center');
+    let button1 = document.createElement('button');
+    button1.className = 'btn btn-danger';
+    button1.type = 'button';
+
+    let ico1 = document.createElement('i');
+    ico1.className = 'ti ti-trash';
+    button1.appendChild(ico1);
+    button1.dataset.id = l;
+    button1.addEventListener('click', function () {
+        removeLine(this.dataset.id, field_id, newparams);
+    });
+    td1.appendChild(button1);
+    line.appendChild(td1);
+}

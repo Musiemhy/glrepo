@@ -1,0 +1,30 @@
+<?php
+require dirname(__DIR__, 3) . '/inc/includes.php';
+
+// Force clear the search session and set criteria for Requests (Type 2)
+unset($_SESSION['glpisearch']['Ticket']);
+$_GET['itemtype'] = 'Ticket';
+$_GET['reset']    = 'reset';
+$_GET['criteria'] = [
+    0 => [ 'field' => 14, 'searchtype' => 'equals', 'value' => 2, 'link' => 'AND' ]
+];
+
+Html::header(__('Requests', 'servicecatalog'), $_SERVER['REQUEST_URI'], 'helpdesk', 'Ticket');
+?>
+<div class="container-fluid mt-3 mb-3">
+    <div class="btn-group shadow-sm" role="group">
+        <a href="?page=incidents" class="btn btn-white text-danger border border-danger">
+            <i class="ti ti-alert-triangle me-1"></i> <?= __('Incidents', 'servicecatalog') ?>
+        </a>
+        <a href="?page=requests" class="btn btn-success fw-bold active">
+            <i class="ti ti-help-circle me-1"></i> <?= __('Requests', 'servicecatalog') ?>
+        </a>
+    </div>
+</div>
+<style>
+    /* Hide the default global dashboard tiles */
+    .row-deck, .row-cards { display: none !important; }
+</style>
+<?php
+Search::show('Ticket');
+Html::footer();

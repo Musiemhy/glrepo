@@ -1,0 +1,159 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ *  LICENSE
+ *
+ * This file is part of Reports plugin for GLPI.
+ *
+ * Reports is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Reports is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with Reports. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * @authors   Nelly Mahu-Lasson, Remi Collet, Alexandre Delaunay, Xavier Caillaud, Infotel
+ * @copyright Copyright (c) 2009-2026 Reports plugin team
+ * @license   AGPL License 3.0 or (at your option) any later version
+ * @link      https://github.com/InfotelGLPI/reports
+ * @link      http://www.glpi-project.org/
+ * @package   reports
+ * @since     2009
+ *            http://www.gnu.org/licenses/agpl-3.0-standalone.html
+ * --------------------------------------------------------------------------
+ */
+
+use GlpiPlugin\Reports\AutoReport;
+use GlpiPlugin\Reports\SoftwareWithLicenseCriteria;
+
+$USEDBREPLICATE        = 1;
+$DBCONNECTION_REQUIRED = 0;
+
+global $DB;
+
+$dbu = new DbUtils();
+
+//TRANS: The name of the report = Detailed license report
+// Defense in depth: enforce the report right on page load, not only inside AutoReport::execute().
+Session::checkRight("plugin_reports_licenses", READ);
+
+// The plugin right gates the report, not the data it publishes: this listing emits the serial
+// number of every license of the entity tree, together with the computers they are assigned
+// to. Confront the itemtypes the report reads, as doublons, histohard and histoinst already
+// do, so the report right cannot be turned into a read right over the license base.
+$softwarelicense = new SoftwareLicense();
+$softwarelicense->checkGlobal(READ);
+$computer = new Computer();
+$computer->checkGlobal(READ);
+
+$report = new AutoReport(__('Detailed license report', 'reports'));
+
+$license = new SoftwareWithLicenseCriteria($report, 'glpi_softwarelicenses.softwares_id');
+
+$license->setSqlField('glpi_softwarelicenses.softwares_id');
+
+$report->displayCriteriasForm();
+
+// Form validate and only one software with license
+if ($report->criteriasValidated()
+    && $license->getParameterValue() > 0) {
+
+    $report->setSubNameAuto();
+
+    $report->setColumns(["license" => _n('License', 'Licenses', 2),
+        "serial"  => __('Serial number'),
+        "nombre"  => _x('Quantity', 'Number'),
+        "type"    => __('Type'),
+        "buy"     => __('Purchase version'),
+        "used"    => __('Used version', 'reports'),
+        "expire"  => __('Expiration'),
+        "comment" => __('Comments'),
+        "name"    => __('Computer')]);
+
+    $criteria = [
+        'SELECT' => ['glpi_softwarelicenses.name AS license',
+            'glpi_softwarelicenses.serial AS serial',
+            'glpi_softwarelicenses.number AS nombre',
+            'glpi_softwarelicensetypes.name AS type',
+            'buyversion.name AS buy',
+            'useversion.name AS used',
+            'glpi_softwarelicenses.expire AS expire',
+            'glpi_softwarelicenses.comment AS comment',
+            'glpi_computers.id AS name',
+        ],
+        'FROM' => 'glpi_softwarelicenses',
+        'LEFT JOIN'       => [
+            'glpi_softwares' => [
+                'ON' => [
+                    'glpi_softwarelicenses' => 'softwares_id',
+                    'glpi_softwares'          => 'id',
+                ],
+            ],
+            'glpi_items_softwarelicenses' => [
+                'ON' => [
+                    'glpi_items_softwarelicenses' => 'softwarelicenses_id',
+                    'glpi_softwarelicenses'          => 'id',
+                ],
+            ],
+            'glpi_computers' => [
+                'ON' => [
+                    'glpi_computers'   => 'id',
+                    'glpi_items_softwarelicenses'                  => 'items_id', [
+                        'AND' => [
+                            'glpi_items_softwarelicenses.itemtype' => 'Computer',
+                        ],
+                    ],
+                ],
+            ],
+            'glpi_softwareversions AS buyversion' => [
+                'ON' => [
+                    'glpi_softwarelicenses' => 'softwareversions_id_buy',
+                    'buyversion'          => 'id',
+                ],
+            ],
+            'glpi_softwareversions AS useversion' => [
+                'ON' => [
+                    'glpi_softwarelicenses' => 'softwareversions_id_use',
+                    'useversion'          => 'id',
+                ],
+            ],
+            'glpi_softwarelicensetypes' => [
+                'ON' => [
+                    'glpi_softwarelicenses' => 'softwarelicensetypes_id',
+                    'glpi_softwarelicensetypes'          => 'id',
+                ],
+            ],
+        ],
+        'WHERE' => ['glpi_softwares.is_deleted = 0',
+            'glpi_softwares.is_template = 0'],
+        'GROUPBY'   => ['license'],
+        'ORDERBY'   => ['license'],
+    ];
+    // glpi_softwares is recursive: a software declared recursive in a parent entity is
+    // legitimately visible from the child entities. getEntitiesRestrictCriteria() defaults to
+    // $is_recursive = false and never infers it from the table, so without this flag those
+    // shared softwares -- and the licence counts that hang off them -- were missing from the
+    // report while the native GLPI search still listed them. Same reasoning as listgroups.php.
+    $criteria['WHERE'][] = getEntitiesRestrictCriteria(
+        'glpi_softwares',
+        '',
+        '',
+        true,
+    );
+
+    $criteria['WHERE'][] = $license->getNewSqlCriteriasRestriction();
+
+    $report->setSqlRequest($criteria);
+
+    $report->execute();
+
+}
+
+$report->footer();

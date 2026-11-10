@@ -1,0 +1,72 @@
+{#
+ # -------------------------------------------------------------------------
+ # manageentities plugin for GLPI
+ # Copyright (C) 2017-2026 by the manageentities Development Team.
+ #
+ # https://github.com/InfotelGLPI/manageentities
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of manageentities.
+ #
+ # manageentities is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # manageentities is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with manageentities. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{#
+ Step 3 — Publisher subscription (new_entity mode only, optional)
+ Variables: sub_name, customer_account_id, active_editor_suscription, cloud_client,
+            internet_publication, plugin_manageentities_subscriptionlevels_id, all_levels,
+            begin_date, end_date, end_date_expired, comment, rand, wizard_url, step
+ #}
+
+<div class="card">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="ti ti-certificate me-1"></i>
+        <h3 class="card-title mb-0">
+            {{ __('Publisher subscription', 'manageentities') }}
+            <small class="text-muted fw-normal ms-1">{{ __('Optional') }}</small>
+        </h3>
+    </div>
+    <div class="card-body">
+        <div id="step3-errors" class="alert alert-danger d-none"></div>
+
+        {# Behaviour: public/scripts/editorsubscription-fields.js #}
+        <div class="row g-3" id="step3-fields-{{ rand }}" data-me-subscription="{{ {'required': false}|json_encode }}">
+            {% include '@manageentities/editorsubscription_fields.html.twig' with {
+                fields_required: false,
+                dates_required: true,
+            } %}
+        </div>
+    </div>
+    <div class="card-footer d-flex gap-2 justify-content-between">
+        <button type="button" class="btn btn-outline-secondary"
+            data-me-wizard-action="back" data-step="{{ step }}">
+            <i class="ti ti-arrow-left me-1"></i>{{ __('Previous') }}
+        </button>
+        <div class="d-flex gap-2">
+            {# Early exit: only the entity, its contacts and this subscription get created #}
+            <button type="button" class="btn btn-outline-success" id="btn-save-finish"
+                data-label="{{ __('Finish without contract', 'manageentities') }}"
+                data-me-wizard-action="finish-without-contract" data-step="{{ step }}">
+                <i class="ti ti-check me-1"></i>{{ __('Finish without contract', 'manageentities') }}
+            </button>
+            <button type="button" class="btn btn-primary"
+                data-me-wizard-action="save-step" data-step="3">
+                <i class="ti ti-arrow-right me-1"></i>{{ __('Next') }}
+            </button>
+        </div>
+    </div>
+</div>

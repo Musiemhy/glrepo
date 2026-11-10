@@ -1,0 +1,158 @@
+{#
+ # -------------------------------------------------------------------------
+ # addressing plugin for GLPI
+ # Copyright (C) 2016-2026 by the addressing Development Team.
+ #
+ # https://github.com/pluginsGLPI/addressing
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of addressing.
+ #
+ # addressing is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # addressing is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with addressing. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+<div class='spaced'>
+    <table class='tab_cadre_fixe'>
+        <tr class='tab_bg_2 left'>
+            <td class='alert alert-info'>
+                {% if free == 1 %}
+                    {{ __('Number of free IP', 'addressing') }} {{ nbipf }}<br>
+                {% endif %}
+                {% if reserved == 1 %}
+                    {{ __('Number of reserved IP', 'addressing') }} {{ nbipr }}<br>
+                {% endif %}
+                {% if alloted == 1 %}
+                    {{ __('Number of assigned IP (no doubles)', 'addressing') }} {{ nbipt }}<br>
+                {% endif %}
+                {% if doubles == 1 %}
+                    {{ __('Number of doubles IP', 'addressing') }} {{ nbipd }}<br>
+                {% endif %}
+            </td>
+            <td class='p-2 m-2'>
+                <table class='netport-legend'>
+                    <tr><th colspan='4'>{{ __('Caption') }}</th></tr>
+                    <tr>
+                        {% if doubles == 1 %}
+                            <td class='legend_addressing plugin_addressing_ip_double'>{{ __('Same IP', 'addressing') }}</td>&nbsp;
+                        {% endif %}
+                        {% if use_ping %}
+                            {% if ping_off == 1 %}
+                                <td class='legend_addressing plugin_addressing_ping_off'>{{ __('Ping: got a response - used IP', 'addressing') }}</td>&nbsp;
+                            {% endif %}
+                            {% if ping_on == 1 %}
+                                <td class='legend_addressing plugin_addressing_ping_on'>{{ __('Ping: no response - free IP', 'addressing') }}</td>&nbsp;
+                            {% endif %}
+                        {% else %}
+                            <td class='legend_addressing plugin_addressing_ip_free'>{{ __('Free IP', 'addressing') }}</td>&nbsp;
+                        {% endif %}
+                        {% if reserved == 1 %}
+                            <td class='legend_addressing plugin_addressing_ip_reserved'>{{ __('Reserved IP', 'addressing') }}</td>&nbsp;
+                        {% endif %}
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</div>
+
+<form method='post' name='filtering_form' id='filtering_form' action='{{ form_url }}?id={{ id }}'>
+    <table class='tab_cadre_fixe'>
+        <tr class='tab_bg_2 center'>
+            <input type="hidden" name="id" value="{{ id }}">
+            <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token() }}">
+            <tr class='tab_bg_1 center'>
+                <td>{{ __('Assigned IP', 'addressing') }}</td>
+                <td>{{ _self.toggle('seeallotedip', alloted) }}</td>
+
+                <td>{{ __('Same IP', 'addressing') }}</td>
+                <td>{{ _self.toggle('seedoubleip', doubles) }}</td>
+
+                <td>{{ __('Reserved IP', 'addressing') }}</td>
+                <td>{{ _self.toggle('seereservedip', reserved) }}</td>
+
+                <td>{{ __('Free IP', 'addressing') }}</td>
+                <td>{{ _self.toggle('seefreeip', free) }}</td>
+            </tr>
+
+            {% if use_ping %}
+                <tr class='tab_bg_1 center'>
+                    <td>{{ __('Ping: no response - free IP', 'addressing') }}</td>
+                    <td>{{ _self.toggle('ping_on', ping_on) }}</td>
+
+                    <td>{{ __('Ping: got a response - used IP', 'addressing') }}</td>
+                    <td>{{ _self.toggle('ping_off', ping_off) }}</td>
+
+                    <td class='center' colspan='4'>
+                        {% if can_scan %}
+                            <button form='' type='button' id='updatePingInfo'
+                                    class='submit btn btn-primary me-2 center' name='updatePingInfo'
+                                    data-addressing-launch-ping
+                                    data-addressing-url='{{ ping_url }}'
+                                    title='{{ _x('button', 'Manual launch of ping', 'addressing') }}'>
+                                <i class='ti ti-refresh' data-hasqtip='0' aria-hidden='true'></i>&nbsp;
+                                {{ _x('button', 'Manual launch of ping', 'addressing') }}
+                            </button>
+                        {% else %}
+                            <span class="text-muted">
+                                {{ __('Ping is disabled in the plugin configuration', 'addressing') }}
+                            </span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endif %}
+
+            {% if has_filters %}
+                <tr class='tab_bg_1 center'>
+                    <td colspan='4'>{{ _n('Filter', 'Filters', 2, 'addressing') }}</td>
+                    {# Dropdown::showFromArray() markup, built by the core. #}
+                    <td colspan='4'>{{ filter_dropdown|raw }}</td>
+                </tr>
+            {% endif %}
+
+            <tr class='tab_bg_1 center'>
+                <td colspan='8'><button type='submit' name='search' class='btn btn-primary me-2'>{{ _x('button', 'Search') }}</button></td>
+            </tr>
+        </tr>
+    </table>
+
+    {# Html::closeForm() markup, carrying the CSRF token of the form. #}
+    {{ close_form|raw }}
+
+    {# The manual launch of the ping and the rows below are handled by public/scripts/ip_report.js. #}
+    <div id='ajax_loader' class="ajax_loader d-none"></div>
+
+    {# Html::printPager() markup: the core pager helper only echoes. #}
+    {{ pager_html|raw }}
+
+    {{ include('@addressing/report_ip_list.html.twig', report) }}
+
+    {% if total_realfreeip is not null %}
+        <table class='tab_cadre_fixe'>
+            <tr class='tab_bg_2 center'>
+                <td>{{ __('Real free IP (Ping=KO)', 'addressing') }} {{ total_realfreeip }}</td>
+            </tr>
+        </table>
+    {% endif %}
+</div>
+
+{# Hidden field posted with the filtering form, toggled by public/scripts/ip_report.js. #}
+{% macro toggle(name, value) %}
+    <input type="hidden" name="{{ name }}" id="{{ name }}" value="{{ value == 1 ? 1 : 0 }}">
+    <a class="button" role="button" data-addressing-toggle="{{ name }}">
+        <i class="fa-fw fas fa-2x {{ value == 1 ? 'fa-toggle-on enabled' : 'fa-toggle-off disabled' }}"></i>
+    </a>
+{% endmacro %}

@@ -1,0 +1,52 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * manageentities plugin for GLPI
+ * Copyright (C) 2017-2026 by the manageentities Development Team.
+ *
+ * https://github.com/InfotelGLPI/manageentities
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of manageentities.
+ *
+ * manageentities is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * manageentities is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with manageentities. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use Glpi\Exception\Http\AccessDeniedHttpException;
+use GlpiPlugin\Manageentities\CriDetail;
+
+header("Content-Type: text/html; charset=UTF-8");
+Html::header_nocache();
+
+// Authorization: plugin access or intervention-report rights (shared by the admin pages and the
+// CRI generation page). The payloads below are contractual data - contract comment, end date and
+// status, subscription flags, remaining days - so the entry right is the one actually carried by
+// the calling page, and no longer the far broader "may create a ticket".
+if (!Session::haveRight('plugin_manageentities', READ)
+    && !Session::haveRight('plugin_manageentities_cri_create', READ)) {
+    throw new AccessDeniedHttpException();
+}
+
+if (isset($_POST["entities_id"])) {
+    // The entity id comes from $_POST: enforce entity access before listing its contracts
+    // (cross-entity IDOR), consistently with the other dropdown endpoints.
+    if (!Session::haveAccessToEntity((int) $_POST["entities_id"])) {
+        throw new AccessDeniedHttpException();
+    }
+    CriDetail::showContractLinkDropdown([], (int) $_POST["entities_id"], 'ticket', 'rows');
+}

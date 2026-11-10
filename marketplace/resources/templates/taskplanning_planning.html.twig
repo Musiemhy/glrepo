@@ -1,0 +1,47 @@
+{#
+ # -------------------------------------------------------------------------
+ # resources plugin for GLPI
+ # Copyright (C) 2015-2026 by the resources Development Team.
+ #
+ # https://github.com/InfotelGLPI/resources
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of resources.
+ #
+ # resources is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 2 of the License, or
+ # (at your option) any later version.
+ #
+ # resources is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with resources. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{# Planning block injected into #viewplan by ajax/planning.php: a start date and a
+ # duration. Picking a duration of "Specify an end date" swaps the end-date container
+ # below for an explicit end-date field, reloaded over AJAX. #}
+
+{% if plan_id > 0 %}
+    <input type="hidden" name="plan[id]" value="{{ plan_id }}">
+{% endif %}
+
+<div class="row">
+    <div class="col-md-4 mb-2">{{ __('Start date') }}</div>
+    <div class="col-md-4 mb-2">{{ begin_field|raw }}</div>
+</div>
+
+<div class="row">
+    <div class="col-md-4 mb-2">{{ __('Period') }}</div>
+    <div class="col-md-4 mb-2">
+        {{ duration_field|raw }}
+        <div id="date_end{{ rand }}" class="mt-2"></div>
+    </div>
+</div>

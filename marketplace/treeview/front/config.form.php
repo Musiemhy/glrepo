@@ -1,0 +1,64 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * TreeView plugin for GLPI
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of TreeView.
+ *
+ * TreeView is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * TreeView is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with TreeView. If not, see <http://www.gnu.org/licenses/>.
+ * -------------------------------------------------------------------------
+ * @copyright Copyright (C) 2007-2023 by Teclib'.
+ * @license   GPLv2 https://www.gnu.org/licenses/gpl-2.0.html
+ * @link      https://github.com/pluginsGLPI/treeview
+ * -------------------------------------------------------------------------
+ */
+
+Session::checkRight('config', UPDATE);
+
+$config = new PluginTreeviewConfig();
+if (isset($_POST['update'])) {
+    if (isset($_POST['target']) && !in_array($_POST['target'], ['_blank', 'right'], true)) {
+        Session::addMessageAfterRedirect(
+            sprintf(__s('Invalid target value (%s) ignored', 'treeview'), htmlspecialchars((string) $_POST['target'], ENT_QUOTES, 'UTF-8')),
+            false,
+            ERROR,
+        );
+        unset($_POST['target']);
+    }
+
+    foreach (['folderLinks', 'useSelection', 'useLines', 'useIcons', 'closeSameLevel', 'itemName', 'locationName'] as $field) {
+        if (isset($_POST[$field])) {
+            $_POST[$field] = (int) $_POST[$field];
+        }
+    }
+
+    $config->update($_POST);
+    Html::back();
+} elseif (Plugin::isPluginActive('treeview')) {
+    Html::header(PluginTreeviewConfig::getTypeName(), $_SERVER['PHP_SELF'], 'config', 'plugin');
+    $config->showForm(1);
+} else {
+    Html::header(__s('Setup'), $_SERVER['PHP_SELF'], 'config', 'plugin');
+    // close frame if open
+    echo " <script type='text/javascript'>
+         if (top != self)
+         top.location = self.location;
+         </script>";
+}
+
+Html::footer();

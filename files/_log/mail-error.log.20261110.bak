@@ -1,0 +1,28 @@
+2026-11-09 16:06:02 [@dbhqitmuatappsrv]
+Warning: an email was undeliverable to mulualem.assefaademassie@dashenbanksc.com with 5 retries remaining. Message: [GLPI #0000238] New user in assignees ttttttttttttt, Error: Symfony\Component\Mime\Address::__construct(): Argument #1 ($address) must be of type string, null given, called in ./src/NotificationEventMailing.php on line 186
+2026-11-09 16:06:02 [@dbhqitmuatappsrv]
+Warning: an email was undeliverable to mulualem.assefaademassie@dashenbanksc.com with 5 retries remaining. Message: [GLPI #0000238] New group in assignees ttttttttttttt, Error: Symfony\Component\Mime\Address::__construct(): Argument #1 ($address) must be of type string, null given, called in ./src/NotificationEventMailing.php on line 186
+2026-11-09 16:10:03 [@dbhqitmuatappsrv]
+Warning: an email was undeliverable to mulualem.assefaademassie@dashenbanksc.com with 4 retries remaining. Message: [GLPI #0000238] New user in assignees ttttttttttttt, Error: Symfony\Component\Mime\Address::__construct(): Argument #1 ($address) must be of type string, null given, called in ./src/NotificationEventMailing.php on line 186
+2026-11-09 16:10:03 [@dbhqitmuatappsrv]
+Warning: an email was undeliverable to mulualem.assefaademassie@dashenbanksc.com with 4 retries remaining. Message: [GLPI #0000238] New group in assignees ttttttttttttt, Error: Symfony\Component\Mime\Address::__construct(): Argument #1 ($address) must be of type string, null given, called in ./src/NotificationEventMailing.php on line 186
+2026-11-09 16:15:03 [@dbhqitmuatappsrv]
+Warning: an email was undeliverable to mulualem.assefaademassie@dashenbanksc.com with 3 retries remaining. Message: [GLPI #0000238] New user in assignees ttttttttttttt, Error: Symfony\Component\Mime\Address::__construct(): Argument #1 ($address) must be of type string, null given, called in ./src/NotificationEventMailing.php on line 186
+2026-11-09 16:15:03 [@dbhqitmuatappsrv]
+Warning: an email was undeliverable to mulualem.assefaademassie@dashenbanksc.com with 3 retries remaining. Message: [GLPI #0000238] New group in assignees ttttttttttttt, Error: Symfony\Component\Mime\Address::__construct(): Argument #1 ($address) must be of type string, null given, called in ./src/NotificationEventMailing.php on line 186
+2026-11-09 16:20:03 [@dbhqitmuatappsrv]
+Warning: an email was undeliverable to mulualem.assefaademassie@dashenbanksc.com with 2 retries remaining. Message: [GLPI #0000238] New user in assignees ttttttttttttt, Error: Symfony\Component\Mime\Address::__construct(): Argument #1 ($address) must be of type string, null given, called in ./src/NotificationEventMailing.php on line 186
+2026-11-09 16:20:03 [@dbhqitmuatappsrv]
+Warning: an email was undeliverable to mulualem.assefaademassie@dashenbanksc.com with 2 retries remaining. Message: [GLPI #0000238] New group in assignees ttttttttttttt, Error: Symfony\Component\Mime\Address::__construct(): Argument #1 ($address) must be of type string, null given, called in ./src/NotificationEventMailing.php on line 186
+2026-11-09 16:25:02 [@dbhqitmuatappsrv]
+Warning: an email was undeliverable to mulualem.assefaademassie@dashenbanksc.com with 1 retries remaining. Message: [GLPI #0000238] New user in assignees ttttttttttttt, Error: Symfony\Component\Mime\Address::__construct(): Argument #1 ($address) must be of type string, null given, called in ./src/NotificationEventMailing.php on line 186
+2026-11-09 16:25:02 [@dbhqitmuatappsrv]
+Warning: an email was undeliverable to mulualem.assefaademassie@dashenbanksc.com with 1 retries remaining. Message: [GLPI #0000238] New group in assignees ttttttttttttt, Error: Symfony\Component\Mime\Address::__construct(): Argument #1 ($address) must be of type string, null given, called in ./src/NotificationEventMailing.php on line 186
+2026-11-09 16:29:02 [@dbhqitmuatappsrv]
+Warning: an email was undeliverable to mulualem.assefaademassie@dashenbanksc.com with 0 retries remaining. Message: [GLPI #0000238] New user in assignees ttttttttttttt, Error: Symfony\Component\Mime\Address::__construct(): Argument #1 ($address) must be of type string, null given, called in ./src/NotificationEventMailing.php on line 186
+2026-11-09 16:29:02 [@dbhqitmuatappsrv]
+Fatal error: giving up delivery of email to mulualem.assefaademassie@dashenbanksc.com: [GLPI #0000238] New user in assignees ttttttttttttt
+2026-11-09 16:29:02 [@dbhqitmuatappsrv]
+Warning: an email was undeliverable to mulualem.assefaademassie@dashenbanksc.com with 0 retries remaining. Message: [GLPI #0000238] New group in assignees ttttttttttttt, Error: Symfony\Component\Mime\Address::__construct(): Argument #1 ($address) must be of type string, null given, called in ./src/NotificationEventMailing.php on line 186
+2026-11-09 16:29:02 [@dbhqitmuatappsrv]
+Fatal error: giving up delivery of email to mulualem.assefaademassie@dashenbanksc.com: [GLPI #0000238] New group in assignees ttttttttttttt

@@ -1,0 +1,232 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * vip plugin for GLPI
+ * Copyright (C) 2022-2026 by the vip Development Team.
+ *
+ * https://github.com/pluginsGLPI/vip
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of vip.
+ *
+ * vip is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * vip is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with vip. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Vip;
+
+use CommonDBTM;
+use CommonITILActor;
+use Computer;
+use Glpi\Application\View\TemplateRenderer;
+use Printer;
+use Session;
+
+class Ticket extends CommonDBTM
+{
+    public static $types = ['Ticket', 'Printer', 'Computer'];
+
+    /**
+     * @param $uid
+     *
+     * @return bool
+     */
+    public static function isUserVip($uid)
+    {
+        global $DB;
+
+        if ($uid) {
+            $result = $DB->request([
+                'SELECT' => ['glpi_plugin_vip_groups.id'],
+                'FROM' => 'glpi_groups_users',
+                'LEFT JOIN' => [
+                    'glpi_plugin_vip_groups' => [
+                        'ON' => [
+                            'glpi_plugin_vip_groups' => 'id',
+                            'glpi_groups_users' => 'groups_id',
+                        ],
+                    ],
+                ],
+                'WHERE' => [
+                    'glpi_plugin_vip_groups.isvip' => 1,
+                    'glpi_groups_users.users_id' => $uid,
+                ],
+            ]);
+            if (count($result) > 0) {
+                return $result->current()['id'];
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param int|int[]|string $entities Entity id, list of entity ids, or a JSON-encoded
+     *                                   list of entity ids (as sent by ajax/ticket.php).
+     *                                   Used to restrict the lookup to these entities
+     *                                   (and, for recursive groups, their sub-entities).
+     *
+     * @return array
+     */
+    public static function getUserVipList($entities)
+    {
+        global $DB;
+
+        $vip = [];
+
+        // ajax/ticket.php sends the caller's active entities as a JSON-encoded
+        // array; decode it so it can be used directly as the entities restriction
+        // value below (a raw scalar/array entity id is used as-is).
+        if (is_string($entities) && strlen($entities) > 0 && $entities[0] === '[') {
+            $decoded = json_decode($entities, true);
+            if (is_array($decoded)) {
+                $entities = $decoded;
+            }
+        }
+
+        $result = $DB->request([
+            'SELECT' => ['glpi_groups_users.users_id'],
+            'FROM' => 'glpi_groups_users',
+            'INNER JOIN' => [
+                'glpi_plugin_vip_groups' => [
+                    'ON' => [
+                        'glpi_plugin_vip_groups' => 'id',
+                        'glpi_groups_users' => 'groups_id',
+                    ],
+                ],
+                'glpi_groups' => [
+                    'ON' => [
+                        'glpi_groups' => 'id',
+                        'glpi_groups_users' => 'groups_id',
+                    ],
+                ],
+            ],
+            'WHERE' => [
+                'glpi_plugin_vip_groups.isvip' => 1,
+                // Restrict to the requested entities (falls back to the current
+                // session's active entities when $entities is empty).
+                getEntitiesRestrictCriteria('glpi_groups', '', $entities, true),
+            ],
+        ]);
+        if (count($result) > 0) {
+            foreach ($result as $uids) {
+                $vip[] = $uids['users_id'];
+            }
+        }
+        return $vip;
+    }
+
+    /**
+     * @param $ticketid
+     *
+     * @return bool
+     */
+    public static function isTicketVip($ticketid)
+    {
+        global $DB;
+
+        if ($ticketid > 0) {
+            $userresult = $DB->request([
+                'SELECT' => ['users_id'],
+                'FROM' => 'glpi_tickets_users',
+                'WHERE' => [
+                    'type' => CommonITILActor::REQUESTER,
+                    'tickets_id' => $ticketid,
+                ],
+            ]);
+            if (count($userresult) > 0) {
+                foreach ($userresult as $uids) {
+                    $isuservip = self::isUserVip($uids['users_id']);
+                    if ($isuservip > 0) {
+                        return $isuservip;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @param $printers_id
+     *
+     * @return bool
+     */
+    public static function isPrinterVip($printers_id)
+    {
+        $printer = new Printer();
+        $printer->getFromDB($printers_id);
+        return self::isUserVip($printer->getField('users_id'));
+    }
+
+    /**
+     * @param $computers_id
+     *
+     * @return bool
+     */
+    public static function isComputerVip($computers_id)
+    {
+        $computer = new Computer();
+        $computer->getFromDB($computers_id);
+        return self::isUserVip($computer->getField('users_id'));
+    }
+
+    /**
+     * @param $params
+     *
+     * @return void
+     */
+    public static function showVIPInfos($params)
+    {
+        // VIP status is reserved to holders of the plugin_vip READ right, like
+        // the JavaScript badge injection gated in setup.php. Guard here too so
+        // the banner cannot leak VIP membership regardless of the caller.
+        if (!Session::haveRight('plugin_vip', READ)) {
+            return;
+        }
+
+        $item = $params['item'];
+
+        if ($item === null || !in_array($item->getType(), self::$types, true)) {
+            return;
+        }
+
+        $id      = false;
+        $message = '';
+        if ($item->getType() == 'Ticket') {
+            if ($id = self::isTicketVip($item->getID())) {
+                $message = sprintf(__('%1$s %2$s'), __('This ticket concerns at least one', 'vip'), Group::getVipName($id));
+            }
+        } elseif ($id = self::isUserVip($item->getField('users_id'))) {
+            if ($item->getType() == 'Computer') {
+                $message = sprintf(__('%1$s %2$s'), __('This computer is used by a', 'vip'), Group::getVipName($id));
+            } elseif ($item->getType() == 'Printer') {
+                $message = sprintf(__('%1$s %2$s'), __('This printer is used by a', 'vip'), Group::getVipName($id));
+            }
+        }
+
+        if (!$id || $message === '') {
+            return;
+        }
+
+        TemplateRenderer::getInstance()->display('@vip/vip_infos.html.twig', [
+            'icon'    => Group::getVipIcon($id),
+            'name'    => Group::getVipName($id),
+            'color'   => Group::getVipColor($id),
+            'message' => $message,
+        ]);
+    }
+}

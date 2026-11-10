@@ -1,0 +1,53 @@
+<?php
+// O nome das funções DEVE conter o nome exato da pasta do plugin (plugin_permissionsmatrix)
+
+define('PERMISSIONSMATRIX_VERSION', '1.1.10');
+define('PERMISSIONSMATRIX_MIN_GLPI_VERSION', '10.0.0'); // Funciona para a v10 e v11
+
+/**
+ * Função principal de inicialização do plugin
+ */
+function plugin_init_permissionsmatrix() {
+    global $PLUGIN_HOOKS;
+    $PLUGIN_HOOKS["csrf_compliant"]["permissionsmatrix"] = true;
+    $PLUGIN_HOOKS['menu_toadd']['permissionsmatrix'] = ['tools' => 'GlpiPlugin\Permissionsmatrix\Matriz'];
+    Plugin::registerClass('GlpiPlugin\Permissionsmatrix\Profile', ['addtabon' => 'Profile']);
+    Plugin::registerClass('GlpiPlugin\Permissionsmatrix\Matriz');
+    $PLUGIN_HOOKS['config_page']['permissionsmatrix'] = 'front/config.form.php';
+}
+
+/**
+ * Define a versão, autor e requisitos do plugin
+ */
+function plugin_version_permissionsmatrix() {
+    return [
+        'name'           => __('Permissions Matrix', 'permissionsmatrix'),
+        'version'        => PERMISSIONSMATRIX_VERSION,
+        'author'         => 'andrefelipeufcg',
+        'license'        => 'GPLv2+',
+        'homepage'       => 'https://github.com/andrefelipeufcg/permissionsmatrix',
+        'minGlpiVersion' => PERMISSIONSMATRIX_MIN_GLPI_VERSION 
+    ];
+}
+
+/**
+ * Verifica os pré-requisitos antes de deixar o usuário clicar em "Instalar"
+ */
+function plugin_permissionsmatrix_check_prerequisites() {
+    if (version_compare(GLPI_VERSION, PERMISSIONSMATRIX_MIN_GLPI_VERSION, '<')) {
+        echo __("This plugin requires GLPI 10.0.0 or higher.", "permissionsmatrix");
+        return false;
+    }
+    if (version_compare(PHP_VERSION, '7.4.0', '<')) {
+        echo __("This plugin requires PHP 7.4.0 or higher.", "permissionsmatrix");
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Verifica se a configuração inicial está correta
+ */
+function plugin_permissionsmatrix_check_config() {
+    return true;
+}

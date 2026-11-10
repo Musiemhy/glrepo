@@ -1,0 +1,264 @@
+/*!
+ * -------------------------------------------------------------------------
+ * resources plugin for GLPI
+ * Copyright (C) 2015-2026 by the resources Development Team.
+ *
+ * https://github.com/InfotelGLPI/resources
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of resources.
+ *
+ * resources is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * resources is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with resources. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+.resources_menu {
+    padding: 5px;
+    border: 1px solid #ccc;
+    font-size: 14px;
+    background-color: #ffffff;
+    -moz-border-radius: 5px;
+    -webkit-border-radius: 5px;
+    border-radius: 5px;
+    background-color: var(--tblr-bg-surface);
+}
+
+.plugin_resources_date_over_color {
+    color: red;
+}
+
+.plugin_resources_date_day_color {
+    color: green;
+}
+
+.tab_menu {
+    border-collapse: separate;
+    border-spacing: 20px;
+}
+
+.tab_td_menu {
+    border: solid #CCC 1px;
+    padding: 30px;
+    box-shadow: 5px 5px 5px #ccc;
+    min-width: 150px;
+}
+
+/**************************************************************/
+
+/**********************Wizard table****************************/
+
+.bt-feature {
+    margin-bottom: 2px;
+}
+
+.plugin_resources_wizard_margin {
+    border-bottom: 1px #CCC dashed;
+    margin: 10px;
+    padding: 10px;
+}
+
+.plugin_resources_wizard {
+    height: 450px;
+    text-align: left;
+    /*-moz-border-radius-topright: 8px;*/
+    /*-moz-border-radius-bottomright: 8px;*/
+    /*-moz-border-radius-bottomleft: 8px;*/
+    width: 700px;
+}
+
+.plugin_resources_presentation_logo {
+    margin: auto;
+    margin-top: 100px;
+}
+
+.plugin_resource_wizard_img {
+    vertical-align: middle;
+}
+
+.plugin_resources_wizard_left_area {
+    /*width: 20px;*/
+}
+
+.plugin_resources_wizard_right_area {
+    width: 700px;
+    padding-bottom: 20px;
+    font-size: 14px;
+    text-align: left;
+}
+
+.plugin_resources_wizard_button {
+    height: 35px;
+    border-top: 2px outset #CCC dashed;
+}
+
+.plugin_resources_wizard_title {
+    font-size: 18px;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.plugin_resources_wizard_explain {
+    font-size: 14px;
+    text-align: justify;
+}
+
+.plugin_resources_wizard_explain td {
+    padding: 5px;
+}
+
+.plugin_resources_wizard_comment {
+    font-size: 9px;
+}
+
+.plugin_resources_wizard_choice {
+    font-size: 14px;
+    text-align: left;
+    margin-left: 10px;
+    margin-right: 10px;
+    margin-top: 20px;
+}
+
+.plugin_resources_wizard_table {
+    margin: 0 auto;
+    padding: 5px;
+    -moz-border-radius: 4px;
+    -webkit-border-radius: 4px;
+    -o-border-radius: 4px;
+    border: 1px solid #ccc;
+    z-index: 1;
+    text-align: left;
+    font-size: 11px;
+    width: 700px;
+    /*background-color: #ffffff;*/
+    -moz-border-radius: 5px;
+    -webkit-border-radius: 5px;
+    border-radius: 5px;
+    -moz-box-shadow: 0px 2px 5px #666;
+    -webkit-box-shadow: 0px 2px 5px #666;
+    box-shadow: 0px 2px 5px #666;
+}
+
+.plugin_resources_wizard_th1 {
+    font-size: 18px;
+    text-align: center;
+    padding-bottom: 15px;
+}
+
+.plugin_resources_wizard_th2 {
+    font-size: 14px;
+    text-align: left;
+}
+
+.plugin_resources_wizard_choice_td {
+    border: 1px solid #ccc;
+    padding: 5px;
+}
+
+.plugin_resources_hide {
+    display: none;
+}
+
+.plugin_resources_show {
+    display: block;
+}
+
+/**************************************************************/
+
+/**************************Button******************************/
+.next {
+    float: right;
+}
+
+.preview {
+    float: left;
+}
+
+/**************************************************************/
+
+/***********************Presentation***************************/
+
+.plugin_resources_presentation_title {
+    font-size: 22px;
+    text-align: left;
+    margin-top: 30px;
+}
+
+.plugin_resources_presentation_text {
+    font-size: 16px;
+    line-height: 20px;
+    margin-top: 80px;
+    text-align: justify;
+}
+
+
+/*****/
+.resources_wizard_resp {
+    margin: 0 auto;
+    padding: 5px;
+    border: 1px solid #ccc;
+    z-index: 1;
+    text-align: left;
+    /*font-size: 12px;*/
+    background-color: var(--tblr-bg-surface);
+
+    -moz-border-radius: 5px;
+    -webkit-border-radius: 5px;
+    border-radius: 5px;
+
+    /*-moz-box-shadow: 0px 2px 5px #666;*/
+    /*-webkit-box-shadow: 0px 2px 5px #666;*/
+    /*box-shadow: 0px 2px 5px #666;*/
+}
+
+.resources_wizard_resp_img {
+    vertical-align: middle;
+}
+
+/* ------------------------------------------------------------------------ *
+ * Contract type tree modal
+ *
+ * The tree is served in an iframe by Ajax::createIframeModalWindow(), which
+ * ignores its own width/height options and hardcodes height="400" on the
+ * iframe: the whole sizing has to be reclaimed here. These rules only apply
+ * to the host page (the modal shell); the page inside the iframe carries its
+ * own stylesheet, css/resourcetree.css.
+ * ------------------------------------------------------------------------ */
+
+.plugin_resources_tree_dialog .modal-content {
+    /* Follow the viewport instead of the iframe content: the dialog keeps a
+       stable size while the tree grows on expand. */
+    height: 82vh;
+    max-height: 82vh;
+}
+
+.plugin_resources_tree_dialog .modal-body {
+    padding: 0;
+    overflow: hidden;
+}
+
+.plugin_resources_tree_dialog .modal-body iframe.iframe {
+    /* Overrides the height="400" attribute of the core markup. */
+    height: 100%;
+    min-height: 20rem;
+    display: block;
+}
+
+@media (max-height: 600px) {
+    .plugin_resources_tree_dialog .modal-content {
+        height: 92vh;
+        max-height: 92vh;
+    }
+}

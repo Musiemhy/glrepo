@@ -1,0 +1,221 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * resources plugin for GLPI
+ * Copyright (C) 2015-2026 by the resources Development Team.
+ *
+ * https://github.com/InfotelGLPI/resources
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of resources.
+ *
+ * resources is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * resources is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with resources. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use GlpiPlugin\Resources\LDAP;
+use GlpiPlugin\Resources\LinkAd;
+use GlpiPlugin\Resources\Resource;
+
+if (!isset($_GET["id"])) {
+    $_GET["id"] = "";
+}
+
+$linkad = new LinkAd();
+
+//from central
+//update checklist
+if (isset($_POST["add"])) {
+    Session::checkRight(LinkAd::$rightname, CREATE);
+    // LinkAd has no entities_id of its own, so the global right above is the only guard
+    // here: scope the creation to the Resource it is attached to.
+    Resource::checkOwnership($_POST["plugin_resources_resources_id"] ?? 0);
+    $linkad->add($_POST);
+    Html::back();
+} elseif (isset($_POST["update"])) {
+    // checkChildOwnership() below only asks for the plugin_resources right on the owning
+    // Resource, and LinkAd has a right of its own that every other mutating branch of this
+    // file requires: ask for it here too.
+    Session::checkRight(LinkAd::$rightname, UPDATE);
+    // LinkAd carries no entities_id of its own, so check($id, UPDATE) alone cannot scope
+    // this to the caller's entity: resolve the owning Resource via
+    // plugin_resources_resources_id and check the right on that instance instead.
+    Resource::checkChildOwnership($linkad, $_POST["id"]);
+    // The guard above validates the Resource currently STORED in the row. The form posts
+    // plugin_resources_resources_id as a hidden field (linkad_form.html.twig,
+    // linkad_resource_form.html.twig) and update() writes it back, so the posted value has
+    // to be authorized at the sink as well: otherwise the row can be reparented onto a
+    // Resource of another entity, whose form would then display the AD account it carries.
+    if (isset($_POST["plugin_resources_resources_id"])) {
+        Resource::checkOwnership($_POST["plugin_resources_resources_id"]);
+    }
+    $linkad->update($_POST);
+    // auth_id names the directory the server binds to, with its stored rootdn password:
+    // take it as an id, and do not bind at all when the form named none.
+    $auth_id = (int) ($_POST["auth_id"] ?? 0);
+    if ($auth_id > 0) {
+        $ldap = new LDAP();
+        $ldap->getUserInformation($auth_id);
+    }
+    Html::back();
+} elseif (isset($_POST["createAD"])) {
+    // Drives Active Directory account creation from arbitrary POST identity fields:
+    // require the plugin write right before touching the directory or the DB, and scope it
+    // to the Resource this account is created for (LinkAd carries no entities_id, so no
+    // check() on it can enforce the entity boundary — see the "update" branch below).
+    Session::checkRight(LinkAd::$rightname, CREATE);
+    Resource::checkOwnership($_POST["plugin_resources_resources_id"] ?? 0);
+    // The follow-up below reports the operation into the ticket named by the form: validate
+    // it before the directory is touched, not after.
+    $tickets_id = LinkAd::checkTicketAccess($_POST["ticket_id"] ?? 0);
+    $ldap = new LDAP();
+    $res = $ldap->createUserAD($_POST);
+    if ($res) {
+        $_POST["action_done"] = 1;
+        $linkad->add($_POST);
+        $fup = new ITILFollowup();
+
+        $toadd = [
+            'type' => "new",
+            'items_id' => $tickets_id,
+            'itemtype' => Ticket::class,
+            'is_private' => 1,
+        ];
+
+        // The follow-up content is HTML: escape the untrusted values as they go in, instead of
+        // running htmlentities() over the assembled string. The blanket call turned the <br />
+        // separators of the update branch into literal text, and ENT_NOQUOTES left quotes
+        // unescaped anyway.
+        $toadd["content"] = sprintf(
+            htmlescape(__('%1$s %2$s have been added in the LDAP directory', 'resources')),
+            htmlescape($_POST["firstname"]),
+            htmlescape($_POST["name"]),
+        );
+
+        if ($tickets_id > 0) {
+            $fup->add($toadd);
+        }
+        $message = __('the user has been added to the LDAP directory', 'resources');
+        Session::addMessageAfterRedirect($message, false, INFO);
+    } else {
+        $message = __('the user has not been added to the LDAP directory', 'resources');
+        Session::addMessageAfterRedirect($message, false, ERROR);
+    }
+    Html::back();
+} elseif (isset($_POST["updateAD"])) {
+    // Drives Active Directory account modification: require the plugin write right, and
+    // scope it to the Resource owning this LinkAd (see the "update" branch above for why
+    // check($id, UPDATE) on LinkAd itself cannot enforce entity isolation).
+    Session::checkRight(LinkAd::$rightname, UPDATE);
+    $ldap = new LDAP();
+    Resource::checkChildOwnership($linkad, $_POST['id']);
+    // The follow-up below reports the operation into the ticket named by the form: validate
+    // it before the directory is touched, not after.
+    $tickets_id = LinkAd::checkTicketAccess($_POST["ticket_id"] ?? 0);
+    $_POST["login"] = $linkad->getField("login");
+    $res = $ldap->updateUserAD($_POST);
+    if ($res[0]) {
+        $_POST["action_done"] = 1;
+        $linkad->update($_POST);
+        $fup = new ITILFollowup();
+
+        $toadd = [
+            'type' => "new",
+            'items_id' => $tickets_id,
+            'itemtype' => Ticket::class,
+            'is_private' => 1,
+        ];
+
+        // Escaping happens leaf by leaf: the attribute names and the values come from the
+        // directory, the <br /> separators are ours and have to survive as markup.
+        $content = sprintf(
+            htmlescape(__('%1$s %2$s have been updated in the LDAP directory', 'resources')),
+            htmlescape($_POST["firstname"]),
+            htmlescape($_POST["name"]),
+        );
+        $content .= htmlescape(__("Data changed", 'resources')) . " <br />";
+        foreach ($res[1] as $key => $oldData) {
+            $i = 1;
+            $nb = count($oldData);
+            $content .= htmlescape($key) . " : ";
+            foreach ($oldData as $data) {
+                if ($key == "accountexpires") {
+                    $time = $ldap->ldapTimeToUnixTime($data);
+                    $data = date('Y-m-d', $time);
+                    $data = Html::convDate($data);
+                }
+                $content .= htmlescape($data);
+                if ($i < $nb) {
+                    $content .= ", ";
+                }
+                $i++;
+            }
+            $content .= "<br />";
+        }
+        $toadd["content"] = $content;
+
+        if ($tickets_id > 0) {
+            $fup->add($toadd);
+        }
+        $message = __('the user has been updated to the LDAP directory', 'resources');
+        Session::addMessageAfterRedirect($message, false, INFO);
+    } else {
+        $message = __('the user has not been updated to the LDAP directory', 'resources');
+        Session::addMessageAfterRedirect($message, false, ERROR);
+    }
+    Html::back();
+} elseif (isset($_POST["disableAD"])) {
+    // Drives Active Directory account disabling/move: require the plugin write right, and
+    // scope it to the Resource owning this LinkAd (see the "update" branch above for why
+    // check($id, UPDATE) on LinkAd itself cannot enforce entity isolation).
+    Session::checkRight(LinkAd::$rightname, UPDATE);
+    $ldap = new LDAP();
+    Resource::checkChildOwnership($linkad, $_POST['id']);
+    // The follow-up below reports the operation into the ticket named by the form: validate
+    // it before the directory is touched, not after.
+    $tickets_id = LinkAd::checkTicketAccess($_POST["ticket_id"] ?? 0);
+    $_POST["login"] = $linkad->getField("login");
+    $res = $ldap->disableUserAD($_POST);
+    if ($res) {
+        $_POST["action_done"] = 1;
+        $linkad->update($_POST);
+        $fup = new ITILFollowup();
+
+        $toadd = [
+            'type' => "new",
+            'items_id' => $tickets_id,
+            'itemtype' => Ticket::class,
+            'is_private' => 1,
+        ];
+
+        $toadd["content"] = sprintf(
+            htmlescape(__('%1$s %2$s have been disabled and moved in the LDAP directory', 'resources')),
+            htmlescape($_POST["firstname"]),
+            htmlescape($_POST["name"]),
+        );
+
+        if ($tickets_id > 0) {
+            $fup->add($toadd);
+        }
+        $message = __('the user has been disabled and moved to the LDAP directory', 'resources');
+        Session::addMessageAfterRedirect($message, false, INFO);
+    } else {
+        $message = __('the user has not been disabled and moved to the LDAP directory', 'resources');
+        Session::addMessageAfterRedirect($message, false, ERROR);
+    }
+    Html::back();
+}

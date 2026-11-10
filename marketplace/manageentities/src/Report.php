@@ -1,0 +1,383 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * manageentities plugin for GLPI
+ * Copyright (C) 2017-2026 by the manageentities Development Team.
+ *
+ * https://github.com/InfotelGLPI/manageentities
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of manageentities.
+ *
+ * manageentities is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * manageentities is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with manageentities. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Manageentities;
+
+use CommonDBTM;
+use DbUtils;
+use Glpi\Application\View\TemplateRenderer;
+use Html;
+use User;
+use GlpiPlugin\Manageentities\Config;
+
+class Report extends CommonDBTM
+{
+    public static $rightname = 'plugin_manageentities';
+
+    /**
+     * Report on the movement of technicians
+     *
+     * @param $entities_id
+     * @param $category_id
+     * @param $date1
+     * @param $date2
+     *
+     * @global type $DB
+     * @global type $CFG_GLPI
+     *
+     */
+    public function showMovingReports($entities_id, $category_id, $date1, $date2)
+    {
+        global $DB, $CFG_GLPI;
+
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date1) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date2)) {
+            return;
+        }
+
+        $config = Config::getInstance();
+
+        $resultat = [];
+        $dbu = new DbUtils();
+
+        $documentcategories_id = (int) $config->fields["documentcategories_id"];
+
+        foreach ($entities_id as $entity_id) {
+            $entity_id = (int) $entity_id;
+            // Entity scope: the entities_id list is posted by the caller. Skip
+            // any entity outside its active scope, otherwise this aggregate
+            // report leaks intervention totals of entities the user cannot
+            // access (cross-entity IDOR).
+            if (!Session::haveAccessToEntity($entity_id)) {
+                continue;
+            }
+            $iterator = $DB->request([
+                'SELECT'    => [
+                    'glpi_tickets.id AS tickets_id',
+                    'glpi_plugin_manageentities_cridetails.number_moving',
+                    'glpi_plugin_manageentities_contracts.duration_moving',
+                ],
+                'FROM'      => 'glpi_documents',
+                'LEFT JOIN' => [
+                    'glpi_entities' => [
+                        'ON' => [
+                            'glpi_documents' => 'entities_id',
+                            'glpi_entities'  => 'id',
+                        ],
+                    ],
+                    'glpi_tickets' => [
+                        'ON' => [
+                            'glpi_documents' => 'tickets_id',
+                            'glpi_tickets'   => 'id',
+                        ],
+                    ],
+                    'glpi_plugin_manageentities_cridetails' => [
+                        'ON' => [
+                            'glpi_documents'                        => 'id',
+                            'glpi_plugin_manageentities_cridetails' => 'documents_id',
+                        ],
+                    ],
+                    'glpi_plugin_manageentities_contracts' => [
+                        'ON' => [
+                            'glpi_plugin_manageentities_contracts'  => 'contracts_id',
+                            'glpi_plugin_manageentities_cridetails' => 'contracts_id',
+                        ],
+                    ],
+                ],
+                'WHERE'     => array_merge(
+                    [
+                        'glpi_documents.documentcategories_id'                  => $documentcategories_id,
+                        'glpi_tickets.is_deleted'                               => 0,
+                        'glpi_plugin_manageentities_contracts.moving_management' => 1,
+                        'glpi_tickets.entities_id'                              => $entity_id,
+                        ['glpi_plugin_manageentities_cridetails.date' => ['>=', $date1]],
+                        ['glpi_plugin_manageentities_cridetails.date' => ['<=', $date2]],
+                    ],
+                    $dbu->getEntitiesRestrictCriteria('glpi_documents', '', $entity_id, true),
+                ),
+                'GROUPBY'   => 'glpi_documents.tickets_id',
+                'ORDER'     => 'glpi_plugin_manageentities_cridetails.date ASC',
+            ]);
+
+            $total_depl = 0;
+            $tickets_ids = [];
+            foreach ($iterator as $data) {
+                //time moving
+                $total_depl += ($data['duration_moving'] * $data['number_moving']) / HOUR_TIMESTAMP;
+                $tickets_ids[$data['tickets_id']] = $data['tickets_id'];
+            }
+            $resultat[$entity_id]['total_depl'] = $total_depl;
+            $actiontime = 0;
+            $tickets_ids = array_unique($tickets_ids);
+            foreach ($tickets_ids as $ticket) {
+                $tickettask = new \TicketTask();
+                $tasks = $tickettask->find(['tickets_id' => $ticket, 'taskcategories_id' => $category_id]);
+
+                foreach ($tasks as $task) {
+                    $actiontime += $task['actiontime'] / 2;
+                }
+            }
+            $resultat[$entity_id]['actiontime'] = $actiontime / HOUR_TIMESTAMP;
+            $resultat[$entity_id]['total'] = $total_depl - ($actiontime / HOUR_TIMESTAMP);
+        }
+
+        if (!empty($resultat)) {
+            $rows = [];
+            foreach ($resultat as $key => $row) {
+                $rows[] = [
+                    'entity'     => \Dropdown::getDropdownName("glpi_entities", $key),
+                    'total_depl' => Html::formatNumber($row['total_depl']),
+                    'actiontime' => Html::formatNumber($row['actiontime']),
+                    'total'      => Html::formatNumber($row['total']),
+                ];
+            }
+            TemplateRenderer::getInstance()->display('@manageentities/report_moving_result.html.twig', [
+                'rows' => $rows,
+            ]);
+        }
+    }
+
+    /**
+     * Technicians the caller may report on, keyed by user id.
+     *
+     * Single source of truth for the criteria: front/report_occupation.form.php builds its
+     * dropdown from this list, and showOccupationReports() replays it on what comes back.
+     *
+     * @return array<int, string> user id => display name
+     */
+    public static function getSelectableTechnicians(): array
+    {
+        $dbu   = new DbUtils();
+        $user  = new User();
+        $techs = [];
+        foreach ($user->find(['is_deleted' => 0, 'entities_id' => $_SESSION['glpiactiveentities']]) as $data) {
+            $techs[(int) $data['id']] = $dbu->getUserName($data['id']);
+        }
+
+        return $techs;
+    }
+
+    /**
+     * Report concerning the occupation of the technicians
+     *
+     * @param $techs
+     * @param $date1
+     * @param $date2
+     *
+     * @global type $CFG_GLPI
+     *
+     * @global type $DB
+     */
+    public function showOccupationReports($techs, $date1, $date2)
+    {
+        global $DB, $CFG_GLPI;
+
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date1) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date2)) {
+            return;
+        }
+        $techs = array_map('intval', (array) $techs);
+
+        // The posted ids drive getUserName() in the column headers below, which resolves any
+        // id to a full name whatever the entity - the very enumeration ajax/getUserTechName.php
+        // already refuses. The figures were scoped by getEntitiesRestrictCriteria() further
+        // down, but the headers were not. Keep only the technicians the caller could have
+        // selected, and do it here so the method stays safe for any caller.
+        $techs = array_values(array_intersect($techs, array_keys(self::getSelectableTechnicians())));
+        if (empty($techs)) {
+            return;
+        }
+
+        $days = self::getDatesBetween2Dates($date1, $date2);
+        $dbu = new DbUtils();
+
+        $resultat = [];
+        foreach ($days as $key => $day) {
+            $total_actiontime = 0;
+
+            $hour = 0;
+            switch ($day['day']) {
+                case "Mon":
+                case "Tue":
+                case "Wed":
+                case "Thu":
+                    $hour = 8;
+                    break;
+                case "Fri":
+                    $hour = 7;
+                    break;
+                case "Sat":
+                case "Sun":
+                    $hour = 0;
+                    break;
+            }
+
+            if ($hour != 0) {
+                $resultat[$day['date']] = [];
+                foreach ($techs as $tech) {
+                    $actiontime = 0;
+                    $tickettask = new \TicketTask();
+                    $date_begin = date('Y-m-d H:i:s', (strtotime($day['date'])));
+                    $date_end = date('Y-m-d H:i:s', (strtotime($day['date'] . '+ 24 hours')));
+
+                    $iterator = $DB->request([
+                        'SELECT'    => [
+                            'glpi_tickettasks.*',
+                            'glpi_tickets.id AS tickets_id',
+                        ],
+                        'FROM'      => 'glpi_tickettasks',
+                        'LEFT JOIN' => [
+                            'glpi_tickets' => [
+                                'ON' => [
+                                    'glpi_tickettasks' => 'tickets_id',
+                                    'glpi_tickets'     => 'id',
+                                ],
+                            ],
+                        ],
+                        'WHERE'     => array_merge(
+                            [
+                                'glpi_tickettasks.begin'         => ['>=', $date_begin],
+                                'glpi_tickettasks.end'           => ['<=', $date_end],
+                                'glpi_tickets.is_deleted'        => 0,
+                                'glpi_tickettasks.users_id_tech' => (int) $tech,
+                                'glpi_tickettasks.actiontime'    => ['<>', 0],
+                            ],
+                            // Entity scope: the tech ids are posted by the caller
+                            // and the query filters only on users_id_tech. Restrict
+                            // the tickets to the caller's active entities so the
+                            // report cannot enumerate a technician's occupation on
+                            // tickets outside its scope (cross-entity IDOR).
+                            $dbu->getEntitiesRestrictCriteria('glpi_tickets', '', '', true),
+                        ),
+                    ]);
+
+                    foreach ($iterator as $task) {
+                        $actiontime += $task['actiontime'];
+                        $total_actiontime += $task['actiontime'];
+                    }
+
+                    $time = $actiontime / HOUR_TIMESTAMP;
+                    $resultat[$day['date']][$tech] = $time;
+                }
+
+                $resultat[$day['date']]['total'] = $total_actiontime / HOUR_TIMESTAMP;
+                $resultat[$day['date']]['total_justified'] = (($total_actiontime / HOUR_TIMESTAMP) / (count(
+                    $techs,
+                ) * $hour)) * 100;
+            }
+        }
+
+        if (!empty($resultat)) {
+            $technicians = [];
+            foreach ($techs as $tech) {
+                $technicians[] = $dbu->getUserName($tech);
+            }
+            $rows = [];
+            foreach ($resultat as $key => $data) {
+                $times = [];
+                foreach ($techs as $tech) {
+                    $times[] = Html::formatNumber($data[$tech]);
+                }
+                $rows[] = [
+                    'date'            => Html::convDate($key),
+                    'times'           => $times,
+                    'total'           => Html::formatNumber($data['total']),
+                    'total_justified' => Html::formatNumber($data['total_justified']),
+                ];
+            }
+            TemplateRenderer::getInstance()->display('@manageentities/report_occupation_result.html.twig', [
+                'technicians' => $technicians,
+                'rows'        => $rows,
+            ]);
+        }
+    }
+
+    /**
+     * List of dates between two dates
+     *
+     * @param $startTime
+     * @param $endTime
+     *
+     * @return array
+     */
+    public function getDatesBetween2Dates($startTime, $endTime)
+    {
+        $day = 86400;
+        $startTime = strtotime($startTime);
+        $endTime = strtotime($endTime);
+        $numDays = round(($endTime - $startTime) / $day) + 1;
+        $days = [];
+
+        for ($i = 0; $i < $numDays; $i++) {
+            $days[date('ymd', ($startTime + ($i * $day)))]['date'] = date('Y-m-d', ($startTime + ($i * $day)));
+            $days[date('ymd', ($startTime + ($i * $day)))]['day'] = date('D', ($startTime + ($i * $day)));
+        }
+
+        return $days;
+    }
+
+    /**
+     * Return every date, day by day, between the two given dates.
+     *
+     * @param string $dStart start date
+     * @param string $dEnd   end date
+     *
+     * @return array|false the dates on success, false on failure
+     */
+    public function getDatesBetween($dStart, $dEnd)
+    {
+        $iStart = strtotime($dStart);
+        $iEnd = strtotime($dEnd);
+        if (false === $iStart || false === $iEnd) {
+            return false;
+        }
+        $aStart = explode('-', $dStart);
+        $aEnd = explode('-', $dEnd);
+        if (count($aStart) !== 3 || count($aEnd) !== 3) {
+            return false;
+        }
+        if (false === checkdate($aStart[1], $aStart[2], $aStart[0]) || false === checkdate(
+            $aEnd[1],
+            $aEnd[2],
+            $aEnd[0],
+        ) || $iEnd <= $iStart) {
+            return false;
+        }
+        for ($i = $iStart; $i < $iEnd + 86400; $i = strtotime('+1 day', $i)) {
+            $sDateToArr = date('Y-m-d', $i);
+            $sYear = substr($sDateToArr, 0, 4);
+            $sMonth = substr($sDateToArr, 5, 2);
+            $aDates[$sYear][$sMonth][] = $sDateToArr;
+        }
+        if (isset($aDates) && !empty($aDates)) {
+            return $aDates;
+        } else {
+            return false;
+        }
+    }
+
+}

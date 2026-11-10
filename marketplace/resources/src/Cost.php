@@ -1,0 +1,319 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * resources plugin for GLPI
+ * Copyright (C) 2015-2026 by the resources Development Team.
+ *
+ * https://github.com/InfotelGLPI/resources
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of resources.
+ *
+ * resources is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * resources is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with resources. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Resources;
+
+use CommonDropdown;
+use DBConnection;
+use Glpi\Application\View\TemplateRenderer;
+use Html;
+use Migration;
+use Session;
+
+/**
+ * Class Cost
+ */
+class Cost extends CommonDropdown
+{
+    public static $rightname = 'plugin_resources';
+    public $can_be_translated = true;
+
+    /**
+     * @param $nb
+     **@since 0.85
+     *
+     */
+    public static function getTypeName($nb = 0)
+    {
+        return _n('Budget cost', 'Budget costs', $nb, 'resources');
+    }
+
+    /**
+     * Have I the global right to "create" the Object
+     * May be overloaded if needed (ex KnowbaseItem)
+     *
+     * @return
+     **/
+    public static function canCreate(): bool
+    {
+        if (Session::haveRightsOr(self::$rightname, [CREATE, UPDATE, DELETE])
+            && Session::haveRight('plugin_resources_dropdown_public', UPDATE)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Have I the global right to "view" the Object
+     *
+     * Default is true and check entity if the objet is entity assign
+     *
+     * May be overloaded if needed
+     *
+     * @return
+     **/
+    public static function canView(): bool
+    {
+        if (Session::haveRight(self::$rightname, READ)
+            && Session::haveRight('plugin_resources_dropdown_public', READ)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * allow to control data before adding in bdd
+     *
+     * @param  $input
+     * @return array
+     */
+    public function prepareInputForAdd($input)
+    {
+        if (!isset($input["plugin_resources_professions_id"])
+            || $input["plugin_resources_professions_id"] == '0') {
+            Session::addMessageAfterRedirect(
+                __('The profession for the budget must be filled', 'resources'),
+                false,
+                ERROR,
+            );
+            return [];
+        }
+
+        return $input;
+    }
+
+    /**
+     * allow to control data before updating in bdd
+     *
+     * @param  $input
+     * @return
+     */
+    public function prepareInputForUpdate($input)
+    {
+        if (!isset($input["plugin_resources_professions_id"])
+            || $input["plugin_resources_professions_id"] == '0') {
+            Session::addMessageAfterRedirect(
+                __('The profession for the budget must be filled', 'resources'),
+                false,
+                ERROR,
+            );
+            return [];
+        }
+
+        return $input;
+    }
+
+    /**
+     * Return Additional Fields for this type
+     *
+     * @return array
+     **/
+    public function getAdditionalFields()
+    {
+        return [
+            [
+                'name' => 'plugin_resources_professions_id',
+                'label' => __('Profession', 'resources'),
+                'type' => 'dropdownValue',
+                'list' => true,
+            ],
+            [
+                'name' => 'plugin_resources_ranks_id',
+                'label' => __('Rank', 'resources'),
+                'type' => 'dropdownValue',
+                'list' => true,
+            ],
+            [
+                'name' => 'begin_date',
+                'label' => __('Begin date'),
+                'type' => 'date',
+                'list' => false,
+            ],
+            [
+                'name' => 'end_date',
+                'label' => __('End date'),
+                'type' => 'date',
+                'list' => false,
+            ],
+            [
+                'name' => 'cost',
+                'label' => __('Budget cost', 'resources'),
+                'type' => 'decimal',
+                'list' => false,
+            ],
+        ];
+    }
+
+    /**
+     * @return array
+     */
+    public function rawSearchOptions()
+    {
+        $tab = parent::rawSearchOptions();
+
+        $tab[] = [
+            'id' => '14',
+            'table' => 'glpi_plugin_resources_professions',
+            'field' => 'name',
+            'name' => __('Profession', 'resources'),
+            'datatype' => 'dropdown',
+        ];
+
+        $tab[] = [
+            'id' => '15',
+            'table' => 'glpi_plugin_resources_ranks',
+            'field' => 'name',
+            'name' => __('Rank', 'resources'),
+            'datatype' => 'dropdown',
+        ];
+
+        $tab[] = [
+            'id' => '17',
+            'table' => $this->getTable(),
+            'field' => 'begin_date',
+            'name' => __('Begin date'),
+            'datatype' => 'date',
+        ];
+
+        $tab[] = [
+            'id' => '18',
+            'table' => $this->getTable(),
+            'field' => 'end_date',
+            'name' => __('End date'),
+            'datatype' => 'date',
+        ];
+
+        $tab[] = [
+            'id' => '19',
+            'table' => $this->getTable(),
+            'field' => 'cost',
+            'name' => __('Budget cost', 'resources'),
+            'datatype' => 'decimal',
+        ];
+
+        return $tab;
+    }
+
+
+    /**
+     * Display the cost's form
+     *
+     * @param $ID
+     * @param array $options
+     * @return bool
+     */
+    public function showForm($ID, $options = [""])
+    {
+        $this->initForm($ID, $options);
+
+        $profession_rank = Resource::getProfessionRankFields($this->fields, false);
+
+        $params = $options;
+        if (isset($this->fields['is_protected']) && $this->fields['is_protected']) {
+            $params['candel'] = false;
+        }
+
+        TemplateRenderer::getInstance()->display('@resources/cost_form.html.twig', [
+            'item'                => $this,
+            'params'              => $params,
+            'profession_dropdown' => $profession_rank['profession_dropdown'],
+            'rank_label'          => $profession_rank['rank_label'],
+            'cost_value'          => Html::formatNumber($this->fields["cost"], true),
+        ]);
+
+        return true;
+    }
+
+    /**
+     * During rank or profession transfer
+     *
+     * @static
+     * @param $ID
+     * @param $entity
+     * @return
+     */
+    public static function transfer($ID, $entity)
+    {
+        global $DB;
+
+        if ($ID > 0) {
+            $table = self::getTable();
+            $iterator = $DB->request([
+                'FROM' => $table,
+                'WHERE' => ['id' => $ID],
+            ]);
+
+            foreach ($iterator as $data) {
+                $input['name'] = $data['name'];
+                $input['entities_id'] = $entity;
+                $temp = new self();
+                $newID = $temp->getID();
+                if ($newID < 0) {
+                    $newID = $temp->import($input);
+                }
+
+                return $newID;
+            }
+        }
+        return 0;
+    }
+
+    public static function install(Migration $migration)
+    {
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+        $table  = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $query = "CREATE TABLE `$table` (
+                        `id`           int {$default_key_sign} NOT NULL auto_increment,
+                        `entities_id`                     int {$default_key_sign}   NOT NULL                 DEFAULT '0',
+                        `is_recursive`                    tinyint        NOT NULL                 DEFAULT '0',
+                        `name`                            varchar(255) COLLATE utf8mb4_unicode_ci default NULL,
+                        `plugin_resources_professions_id` int {$default_key_sign}   NOT NULL                 DEFAULT '0' COMMENT 'RELATION to glpi_plugin_resources_professions (id)',
+                        `plugin_resources_ranks_id`       int {$default_key_sign}   NOT NULL                 DEFAULT '0' COMMENT 'RELATION to glpi_plugin_resources_ranks (id)',
+                        `begin_date`                      timestamp      NULL                     DEFAULT NULL,
+                        `end_date`                        timestamp      NULL                     DEFAULT NULL,
+                        `cost`                            decimal(10, 2) NOT NULL                 DEFAULT '0.00',
+                        `comment`                         TEXT COLLATE utf8mb4_unicode_ci,
+                        PRIMARY KEY (`id`),
+                        KEY `name` (`name`),
+                        KEY `plugin_resources_professions_id` (`plugin_resources_professions_id`),
+                        KEY `plugin_resources_ranks_id` (`plugin_resources_ranks_id`),
+                        KEY `entities_id` (`entities_id`),
+                        KEY `is_recursive` (`is_recursive`)
+               ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
+
+            $DB->doQuery($query);
+        }
+    }
+}

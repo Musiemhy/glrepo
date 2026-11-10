@@ -1,0 +1,94 @@
+{#
+ # -------------------------------------------------------------------------
+ # metademands plugin for GLPI
+ # Copyright (C) 2018-2026 by the metademands Development Team.
+ #
+ # https://github.com/InfotelGLPI/metademands
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of metademands.
+ #
+ # metademands is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # metademands is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{#
+ # Forms the current user has submitted and that are still in progress, one card each.
+ # Read-only counterpart of stepform_waiting_form.html.twig: no link, no loadForm().
+ #
+ # Expected context:
+ #  - cnt          int   number of forms in progress
+ #  - header_icon  string  icon class, header_is_fa tells which family it belongs to
+ #  - header_is_fa bool
+ #  - cards        list  [{icon, is_fa, name, created, block_id,
+ #                         has_group_dest, group_dest, has_user_dest, user_dest, delete_html}, ...]
+ #}
+
+<div class="card mt-2 mb-4">
+    <div class="card-header">
+        <h5 class="card-title">
+            {% if header_is_fa %}
+                <i class="fas {{ header_icon }} me-2"></i>
+            {% else %}
+                <i class="ti {{ header_icon }} me-2"></i>
+            {% endif %}
+            {{ _n('Form in progress', 'Forms in progress', cnt, 'metademands') }}
+        </h5>
+        <div class="card-actions">
+            <span class="badge bg-outline-secondary">{{ cnt }}</span>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if cards %}
+            <div id="listmeta" class="row row-cards">
+                {% for card in cards %}
+                    <div class="col-sm-6 col-md-4 col-xl-3 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                {% if card.is_fa %}
+                                    <i class="fas {{ card.icon }} fa-4x"
+                                       style="font-family:'Font Awesome 6 Free', 'Font Awesome 6 Brands';"></i>
+                                {% else %}
+                                    <i class="ti {{ card.icon }}" style="font-size: 4em;"></i>
+                                {% endif %}
+                                <div class="mt-3 fw-bold">{{ card.name }}</div>
+                            </div>
+                            <div class="card-footer small text-muted">
+                                <div>{{ card.created }}</div>
+                                <div>{{ __('Step', 'metademands') }}{{ card.block_id }}</div>
+                                {% if card.has_group_dest %}
+                                    <div>
+                                        {{ __('Group in charge of the next step', 'metademands') }}<br>
+                                        {{ card.group_dest }}
+                                    </div>
+                                {% endif %}
+                                {% if card.has_user_dest %}
+                                    <div>
+                                        {{ __('User in charge of the next step', 'metademands') }}<br>
+                                        {{ card.user_dest }}
+                                    </div>
+                                {% endif %}
+                                <span class="text-danger">{{ card.delete_html|raw }}</span>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-muted text-center mb-0">{{ __('No results found') }}</p>
+        {% endif %}
+    </div>
+</div>

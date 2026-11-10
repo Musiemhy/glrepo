@@ -1,0 +1,739 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * metademands plugin for GLPI
+ * Copyright (C) 2018-2026 by the metademands Development Team.
+ *
+ * https://github.com/InfotelGLPI/metademands
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of metademands.
+ *
+ * metademands is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * metademands is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Metademands;
+
+use CommonDBTM;
+use Glpi\Form\Form;
+use Group_Ticket;
+use Html;
+use RequestType;
+use Session;
+use Ticket_User;
+use TicketTemplate;
+
+/**
+ * Class Ticket
+ */
+class Ticket extends CommonDBTM
+{
+    public static $rightname = 'plugin_metademands';
+
+    /**
+     * functions mandatory
+     * getTypeName(), canCreate(), canView()
+     *
+     * @param int $nb
+     *
+     * @return string
+     */
+    public static function getTypeName($nb = 0)
+    {
+        return __('Linked ticket', 'metademands');
+    }
+
+    /**
+     * @return bool|int
+     */
+    public static function canView(): bool
+    {
+        return Session::haveRight(self::$rightname, READ);
+    }
+
+    /**
+     * @return bool
+     */
+    public static function canCreate(): bool
+    {
+        return Session::haveRight(self::$rightname, CREATE);
+    }
+
+    /**
+     * @param Ticket $ticket
+     */
+    public static function emptyTicket(\Ticket $ticket)
+    {
+        // Metademand redirection on ticket creation
+
+        if (((isset($_REQUEST['id'])
+          && $_REQUEST['id'] == 0) || (isset($_SESSION['glpiactiveprofile']['interface'])
+                    && $_SESSION['glpiactiveprofile']['interface'] != 'central'))
+          && isset($_REQUEST['type'])
+          && isset($_REQUEST['itilcategories_id'])) {
+            $myticket                             = new \Ticket();
+            $myticket->fields['id']               = 0;
+            $myticket->input['type']              = $_REQUEST['type'];
+            $myticket->input['itilcategories_id'] = $_REQUEST['itilcategories_id'];
+
+            if ($url = Metademand::redirectForm($myticket, 'show')) {
+                //                Html::redirect($url);
+                // The destination is emitted inside a <script> element, where addslashes()
+                // is not an escaping function: it leaves a closing </script> sequence intact.
+                // JSON_HEX_TAG is precisely what neutralizes it, and the encoded value already
+                // carries its own quotes, so it is emitted bare.
+                $dest = json_encode($url, JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES);
+
+                echo "<script type='text/javascript'>
+                            window.location = " . $dest . ";
+                         </script>";
+                exit();
+            }
+        }
+    }
+
+
+    /**
+     * @param Ticket $ticket
+     *
+     * @return Ticket
+     */
+    public static function post_update_ticket(\Ticket $ticket)
+    {
+        $metademand        = new Metademand();
+        $ticket_metademand = new Ticket_Metademand();
+
+        $ticket_metademand->getFromDBByCrit(['tickets_id' => $ticket->getID()]);
+
+        if ($ticket->fields['status'] == \Ticket::SOLVED
+          || $ticket->fields['status'] == \Ticket::CLOSED) {
+            $metademand->addSonTickets($ticket->fields, $ticket_metademand);
+        }
+
+        self::manageMetademandStatusOnUpdateTicket($ticket_metademand, $ticket);
+
+        return $ticket;
+    }
+
+    /**
+     * @param $ticket_metademand
+     * @param $ticket
+     *
+     * @return void
+     */
+    public static function manageMetademandStatusOnUpdateTicket($ticket_metademand, $ticket)
+    {
+        $parent_ticket = false;
+
+        //parent or child
+        if (count($ticket_metademand->fields) > 0) {
+            $parent_ticket = true;
+
+            $ticketparent = new \Ticket();
+            $ticketparent->getFromDB($ticket_metademand->fields['parent_tickets_id']);
+            Ticket_Metademand::changeMetademandGlobalStatus($ticketparent);
+
+        } else {
+            $ticket_parent_id  = self::getTicketIDOfMetademand($ticket->getID());
+            $meta_to_not_close = self::childTicketsOpen($ticket_parent_id);
+            if ($ticket_metademand->getFromDBByCrit(['parent_tickets_id' => $ticket_parent_id])) {
+                $validationmeta = new MetademandValidation();
+                $validation     = $validationmeta->getFromDBByCrit(['tickets_id' => $ticket_parent_id]);
+                $validation_todo  = false;
+                if ($validation) {
+                    if (in_array(
+                        $validationmeta->fields['validate'],
+                        [MetademandValidation::TO_VALIDATE, MetademandValidation::TO_VALIDATE_WITHOUTTASK],
+                    )) {
+                        $validation_todo = true;
+                    }
+                }
+
+                if (!$meta_to_not_close && !$validation_todo) {
+                    $ticket_metademand->update(['id' => $ticket_metademand->getID(),
+                        'status' => Ticket_Metademand::TO_CLOSED]);
+                } elseif ($meta_to_not_close || $validation_todo) {
+                    $ticket_metademand->update(['id' => $ticket_metademand->getID(),
+                        'status' => Ticket_Metademand::RUNNING]);
+                }
+            }
+        }
+
+        //reopen or refused solution for parent with no sons
+        if ($parent_ticket) {
+            if ($ticket->getField('status') != \Ticket::SOLVED
+            && $ticket->getField('status') != \Ticket::CLOSED
+            && $ticket_metademand->getField('status') == Ticket_Metademand::CLOSED) {
+                $ticket_metademand->update(['id' => $ticket_metademand->getID(),
+                    'status' => Ticket_Metademand::RUNNING]);
+            }
+        }
+    }
+
+    /**
+    * @param $ticket_id
+    *
+    * @return mixed
+    */
+    public static function getTicketIDOfMetademand($ticket_id)
+    {
+        $ticket_task = new Ticket_Task();
+        if ($ticket_task->getFromDBByCrit(['tickets_id' => $ticket_id])) {
+            while ($ticket_task->fields['level'] != 1) {
+                $ticket_task->getFromDBByCrit(['tickets_id' => $ticket_task->fields['parent_tickets_id']]);
+            }
+            return $ticket_task->fields['parent_tickets_id'];
+        }
+        return $ticket_id;
+    }
+
+    /**
+     * @param $tickets_id
+     *
+     * @return bool
+     */
+    public static function childTicketsOpen($tickets_id)
+    {
+        $ticket_task  = new Ticket_Task();
+        $ticket_tasks = $ticket_task->find(['parent_tickets_id' => $tickets_id]);
+        $status       = false;
+        if (count($ticket_tasks) == 0) {
+            return false;
+        } else {
+            $ticket = new \Ticket();
+            foreach ($ticket_tasks as $tt) {
+                $ticket->getFromDB($tt['tickets_id']);
+                if (isset($ticket->fields['status']) && in_array($ticket->fields['status'], \Ticket::getNotSolvedStatusArray())) {
+                    return true;
+                } else {
+                    $status = ($status || self::childTicketsOpen($tt['tickets_id']));
+                    if ($status == true) {
+                        return $status;
+                    }
+                }
+            }
+            return $status;
+        }
+    }
+
+    /**
+     * @param Ticket $ticket
+     *
+     * @return Ticket
+     */
+    public static function pre_update_ticket(\Ticket $ticket)
+    {
+        if (isset($ticket->input['status'])) {
+            // Actions done on ticket close
+            if ($ticket->input['status'] == \Ticket::SOLVED
+             || $ticket->input['status'] == \Ticket::CLOSED) {
+                self::checkSonTicketsStatus($ticket);
+            }
+        }
+
+        //        $config_data = Config::getInstance();
+
+        //        if (isset($ticket->input['itilcategories_id']) && $config_data['simpleticket_to_metademand']) {
+        //            $dbu = new DbUtils();
+        //            if (!empty($ticket->input["itilcategories_id"])) {
+        //                $data = $dbu->getAllDataFromTable(
+        //                    'glpi_plugin_metademands_tickets_metademands',
+        //                    ["`tickets_id`" => $ticket->input["id"]]
+        //                );
+        //                if (!empty($data) && $ticket->input['itilcategories_id'] != $ticket->fields['itilcategories_id']) {
+        //                    $data       = reset($data);
+        //                    $metademand = new Metademand();
+        //                    $metademand->convertMetademandToTicket($ticket, $data['plugin_metademands_metademands_id']);
+        //                }
+        //            }
+        //        }
+
+        return $ticket;
+    }
+
+
+    /**
+     * @param Ticket $ticket
+     * @param bool    $with_message
+     *
+     * @return bool
+     */
+    public static function checkSonTicketsStatus(\Ticket $ticket, $with_message = true)
+    {
+        $ticket_metademand      = new Ticket_Metademand();
+        $ticket_metademand_data = $ticket_metademand->find(['tickets_id' => $ticket->fields['id']]);
+
+        // If ticket is Parent : Check if all sons ticket are closed
+        if (count($ticket_metademand_data)) {
+            $ticket_metademand_data = reset($ticket_metademand_data);
+            $tickets_found          = self::getSonTickets(
+                $ticket->fields['id'],
+                $ticket_metademand_data['plugin_metademands_metademands_id'],
+                [],
+                true,
+                true,
+            );
+
+            // If son tickets check status
+            if (count($tickets_found)) {
+                foreach ($tickets_found as $values) {
+                    $job = new \Ticket();
+                    if (!empty($values['tickets_id'])) {
+                        $ko = 0;
+                        $ticket_tasks      = new Ticket_Task();
+                        if ($ticket_tasks->getFromDBByCrit(['tickets_id' => $values['tickets_id']])) {
+                            $task = new Task();
+                            if ($task->getFromDB($ticket_tasks->fields['plugin_metademands_tasks_id'])) {
+                                if ($task->fields['block_parent_ticket_resolution'] == 1) {
+                                    $ko = 1;
+                                }
+                            }
+                        }
+
+                        $job->getFromDB($values['tickets_id']);
+                        // No resolution or close if a son ticket is not solved or closed
+                        if ((!isset($job->fields['status']))
+                          || ($job->fields['status'] != \Ticket::SOLVED
+                          && $job->fields['status'] != \Ticket::CLOSED) && $ko == 1) {
+                            if ($with_message) {
+                                Session::addMessageAfterRedirect(__('The ticket cannot be resolved or closed until all child tickets are not resolved', 'metademands'), false, ERROR);
+                            }
+                            $ticket->input = ['id' => $ticket->fields['id']];
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Abort the creation of a ticket solution when the parent metademand ticket
+     * still has blocking child tickets open.
+     *
+     * In GLPI 11 a solution is an ITILSolution created BEFORE the parent ticket
+     * status flips to SOLVED (see ITILSolution::post_addItem). Blocking the
+     * ticket status update in pre_update_ticket therefore strips the status
+     * change but leaves the solution persisted. We must forbid the ITILSolution
+     * creation itself here: setting $item->input to false makes CommonDBTM::add
+     * stop before inserting the row.
+     *
+     * @param \CommonDBTM $item the ITILSolution being added
+     *
+     * @return \CommonDBTM
+     */
+    public static function pre_add_solution(\CommonDBTM $item)
+    {
+        if (!isset($item->input['itemtype'], $item->input['items_id'])
+            || $item->input['itemtype'] != \Ticket::class) {
+            return $item;
+        }
+
+        $parent = new \Ticket();
+        if (!$parent->getFromDB($item->input['items_id'])) {
+            return $item;
+        }
+
+        // checkSonTicketsStatus adds the error message and returns false when a
+        // blocking child ticket is still open.
+        if (self::checkSonTicketsStatus($parent) === false) {
+            $item->input = false;
+        }
+
+        return $item;
+    }
+
+
+    /**
+     * @param       $tickets_id
+     * @param       $metademands_id
+     * @param array $ticket_task_data
+     * @param bool  $recursive
+     *
+     * @return array
+     */
+    public static function getSonTickets($tickets_id, $metademands_id, $ticket_task_data = [], $recursive = false, $seesolved = false)
+    {
+        global $DB;
+
+        if (isset($tickets_id) && $tickets_id > 0) {
+            // Search metademand son ticket : if found recursive call
+
+            $criteria = [
+                'SELECT' => ['glpi_plugin_metademands_metademandtasks.plugin_metademands_metademands_id AS metademands_id',
+                    'glpi_plugin_metademands_tickets_metademands.tickets_id',
+                    'glpi_plugin_metademands_tickets_metademands.parent_tickets_id'],
+                'FROM' => 'glpi_plugin_metademands_tickets_metademands',
+                'RIGHT JOIN'       => [
+                    'glpi_plugin_metademands_metademandtasks' => [
+                        'ON' => [
+                            'glpi_plugin_metademands_metademandtasks' => 'plugin_metademands_metademands_id',
+                            'glpi_plugin_metademands_tickets_metademands'          => 'plugin_metademands_metademands_id',
+                        ],
+                    ],
+                ],
+                'LEFT JOIN'       => [
+                    'glpi_tickets' => [
+                        'ON' => [
+                            'glpi_tickets' => 'id',
+                            'glpi_plugin_metademands_tickets_metademands'          => 'parent_tickets_id',
+                        ],
+                    ],
+                ],
+                'WHERE' => [
+                    'glpi_tickets.is_deleted' => 0,
+                    'glpi_plugin_metademands_tickets_metademands.parent_tickets_id' => $tickets_id,
+                    'NOT' => ['glpi_plugin_metademands_tickets_metademands.tickets_id' => $tickets_id],
+                ],
+            ];
+            if ($seesolved == false) {
+                $criteria['WHERE'] = $criteria['WHERE'] + ['NOT' => ['glpi_tickets.status' => [\Ticket::SOLVED, \Ticket::CLOSED]]];
+            }
+
+            $iterator = $DB->request($criteria);
+
+            if (count($iterator) > 0) {
+                foreach ($iterator as $data) {
+                    $data['type']  = Task::METADEMAND_TYPE;
+                    $data['level'] = 1;
+                    $used          = false;
+                    if (count($ticket_task_data)) {
+                        foreach ($ticket_task_data as $values) {
+                            if ($values['tickets_id'] == $data['tickets_id']) {
+                                $used = true;
+                            }
+                        }
+                    }
+                    if (!$used) {
+                        $ticket_task_data[] = $data;
+                    }
+                    if ($recursive) {
+                        $ticket_task_data = self::getSonTickets(
+                            $data['tickets_id'],
+                            $data['metademands_id'],
+                            $ticket_task_data,
+                            $recursive,
+                            $seesolved,
+                        );
+                    }
+                }
+            }
+
+            // Get direct son ticket
+            $criteria = [
+                'SELECT' => ['glpi_plugin_metademands_tickets_tasks.tickets_id',
+                    'glpi_plugin_metademands_tickets_tasks.parent_tickets_id',
+                    'glpi_plugin_metademands_tickets_tasks.level',
+                    'glpi_plugin_metademands_tickets_tasks.plugin_metademands_tasks_id AS tasks_id'],
+                'FROM' => 'glpi_plugin_metademands_tickets_tasks',
+                'LEFT JOIN'       => [
+                    'glpi_tickets' => [
+                        'ON' => [
+                            'glpi_tickets' => 'id',
+                            'glpi_plugin_metademands_tickets_tasks'          => 'parent_tickets_id',
+                        ],
+                    ],
+                ],
+                'WHERE' => [
+                    'glpi_tickets.is_deleted' => 0,
+                    'glpi_plugin_metademands_tickets_tasks.parent_tickets_id' => $tickets_id,
+                ],
+            ];
+            if ($seesolved == false) {
+                $criteria['WHERE'] = $criteria['WHERE'] + ['NOT' => ['glpi_tickets.status' => [\Ticket::SOLVED, \Ticket::CLOSED]]];
+            }
+
+            $iterator = $DB->request($criteria);
+
+            if (count($iterator) > 0) {
+                foreach ($iterator as $data) {
+                    $data['type']       = Task::TICKET_TYPE;
+                    $ticket_task_data[] = $data;
+                    $ticket_task_data   = self::getSonTickets($data['tickets_id'], 0, $ticket_task_data, $recursive, $seesolved);
+                }
+            }
+
+            // Get child-launched sub-metademand son tickets via the core relation.
+            // A sub-metademand launched from within another metademand is the ROOT
+            // of its own instance: its glpi_plugin_metademands_tickets_metademands
+            // row is self-parented (tickets_id = parent_tickets_id = its own id),
+            // so the metademand-son query above (keyed on parent_tickets_id =
+            // $tickets_id) never matches it. The only reliable mother -> sub-
+            // metademand link is the core Ticket_Ticket SON_OF relation created at
+            // launch time (tickets_id_1 = son, tickets_id_2 = parent).
+            $ticket_ticket = new \Ticket_Ticket();
+            $son_links     = $ticket_ticket->find([
+                'tickets_id_2' => $tickets_id,
+                'link'         => \Ticket_Ticket::SON_OF,
+            ]);
+            foreach ($son_links as $son_link) {
+                $son_id = $son_link['tickets_id_1'];
+
+                // Keep only sons that are a sub-metademand root (self-parented row):
+                // this excludes plain ticket-task children, which are already
+                // collected above and carry no self-referencing metademand row.
+                $son_metademand = new Ticket_Metademand();
+                if (!$son_metademand->getFromDBByCrit([
+                    'tickets_id'        => $son_id,
+                    'parent_tickets_id' => $son_id,
+                ])) {
+                    continue;
+                }
+                $son_metademands_id = $son_metademand->fields['plugin_metademands_metademands_id'];
+
+                // Skip deleted and (unless requested) solved/closed sons.
+                $son_ticket = new \Ticket();
+                if (!$son_ticket->getFromDB($son_id) || $son_ticket->fields['is_deleted'] == 1) {
+                    continue;
+                }
+                if ($seesolved == false
+                    && in_array($son_ticket->fields['status'], [\Ticket::SOLVED, \Ticket::CLOSED])) {
+                    continue;
+                }
+
+                // Dedup against tickets already collected in this call tree.
+                $used = false;
+                foreach ($ticket_task_data as $values) {
+                    if ($values['tickets_id'] == $son_id) {
+                        $used = true;
+                        break;
+                    }
+                }
+                if (!$used) {
+                    $ticket_task_data[] = [
+                        'metademands_id'    => $son_metademands_id,
+                        'tickets_id'        => $son_id,
+                        'parent_tickets_id' => $tickets_id,
+                        'type'              => Task::METADEMAND_TYPE,
+                        'level'             => 1,
+                    ];
+                    if ($recursive) {
+                        $ticket_task_data = self::getSonTickets(
+                            $son_id,
+                            $son_metademands_id,
+                            $ticket_task_data,
+                            $recursive,
+                            $seesolved,
+                        );
+                    }
+                }
+            }
+
+            // Fill array with uncreated son tickets
+            //            if (!empty($metademands_id)) {
+            //                $task_data           = [];
+            //                $task                = new Task();
+            //                $parent_tickets_id[] = $tickets_id;
+            //                foreach ($ticket_task_data as $values) {
+            //                    $parent_tickets_id[] = $values['tickets_id'];
+            //                }
+            //
+            //                // Search tasks linked to a created ticket
+            //                $query = "SELECT `glpi_plugin_metademands_tasks`.`name` as tasks_name,
+            //                          `glpi_plugin_metademands_tickets_tasks`.`tickets_id`,
+            //                          `glpi_plugin_metademands_tickets_tasks`.`parent_tickets_id`,
+            //                          `glpi_plugin_metademands_tasks`.`level`,
+            //       `glpi_plugin_metademands_tasks`.`plugin_metademands_metademands_id`,
+            //       `glpi_plugin_metademands_tickets_tasks`.`level` AS parent_level,
+            //                          `glpi_plugin_metademands_tasks`.`id` AS tasks_id
+            //                     FROM glpi_plugin_metademands_tasks
+            //                     LEFT JOIN `glpi_plugin_metademands_tickets_tasks`
+            //                        ON (`glpi_plugin_metademands_tickets_tasks`.`plugin_metademands_tasks_id` = `glpi_plugin_metademands_tasks`.`id`)
+            //                     WHERE `glpi_plugin_metademands_tasks`.`type` = " . Task::TICKET_TYPE . "
+            //                     AND `glpi_plugin_metademands_tasks`.`plugin_metademands_metademands_id` = " . $metademands_id . "
+            //                     AND `glpi_plugin_metademands_tickets_tasks`.`tickets_id` IN ('" . implode("','", $parent_tickets_id) . "')
+            //                     ORDER BY tasks_id";
+            //
+            //                $result = $DB->query($query);
+            //                $count  = 0;
+            //
+            //                if ($DB->numrows($result)) {
+            //                    while ($data = $DB->fetchAssoc($result)) {
+            //                        $data['type']                 = Task::TICKET_TYPE;
+            //                        $task_data[$data['tasks_id']] = $data;
+            //                        // If child task exists : son ticket creation
+            //                        $child_tasks_data = $task->getChildrenForLevel($data['tasks_id'], $data['parent_level'] + 1);
+            //                        if ($child_tasks_data !== false) {
+            //                            $tasks = [];
+            //                            foreach ($child_tasks_data as $child_tasks_id) {
+            //                                $tasks[] = $task->getTasks(
+            //                                    $data['plugin_metademands_metademands_id'],
+            //                                    ['condition' => ['glpi_plugin_metademands_tasks.id' => $child_tasks_id]]
+            //                                );
+            //                            }
+            //
+            //
+            //                            foreach ($tasks as $k => $v) {
+            //                                foreach ($v as $taskchild) {
+            //                                    if (Ticket_Field::checkTicketCreation($taskchild['tasks_id'], $tickets_id)) {
+            //                                        $task_data[$taskchild['tasks_id']] = ['tasks_name' => $taskchild['tickettasks_name'],
+            //                                                                              'level'      => $taskchild['level'],
+            //                                                                              'tickets_id' => 0,
+            //                                                                              'tasks_id'   => $taskchild['tasks_id'],
+            //                                                                              'type'       => Task::TICKET_TYPE];
+            //                                        $count++;
+            //                                    }
+            //                                }
+            //                            }
+            //                        }
+            //                        $count++;
+            //                    }
+            //                }
+            //
+            //                // Fill metademand tasks
+            //                foreach ($ticket_task_data as $values) {
+            //                    if ($values['type'] == Task::METADEMAND_TYPE) {
+            //                        array_unshift($task_data, $values);
+            //                    }
+            //                }
+            //
+            //                $ticket_task_data = $task_data;
+            //            }
+        }
+        return $ticket_task_data;
+    }
+
+    /**
+     * @param       $tickets_id
+     * @param bool  $only_metademand
+     * @param array $ticket_task_data
+     *
+     * @return array
+
+     */
+    public static function getAncestorTickets($tickets_id, $only_metademand = false, $ticket_task_data = [])
+    {
+        global $DB;
+        $ticket_task_data = [];
+        // Search metademand parent ticket
+        //        $iterator = $DB->request([
+        //            'SELECT' => ['tickets_id', 'parent_tickets_id'],
+        //            'FROM' => 'glpi_plugin_metademands_tickets_tasks',
+        //            'WHERE' => [
+        //                'tickets_id' => $tickets_id
+        //            ],
+        //        ]);
+        //        if (count($iterator) > 0) {
+        //            foreach ($iterator as $data) {
+        //                if (!$only_metademand) {
+        //                    $data['type'] = Task::TICKET_TYPE;
+        //                    $ticket_task_data[] = $data;
+        //                }
+        //            }
+        //        }
+
+        // Search metademand parent ticket
+        $iterator = $DB->request([
+            'SELECT'    => 'parent_tickets_id AS tickets_id',
+            'FROM'      => 'glpi_plugin_metademands_tickets_metademands',
+            'WHERE'     => [
+                'tickets_id'  => $tickets_id,
+            ],
+        ]);
+        if (count($iterator) > 0) {
+            foreach ($iterator as $data) {
+                $data['type']               = Task::METADEMAND_TYPE;
+                $data['level']              = 1;
+                $data['tasks_completename'] = '';
+                $ticket_task_data[]         = $data;
+            }
+        }
+
+        return $ticket_task_data;
+    }
+
+
+
+    /**
+     * @param $ID
+     *
+     * @return bool
+     */
+    public static function isTicketSolved($ID)
+    {
+        $ticket_metademand      = new Ticket_Metademand();
+        $ticket_metademand_data = $ticket_metademand->find(['plugin_metademands_metademands_id' => $ID,
+            'status' => Ticket_Metademand::RUNNING]);
+
+        $tickets = [];
+        $solved  = true;
+
+        if (!empty($ticket_metademand_data)) {
+            foreach ($ticket_metademand_data as $meta) {
+                $tickets_found = self::getSonTickets($meta['tickets_id'], 0, [], true);
+
+                $job = new \Ticket();
+                if ($job->getfromDB($meta['tickets_id'])
+                    && $job->fields['is_deleted'] == 0) {
+                    $tickets[] = $meta['tickets_id'];
+                }
+                foreach ($tickets_found as $k => $v) {
+                    $tickets[] = $v["tickets_id"];
+                }
+            }
+            if (!empty($tickets)) {
+                $solved = false;
+                //                $status = [Ticket::SOLVED, Ticket::CLOSED];
+                //                foreach ($tickets as $key => $val) {
+                //                    $job = new \Ticket();
+                //                    if ($job->getfromDB($val)
+                //                        && $job->fields['is_deleted'] == 0) {
+                //                        if (!in_array($job->fields['status'], $status)) {
+                //
+                //                        }
+                //                    }
+                //                }
+            }
+        }
+
+        return $solved;
+    }
+
+    /**
+     * @param        $tickets_id
+     * @param        $itilActorType
+     * @param string $type
+     *
+     * @return array
+     */
+    public static function getUsedActors($tickets_id, $itilActorType, $type = 'users_id')
+    {
+        $resultFound = [];
+
+        switch ($type) {
+            case 'users_id':
+                $item = new Ticket_User();
+                break;
+            case 'groups_id':
+                $item = new Group_Ticket();
+                break;
+        }
+
+        $dataActors = $item->getActors($tickets_id);
+
+        if (isset($dataActors[$itilActorType])) {
+            foreach ($dataActors[$itilActorType] as $data) {
+                $resultFound[] = $data[$type];
+            }
+        }
+
+        return $resultFound;
+    }
+}

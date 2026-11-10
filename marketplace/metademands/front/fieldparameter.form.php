@@ -1,0 +1,179 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * metademands plugin for GLPI
+ * Copyright (C) 2018-2026 by the metademands Development Team.
+ *
+ * https://github.com/InfotelGLPI/metademands
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of metademands.
+ *
+ * metademands is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * metademands is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with metademands. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+use GlpiPlugin\Metademands\Field;
+use GlpiPlugin\Metademands\FieldParameter;
+
+if (empty($_GET["id"])) {
+    $_GET["id"] = "";
+}
+
+// The parent field is dereferenced right away, before any branch is entered: keep a page guard
+// here, the branches below then bind their own control to the row they write.
+Session::checkRightsOr('plugin_metademands', [CREATE, UPDATE, DELETE]);
+
+$field = new Field();
+$field->getFromDB($_POST['plugin_metademands_fields_id']);
+
+$fieldparameter = new FieldParameter();
+
+if (isset($field->fields['type']) && $field->fields['type'] == 'dropdown_object'
+    && isset($field->fields['item']) && ($field->fields['item'] == 'Group'
+        || $field->fields['item'] == 'User')) {
+    if (isset($_POST['is_assign'])) {
+        $custom_values['is_assign'] = $_POST['is_assign'];
+    }
+    if (isset($_POST['is_watcher'])) {
+        $custom_values['is_watcher'] = $_POST['is_watcher'];
+    }
+    if (isset($_POST['is_requester'])) {
+        $custom_values['is_requester'] = $_POST['is_requester'];
+    }
+    if (isset($_POST['user_group'])) {
+        $custom_values['user_group'] = $_POST['user_group'];
+    }
+}
+
+if (isset($field->fields['item']) && isset($field->fields['type'])
+    && (empty($field->fields['item']) || $field->fields['item'] === 0)) {
+    $field->fields['item'] = $field->fields['type'];
+}
+
+if (isset($custom_values)) {
+    $_POST['custom_values'] = $custom_values;
+}
+
+if (isset($_POST["add"])) {
+    if (isset($_POST["custom_values"]) && is_array($_POST["custom_values"])) {
+        if (isset($field->fields['type']) && $field->fields['type'] == 'dropdown_multiple') {
+            $field->fields['item'] = 'other';
+        }
+        $_POST["custom_values"] = FieldParameter::_serialize($_POST["custom_values"]);
+
+        if (isset($_POST["comment_values"])) {
+            $_POST["comment_values"] = FieldParameter::_serialize($_POST["comment_values"]);
+        }
+        if (isset($_POST["default_values"])) {
+            $_POST["default_values"] = FieldParameter::_serialize($_POST["default_values"]);
+        }
+        if (isset($_POST["informations_to_display"])) {
+            $_POST["informations_to_display"] = FieldParameter::_serialize(
+                $_POST["informations_to_display"],
+            );
+        }
+    }
+    if ((!isset($_POST["custom_values"]) || empty($_POST["custom_values"])) && $field->fields['type'] == 'yesno') {
+        $_POST["custom_values"] = 1;
+    }
+
+    // Creation right, resolved against the parent field carried by the input.
+    $fieldparameter->check(-1, CREATE, $_POST);
+    $fieldparameter->add($_POST);
+
+    Html::back();
+} elseif (isset($_POST["update"])) {
+    if ((isset($_POST["custom_values"]) && is_array($_POST["custom_values"]) ||
+            isset($_POST["default_values"]) && is_array($_POST["default_values"]))
+        && ((isset($field->fields['item']) && $field->fields['item'] == 'other')
+            || $field->fields['type'] == 'checkbox'
+            || $field->fields['type'] == 'radio'
+            || $field->fields['type'] == 'dropdown_multiple'
+            || (isset($field->fields['item']) && ($field->fields['item'] == 'Group'
+                    || $field->fields['item'] == 'User'
+                    || in_array($field->fields["item"], Field::$field_specificobjects)))
+            || $field->fields['type'] == 'number'
+            || $field->fields['type'] == 'range'
+            || $field->fields['type'] == 'basket')) {
+        $comment_values = "";
+        $custom_values = [];
+        $default_values = [];
+
+        if (isset($_POST['custom_values'])) {
+            $custom_values = $_POST['custom_values'];
+        }
+        if (isset($_POST['comment_values'])) {
+            $comment_values = $_POST['comment_values'];
+        }
+        if (isset($_POST['default_values'])) {
+            $default_values = $_POST['default_values'];
+        }
+
+        $_POST["custom_values"] = FieldParameter::_serialize($custom_values);
+        $_POST["comment_values"] = FieldParameter::_serialize($comment_values);
+        $_POST["default_values"] = FieldParameter::_serialize($default_values);
+    } elseif ($field->fields['type'] == 'link') {
+        $_POST["custom_values"] = FieldParameter::_serialize($_POST['custom_values']);
+        $_POST["comment_values"] = '';
+    } elseif ($field->fields['type'] != 'yesno') {
+        //used for default_values don't uncomment
+        //      $_POST["custom_values"]  = '';
+        $_POST["comment_values"] = '';
+    }
+    if (isset($_POST["value"]) && is_array($_POST["value"])) {
+        $_POST["value"] = FieldParameter::_serialize($_POST["value"]);
+    }
+
+    $informations_to_display = [];
+    if (isset($_POST['informations_to_display'])) {
+        $informations_to_display = $_POST['informations_to_display'];
+    }
+    $_POST["informations_to_display"] = FieldParameter::_serialize($informations_to_display);
+
+    if (!isset($field->fields['item'])) {
+        $field->fields['item'] = "";
+    }
+    if (isset($field->fields['type']) && ($field->fields['type'] == 'dropdown_multiple' || $field->fields['type'] == 'dropdown_object')
+        && isset($field->fields['item']) && $field->fields['item'] == 'User') {
+        if (isset($_POST['user_group'])) {
+            $custom_values['user_group'] = $_POST['user_group'];
+            $_POST["custom"] = FieldParameter::_serialize($custom_values);
+        }
+    }
+
+    if (isset($field->fields['item']) && $field->fields['item'] == 'Group') {
+        $_POST["custom"] = FieldParameter::_serialize($custom_values);
+    }
+
+    // With -1 the requested right was never evaluated; bind the control to the posted row.
+    $fieldparameter->check((int) $_POST['id'], UPDATE);
+
+    if ($field->fields['type'] == 'yesno') {
+        unset($_POST['default_values']);
+    }
+
+    $fieldparameter->update($_POST);
+
+    Html::back();
+} else {
+    //   $field->checkGlobal(READ);
+    //   Html::header(Field::getTypeName(2), '', "helpdesk", Menu::class);
+    //   Html::requireJs('tinymce');
+    //   $field->display(['id' => $_GET["id"]]);
+    //   Html::footer();
+}

@@ -1,0 +1,10 @@
+[2026-11-09 06:10:43] User ID: `11` tried to execute an invalid request on `/front/central.php`.
+  Additional information: The current profile does not use the standard interface
+  Backtrace :
+  ./src/Session.php:1183                             
+  ./src/Glpi/Controller/CentralController.php:66     Session::checkCentralAccess()
+  ./vendor/symfony/http-kernel/HttpKernel.php:181    Glpi\Controller\CentralController->__invoke()
+  ./vendor/symfony/http-kernel/HttpKernel.php:76     Symfony\Component\HttpKernel\HttpKernel->handleRaw()
+  ./vendor/symfony/http-kernel/Kernel.php:208        Symfony\Component\HttpKernel\HttpKernel->handle()
+  ./src/Glpi/Kernel/Kernel.php:201                   Symfony\Component\HttpKernel\Kernel->handle()
+  ./public/index.php:78                              Glpi\Kernel\Kernel->handle()

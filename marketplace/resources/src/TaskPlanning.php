@@ -1,0 +1,554 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * resources plugin for GLPI
+ * Copyright (C) 2015-2026 by the resources Development Team.
+ *
+ * https://github.com/InfotelGLPI/resources
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of resources.
+ *
+ * resources is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * resources is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with resources. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Resources;
+
+use Ajax;
+use CommonDBTM;
+use DBConnection;
+use DbUtils;
+use Glpi\Application\View\TemplateRenderer;
+use Glpi\DBAL\QuerySubQuery;
+use Html;
+use Migration;
+use Planning;
+use Session;
+
+/**
+ * Class TaskPlanning
+ */
+class TaskPlanning extends CommonDBTM
+{
+    public static $rightname = 'plugin_resources_task';
+
+    /**
+     * @return bool
+     */
+    public static function canCreate(): bool
+    {
+        return (Session::haveRight(self::$rightname, UPDATE));
+    }
+
+    /**
+     * @param int $nb
+     *
+     * @return string
+     */
+    public static function getTypeName($nb = 0)
+    {
+        return sprintf(
+            __('%1$s - %2$s'),
+            _n('Human resource', 'Human resources', $nb, 'resources'),
+            __('Tasks list', 'resources'),
+        );
+    }
+
+    /**
+     * @param array $input
+     *
+     * @return array|bool
+     */
+    public function prepareInputForAdd($input)
+    {
+        if (!isset($input["begin"]) || !isset($input["end"])) {
+            return false;
+        }
+
+        $this->fields["begin"] = $input["begin"];
+        $this->fields["end"] = $input["end"];
+
+        if (!$this->test_valid_date()) {
+            self::displayError("date");
+            return false;
+        }
+        $fup = new Task();
+        $fup->getFromDB($input["plugin_resources_tasks_id"]);
+
+        if (isset($fup->fields["users_id"])) {
+            Planning::checkAlreadyPlanned($fup->fields["users_id"], $input["begin"], $input["end"]);
+        }
+        return $input;
+    }
+
+    public function post_addItem()
+    {
+        global $CFG_GLPI;
+
+        // Auto update actiontime
+        $fup = new Task();
+        $fup->getFromDB($this->input["plugin_resources_tasks_id"]);
+        if ($fup->fields["actiontime"] == 0) {
+            $timestart = strtotime($this->input["begin"]);
+            $timeend = strtotime($this->input["end"]);
+            $updates2[] = "actiontime";
+            $fup->fields["actiontime"] = $timeend - $timestart;
+            $fup->updateInDB($updates2);
+        }
+    }
+
+    /**
+     * @param array $input
+     *
+     * @return array|bool
+     */
+    public function prepareInputForUpdate($input)
+    {
+        global $CFG_GLPI;
+
+        $this->getFromDB($input["id"]);
+        // Save fields
+        $oldfields = $this->fields;
+        $this->fields["begin"] = $input["begin"];
+        $this->fields["end"] = $input["end"];
+
+        $fup = new Task();
+        $fup->getFromDB($input["plugin_resources_tasks_id"]);
+
+        if (!$this->test_valid_date()) {
+            $this->displayError("date");
+            return false;
+        }
+        if (isset($fup->fields["users_id"])) {
+            Planning::checkAlreadyPlanned(
+                $fup->fields["users_id"],
+                $input["begin"],
+                $input["end"],
+                [Task::class => [$input["id"]]],
+            );
+        }
+        // Restore fields
+        $this->fields = $oldfields;
+
+        return $input;
+    }
+
+    /**
+     * @param int $history
+     */
+    public function post_updateItem($history = 1)
+    {
+        global $CFG_GLPI;
+
+        $fup = new Task();
+        $fup->getFromDB($this->input["plugin_resources_tasks_id"]);
+        $timestart = strtotime($this->input["begin"]);
+        $timeend = strtotime($this->input["end"]);
+        $updates2[] = "actiontime";
+        $fup->fields["actiontime"] = $timeend - $timestart;
+        $fup->updateInDB($updates2);
+    }
+
+    /**
+     * Read the planning information associated with a task
+     *
+     * @param $plugin_resources_tasks_id integer ID of the task
+     *
+     * @return bool, true if exists
+     */
+    public function getFromDBbyTask($plugin_resources_tasks_id)
+    {
+        global $DB;
+
+        $iterator = $DB->request([
+            'FROM'  => $this->getTable(),
+            'WHERE' => ['plugin_resources_tasks_id' => (int) $plugin_resources_tasks_id],
+        ]);
+        if (count($iterator) != 1) {
+            return false;
+        }
+        $this->fields = $iterator->current();
+        if (is_array($this->fields) && count($this->fields)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * @param                      $resources
+     * @param Task $task
+     */
+    public function showFormForTask($resources, Task $task)
+    {
+
+        $Resource = new Resource();
+        $Resource->getFromDB($resources);
+        $taskid = $task->getField('id');
+
+        $can_create = $this->canCreate();
+        $is_planned = $taskid > 0 && $this->getFromDBbyTask($taskid);
+
+        if ($is_planned) {
+            $js_function = 'showPlan' . $taskid;
+            $params = [
+                'form' => 'followups',
+                'id' => $this->fields["id"],
+                'begin' => $this->fields["begin"],
+                'end' => $this->fields["end"],
+                'entity' => $Resource->fields["entities_id"],
+            ];
+
+            if ($this->fields["begin"] && $this->fields["end"]) {
+                $label = Html::convDateTime($this->fields["begin"])
+                    . "&nbsp;-&gt;&nbsp;"
+                    . Html::convDateTime($this->fields["end"]);
+            } else {
+                $label = htmlescape(__('Plan this task'));
+            }
+        } else {
+            $js_function = 'showPlanUpdate';
+            $params = [
+                'form' => 'followups',
+                'entity' => $_SESSION["glpiactive_entity"],
+            ];
+            $label = htmlescape($can_create ? __('Plan this task') : __('None'));
+        }
+
+        if ($can_create) {
+            $js = "function {$js_function}(){\n";
+            $js .= "$('#plan').css({'display':'none'});";
+            $js .= Ajax::updateItemJsCode(
+                'viewplan',
+                PLUGIN_RESOURCES_WEBDIR . "/ajax/planning.php",
+                $params,
+                '',
+                false,
+            );
+            $js .= "}";
+            echo Html::scriptBlock($js);
+        }
+
+        TemplateRenderer::getInstance()->display('@resources/taskplanning_plan.html.twig', [
+            'can_create'  => $can_create,
+            'js_function' => $js_function,
+            'label'       => $label,
+        ]);
+    }
+
+    // SPECIFIC FUNCTIONS
+
+    /**
+     * Current dates are valid ? begin before end
+     *
+     * @return boolean
+     * */
+    public function test_valid_date()
+    {
+        return (!empty($this->fields["begin"]) && !empty($this->fields["end"]) && strtotime(
+            $this->fields["begin"],
+        ) < strtotime($this->fields["end"]));
+    }
+
+    /**
+     * Add error message to message after redirect
+     *
+     * @param $type error type : date / is_res / other
+     *
+     * @return nothing
+     * */
+    public static function displayError($type)
+    {
+        switch ($type) {
+            case "date":
+                Session::addMessageAfterRedirect(
+                    __('Error in entering dates. The starting date is later than the ending date'),
+                    false,
+                    ERROR,
+                );
+                break;
+
+            default:
+                Session::addMessageAfterRedirect(__('Unknown error'), false, ERROR);
+                break;
+        }
+    }
+
+    /**
+     * Display a Planning Item
+     *
+     * @param $val Array of the item to display
+     *
+     * @return Already planned information
+     * */
+    public static function getAlreadyPlannedInformation($val)
+    {
+
+        $out = "";
+
+        $out .= Resource::getTypeName() . " - " . Task::getTypeName() . ' : ' . Html::convDateTime(
+            $val["begin"],
+        ) . ' -> ' .
+            Html::convDateTime($val["end"]) . ' : ';
+        $out .= "<a href='" . PLUGIN_RESOURCES_WEBDIR . "/front/task.form.php?id=" .
+            $val["plugin_resources_tasks_id"] . "'>";
+        $out .= Html::resume_text($val["name"], 80) . '</a>';
+
+        return $out;
+    }
+
+    /**
+     * Populate the planning with plannedresource tasks
+     *
+     * @param $who ID of the user (0 = undefined)
+     * @param $who_group ID of the group of users (0 = undefined, mine = login user ones)
+     * @param $begin Date
+     * @param $end Date
+     *
+     * @return array of planning item
+     */
+    public static function populatePlanning($parm)
+    {
+        global $DB, $CFG_GLPI;
+
+        $output = [];
+
+        if (!isset($parm['begin']) || $parm['begin'] == 'NULL' || !isset($parm['end']) || $parm['end'] == 'NULL') {
+            return $parm;
+        }
+
+        $who = $parm['who'];
+        $who_group = $parm['whogroup'];
+        $begin = $parm['begin'];
+        $end = $parm['end'];
+        // Get items to print
+
+        //      if ($who_group === "mine") {  ... only personal / group ones (kept commented above)
+        if ($who > 0) {
+            $assign = ['glpi_plugin_resources_tasks.users_id' => (int) $who];
+        } elseif ($who_group > 0) {
+            $assign = [
+                'glpi_plugin_resources_tasks.users_id' => new QuerySubQuery([
+                    'SELECT' => 'users_id',
+                    'FROM'   => 'glpi_groups_users',
+                    'WHERE'  => ['groups_id' => (int) $who_group],
+                ]),
+            ];
+        } else {
+            $dbu = new DbUtils();
+            $sub_where = ['glpi_profiles.interface' => 'central'];
+            $entities_crit = $dbu->getEntitiesRestrictCriteria(
+                'glpi_profiles_users',
+                '',
+                $_SESSION["glpiactive_entity"],
+                1,
+            );
+            if (count($entities_crit)) {
+                $sub_where[] = $entities_crit;
+            }
+            $assign = [
+                'glpi_plugin_resources_tasks.users_id' => new QuerySubQuery([
+                    'SELECT'    => 'glpi_profiles_users.users_id',
+                    'DISTINCT'  => true,
+                    'FROM'      => 'glpi_profiles',
+                    'LEFT JOIN' => [
+                        'glpi_profiles_users' => [
+                            'ON' => [
+                                'glpi_profiles'       => 'id',
+                                'glpi_profiles_users' => 'profiles_id',
+                            ],
+                        ],
+                    ],
+                    'WHERE'     => $sub_where,
+                ]),
+            ];
+        }
+
+        $iterator = $DB->request([
+            'SELECT'    => [
+                'glpi_plugin_resources_tasks.*',
+                'glpi_plugin_resources_taskplannings.begin',
+                'glpi_plugin_resources_taskplannings.end',
+                'glpi_plugin_resources_resources.name AS resource',
+                'glpi_plugin_resources_tasktypes.name AS type',
+            ],
+            'FROM'      => 'glpi_plugin_resources_tasks',
+            'LEFT JOIN' => [
+                'glpi_plugin_resources_taskplannings' => [
+                    'ON' => [
+                        'glpi_plugin_resources_taskplannings' => 'plugin_resources_tasks_id',
+                        'glpi_plugin_resources_tasks'         => 'id',
+                    ],
+                ],
+                'glpi_plugin_resources_resources' => [
+                    'ON' => [
+                        'glpi_plugin_resources_resources' => 'id',
+                        'glpi_plugin_resources_tasks'     => 'plugin_resources_resources_id',
+                    ],
+                ],
+                'glpi_plugin_resources_tasktypes' => [
+                    'ON' => [
+                        'glpi_plugin_resources_tasktypes' => 'id',
+                        'glpi_plugin_resources_tasks'     => 'plugin_resources_tasktypes_id',
+                    ],
+                ],
+            ],
+            'WHERE'     => $assign + [
+                'glpi_plugin_resources_taskplannings.end'   => ['>', $begin],
+                'glpi_plugin_resources_taskplannings.begin' => ['<', $end],
+                'glpi_plugin_resources_tasks.is_finished'   => ['!=', 1],
+            ],
+            'ORDER'     => 'glpi_plugin_resources_taskplannings.begin',
+        ]);
+
+        if (count($iterator) > 0) {
+            foreach ($iterator as $data) {
+                $key = $parm["begin"] . $data["id"] . "$$$" . "plugin_resource";
+                $output[$key]['color'] = $parm['color'];
+                $output[$key]['event_type_color'] = $parm['event_type_color'];
+                $output[$key]["id"] = $data["id"];
+                $output[$key]["plugin_resources_resources_id"] = $data["plugin_resources_resources_id"];
+                $output[$key]["users_id"] = $data["users_id"];
+                $output[$key]["begin"] = $data["begin"];
+                $output[$key]["end"] = $data["end"];
+                $output[$key]["name"] = $data["name"];
+                $output[$key]["type"] = $data["type"];
+                $output[$key]["resource"] = $data["resource"];
+                $output[$key]["content"] = Html::resume_text($data["comment"], $CFG_GLPI["cut"]);
+                $output[$key]["itemtype"] = TaskPlanning::class;
+                $output[$key]["url"] = PLUGIN_RESOURCES_WEBDIR . "/front/task.form.php?id=" . $data['id'];
+                ;
+            }
+        }
+        return $output;
+    }
+
+    /**
+     * Display a Planning Item
+     *
+     * @param array $val      the item to display
+     * @param int   $who      user the planning is displayed for, 0 for everyone
+     * @param string $type    which bound of the slot is being displayed
+     * @param int   $complete unused, kept for the signature the core calls
+     *
+     * @return string
+     * */
+    public static function displayPlanningItem(array $val, $who, $type = "", $complete = 0)
+    {
+        $dbu = new DbUtils();
+
+        $time_label = '';
+        // Left empty when the caller asks for a bound this method does not know: sprintf() then
+        // drops both placeholders, which is what the switch used to do by falling through.
+        $heading_format = '';
+
+        switch ($type) {
+            case "in":
+                //TRANS: %1$s is the start time of a planned item, %2$s is the end
+                $time_label = sprintf(
+                    __('From %1$s to %2$s'),
+                    date("H:i", strtotime($val["begin"])),
+                    date("H:i", strtotime($val["end"])),
+                );
+                $heading_format = __('%1$s %2$s');
+                break;
+            case "begin":
+                $time_label = sprintf(__('Start at %s'), date("H:i", strtotime($val["begin"])));
+                $heading_format = __('%1$s: %2$s');
+                break;
+            case "end":
+                $time_label = sprintf(__('End at %s'), date("H:i", strtotime($val["end"])));
+                $heading_format = __('%1$s: %2$s');
+                break;
+        }
+
+        // The markup used to be assembled here by concatenation. The resource name, the task type
+        // and the user name are free text read back from the database, and none of them was
+        // escaped: the core copies this return value verbatim into the planning and into the
+        // tooltip, so any of the three carried a stored XSS to every user displaying the planning.
+        // A template escapes them by construction instead of relying on a call being remembered.
+        return TemplateRenderer::getInstance()->render('@resources/planning_item.html.twig', [
+            'id'                 => (int) $val["id"],
+            'rand'               => mt_rand(),
+            'task_url'           => PLUGIN_RESOURCES_WEBDIR . "/front/task.form.php?id="
+                . (int) $val["id"],
+            'resource_url'       => PLUGIN_RESOURCES_WEBDIR . "/front/resource.form.php?id="
+                . (int) ($val["plugin_resources_resources_id"] ?? 0),
+            'heading_format'     => $heading_format,
+            'time_label'         => $time_label,
+            // Truncated but not escaped, because the template escapes on output. Html::resume_text()
+            // does both at once, which would print the entities instead of the characters.
+            'task_name'          => self::resumeRawText((string) ($val["name"] ?? ''), 80),
+            'user_name'          => (!empty($val["users_id"]) && $who == 0)
+                ? $dbu->getUserName($val["users_id"])
+                : '',
+            'resource'           => (string) ($val["resource"] ?? ''),
+            'resource_type_name' => Resource::getTypeName(1),
+            'task_type_name'     => TaskType::getTypeName(1),
+            'type'               => (string) ($val["type"] ?? ''),
+            'end_date'           => !empty($val["end"]) ? Html::convdatetime($val["end"]) : '',
+            'content'            => (string) ($val["content"] ?? ''),
+        ]);
+    }
+
+    /**
+     * Truncate a label the way Html::resume_text() does, but without escaping it.
+     *
+     * The result is handed to a Twig template, which escapes it on output: escaping it here as
+     * well would show the entities to the user. The non breaking space of the ellipsis is written
+     * as the character itself rather than as &nbsp; for the same reason.
+     *
+     * @param string $string
+     * @param int    $length
+     *
+     * @return string
+     */
+    private static function resumeRawText(string $string, int $length): string
+    {
+        if (mb_strlen($string, 'UTF-8') <= $length) {
+            return $string;
+        }
+
+        return mb_substr($string, 0, $length, 'UTF-8') . "\u{00A0}(...)";
+    }
+
+    public static function install(Migration $migration)
+    {
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+        $table  = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $query = "CREATE TABLE `$table` (
+                        `id`           int {$default_key_sign} NOT NULL auto_increment,
+                        `plugin_resources_tasks_id` int {$default_key_sign} NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_plugin_resources_tasks (id)',
+                        `begin`                     timestamp    NULL     DEFAULT NULL,
+                        `end`                       timestamp    NULL     DEFAULT NULL,
+                        PRIMARY KEY (`id`),
+                        KEY `begin` (`begin`),
+                        KEY `end` (`end`),
+                        KEY `plugin_resources_tasks_id` (`plugin_resources_tasks_id`)
+               ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
+
+            $DB->doQuery($query);
+        }
+    }
+
+}

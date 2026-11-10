@@ -1,0 +1,882 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * manageentities plugin for GLPI
+ * Copyright (C) 2017-2026 by the manageentities Development Team.
+ *
+ * https://github.com/InfotelGLPI/manageentities
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of manageentities.
+ *
+ * manageentities is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * manageentities is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with manageentities. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Manageentities;
+
+use Ajax;
+use CommonDBTM;
+use DBConnection;
+use Glpi\Application\View\TemplateRenderer;
+use Glpi\DBAL\QueryFunction;
+use Glpi\Exception\Http\AccessDeniedHttpException;
+use Html;
+use ITILCategory;
+use Migration;
+use Session;
+use Toolbox;
+use User;
+
+class DirectHelpdesk extends CommonDBTM
+{
+    public static $rightname = 'plugin_manageentities_directhelpdesk';
+
+    public $dohistory = true;
+
+    public const ONE_HOUR = 3600;
+    public const TWO_HOUR = 7200;
+    public const THREE_HOUR = 10800;
+
+    /**
+     * Age, in months, past which unbilled interventions are reported as forgotten by
+     * showUnbilledOverview().
+     */
+    public const UNBILLED_ALERT_MONTHS = 6;
+
+    public static function getTypeName($nb = 0)
+    {
+        return _n('Not billed intervention', 'Not billed interventions', $nb, 'manageentities');
+    }
+
+    /**
+     * @param array $options
+     *
+     * @return array
+     */
+    public function defineTabs($options = [])
+    {
+        $ong = [];
+        $this->addDefaultFormTab($ong);
+        $this->addStandardTab('Log', $ong, $options);
+
+        return $ong;
+    }
+
+    /**
+     * @return array
+     */
+    public static function getMenuContent()
+    {
+        $menu = [];
+
+        $menu['title'] = self::getMenuName();
+        $menu['page'] = PLUGIN_MANAGEENTITIES_WEBDIR . "/front/directhelpdesk.php?checkbox3=1";
+        $menu['links']['search'] = self::getSearchURL(false);
+        $menu['icon'] = self::getIcon();
+
+        return $menu;
+    }
+
+    /**
+     * @return string
+     */
+    public static function getIcon()
+    {
+        return "ti ti-file-euro";
+    }
+
+    /**
+     * @return string form HTML
+     */
+    public static function loadModal()
+    {
+        $contract = new Contract();
+
+        TemplateRenderer::getInstance()->display('@manageentities/directhelpdesk_modal.html.twig', [
+            'form_url'        => self::getFormURL(),
+            // The entity dropdown relays its change to public/scripts/directhelpdesk-modal.js
+            'change_event_js' => CriDetail::CHANGE_EVENT_JS,
+            'alert_url'       => PLUGIN_MANAGEENTITIES_WEBDIR . '/ajax/showalertbyentity.php',
+            'no_days_left'    => $contract->hasNoDaysLeftForEntity((int) $_SESSION['glpiactive_entity']),
+            'date'            => date('Y-m-d'),
+            'duration_max'    => 50 * HOUR_TIMESTAMP,
+            'users_id'        => Session::getLoginUserID(),
+        ]);
+    }
+
+    public static function getDefaultSearchRequest()
+    {
+        $search = [
+            'criteria' => [
+                0 => [
+                    'field' => 11,
+                    'searchtype' => 'equals',
+                    'value' => '0',
+                ],
+            ],
+            'sort' => 4,
+            'order' => 'ASC',
+        ];
+
+        return $search;
+    }
+
+    public function prepareInputForAdd($input)
+    {
+        if (!$this->checkMandatoryFields($input)) {
+            return false;
+        }
+
+        if (isset($input['name']) && $input['name'] > 0) {
+            $cat = new ITILCategory();
+            $cat->getFromDB($input['name']);
+            $input['name'] = $cat->getName();
+        }
+
+        return $input;
+    }
+
+    public function post_addItem()
+    {
+        if (isset($this->input["tickets_id"])) {
+            $ticket = new DirectHelpdesk_Ticket();
+            $input['plugin_manageentities_directhelpdesks_id'] = $this->getID();
+            $input['tickets_id'] = $this->input["tickets_id"];
+            $ticket->add($input);
+        }
+    }
+
+    public function post_updateItem($history = true)
+    {
+        if (isset($this->input["tickets_id"])) {
+            $ticket = new DirectHelpdesk_Ticket();
+
+            if ($ticket->getFromDBByCrit(['plugin_manageentities_directhelpdesks_id' => $this->getID()])) {
+                $input['plugin_manageentities_directhelpdesks_id'] = $this->getID();
+                $ticket->deleteByCriteria($input);
+            }
+
+            if ($this->input["tickets_id"] > 0
+                && !$ticket->getFromDBByCrit(['plugin_manageentities_directhelpdesks_id' => $this->getID()])) {
+                $input['plugin_manageentities_directhelpdesks_id'] = $this->getID();
+                $input['tickets_id'] = $this->input["tickets_id"];
+                $ticket->add($input);
+            }
+        }
+    }
+
+    /**
+     * checkMandatoryFields
+     *
+     * @param $input
+     *
+     * @return boolean
+     */
+    public function checkMandatoryFields($input)
+    {
+        $msg = [];
+        $checkKo = false;
+
+        $mandatory_fields = [
+            'name' => __('Title'),
+            'date' => __('Date'),
+            'actiontime' => __('Duration'),
+        ];
+
+        foreach ($input as $key => $value) {
+            if (array_key_exists($key, $mandatory_fields)) {
+                if (empty($value) || $value == 'NULL') {
+                    $msg[] = $mandatory_fields[$key];
+                    $checkKo = true;
+                }
+            }
+        }
+
+        if ($checkKo) {
+            Session::addMessageAfterRedirect(
+                sprintf(__("Mandatory fields are not filled. Please correct: %s"), implode(', ', $msg)),
+                false,
+                ERROR,
+            );
+            return false;
+        }
+
+        if (isset($this->input['entities_id']) && $this->input['entities_id'] == 0) {
+            Session::addMessageAfterRedirect(
+                __('You cannot add an intervention on this entity', 'manageentities'),
+                false,
+                ERROR,
+            );
+            return false;
+        }
+
+        return true;
+    }
+
+    public function showForm($ID, $options = [])
+    {
+        $this->initForm($ID, $options);
+        TemplateRenderer::getInstance()->display('@manageentities/directhelpdesk_form.html.twig', [
+            'item' => $this,
+            'params' => $options,
+        ]);
+
+        return true;
+    }
+
+    /**
+     * @param int|float $min_sum      Only gauges worth at least this many seconds are drawn.
+     * @param int       $entities_id  When > 0, draw the gauge of that client only. Used by the
+     *                                links of the unplanned-interventions overview, which point
+     *                                at one customer and should not reopen the full board.
+     */
+    public static function showDashboard($min_sum = 0, int $entities_id = 0)
+    {
+        global $CFG_GLPI;
+
+        // ECharts comes from core (public/lib/echarts.js): ask core to emit it in the page
+        // footer, ahead of the gauge script registered in setup.php. An AJAX tab response
+        // renders no footer, so the request would not be honoured there -- it would just sit
+        // in the session and load the bundle on whatever page comes next. On that path the
+        // gauge script fetches the same core bundle itself instead.
+        if (!Toolbox::isAjax()) {
+            Html::requireJs('charts');
+        }
+
+        $direct = new DirectHelpdesk();
+
+        $items = $direct->find(['is_billed' => 0]);
+        if (!$items) {
+            return;
+        }
+
+        $entities = $_SESSION["glpiactiveentities"];
+        if ($entities_id > 0) {
+            // Narrowing by intersection, never by replacement: an id the session has no access
+            // to leaves an empty perimeter and therefore no gauge at all, so the parameter can
+            // come straight from the query string without widening anything.
+            $entities = array_values(array_intersect($entities, [$entities_id]));
+        }
+        $directs  = [];
+        $techs    = [];
+        foreach ($items as $item) {
+            if (!in_array($item["entities_id"], $entities)) {
+                continue;
+            }
+            if (isset($directs[$item['entities_id']])) {
+                $directs[$item['entities_id']] += $item['actiontime'];
+                if (!in_array($item['users_id'], $techs[$item['entities_id']])) {
+                    $techs[$item['entities_id']][] = $item['users_id'];
+                }
+            } else {
+                $directs[$item['entities_id']] = $item['actiontime'];
+                $techs[$item['entities_id']][] = $item['users_id'];
+            }
+        }
+        arsort($directs);
+        if ($min_sum > 0) {
+            foreach ($directs as $entities_id => $actiontime) {
+                if ($actiontime < $min_sum) {
+                    unset($directs[$entities_id]);
+                    unset($techs[$entities_id]);
+                }
+            }
+        }
+
+        $is_central = (Session::getCurrentInterface() == 'central');
+        $cards      = [];
+        foreach ($directs as $entities_id => $actiontime) {
+            $sum = ($actiontime * 0.5) / 14400;
+
+            $tech_interventions = [];
+            if (is_array($techs[$entities_id]) && count($techs[$entities_id])) {
+                $tech_interventions = $techs[$entities_id];
+            }
+            $tech_names = [];
+            foreach ($tech_interventions as $users_id) {
+                $tech_names[] = getUserName($users_id);
+            }
+
+            $entity = new \Entity();
+            $entity->getFromDB($entities_id);
+            $name = $entity->getName();
+
+            // The iframe modal window is rendered as safe GLPI markup; only central
+            // users can create a ticket, and only once the threshold is reached.
+            $modal       = '';
+            $show_create = false;
+            $can_create  = false;
+            if ($is_central) {
+                $show_create = true;
+                $can_create  = ($sum >= 0.375);
+                $modal       = Ajax::createIframeModalWindow(
+                    'createticket' . $entities_id,
+                    PLUGIN_MANAGEENTITIES_WEBDIR . "/ajax/directhelpdesk.php?action=createticket&entities_id=" . $entities_id,
+                    [
+                        'title'   => __('Create a ticket'),
+                        'display' => false,
+                    ],
+                );
+            }
+
+            $cards[] = [
+                'entities_id' => (int) $entities_id,
+                'name'        => $name,
+                // Gauge config consumed by public/scripts/directhelpdesk-gauges.js.
+                'gauge'       => ['value' => $sum, 'name' => $name],
+                'techs'       => $tech_names,
+                'show_create' => $show_create,
+                'can_create'  => $can_create,
+                'modal'       => $modal,
+            ];
+        }
+
+        if (empty($cards)) {
+            return;
+        }
+
+        $nbcol = 4;
+        $rows  = array_chunk($cards, $nbcol);
+        // Number of empty filler columns to keep the last row aligned on the grid.
+        $last_count = count(end($rows));
+        $last_pad   = ($last_count % $nbcol != 0) ? ($nbcol - ($last_count % $nbcol)) : 0;
+
+        TemplateRenderer::getInstance()->display('@manageentities/directhelpdesk_dashboard.html.twig', [
+            'rows'     => $rows,
+            'last_pad' => $last_pad,
+            'hour'     => lcfirst(_n('Hour', 'Hours', 1)),
+            'hours'    => lcfirst(_n('Hour', 'Hours', 2)),
+            'tag_url'  => PLUGIN_MANAGEENTITIES_WEBDIR . "/pics/tag.png",
+        ]);
+    }
+
+    /**
+     * Management view of the unplanned interventions: how many hours are still waiting to be
+     * billed, for which customer, and how long they have been waiting.
+     *
+     * Built on the same foundations as EditorSubscription::showStatusTab(): same entity
+     * perimeter (the customer subtree of wizard_default_entities_id, minus the archive subtree
+     * of wizard_archive_entities_id) and the same definition of an ongoing contract (a contract
+     * day in one of the states selected in the plugin configuration).
+     *
+     * Two situations are reported apart from the main table because they are the ones that cost
+     * money silently: a customer that was archived while interventions were still unbilled, and
+     * interventions left unbilled for more than UNBILLED_ALERT_MONTHS months.
+     */
+    public static function showUnbilledOverview(): void
+    {
+        // This method is public and static: it cannot rely on the guard of whatever renders it.
+        if (!Session::haveRight(self::$rightname, READ)) {
+            throw new AccessDeniedHttpException();
+        }
+
+        $data = self::buildUnbilledOverview();
+
+        TemplateRenderer::getInstance()->display(
+            '@manageentities/entity/unbilled_tab.html.twig',
+            $data + [
+                'months'     => self::UNBILLED_ALERT_MONTHS,
+                'export_url' => PLUGIN_MANAGEENTITIES_WEBDIR . '/front/entity.php?export=unbilled',
+            ],
+        );
+    }
+
+    /**
+     * The data behind showUnbilledOverview(), extracted so the screen and the CSV export cannot
+     * drift apart: both read the very same rows, built once here.
+     *
+     * @return array{
+     *     rows: array<int, array<string, mixed>>,
+     *     archived: array<int, array<string, mixed>>,
+     *     stale: array<int, array<string, mixed>>,
+     *     total_hours: float,
+     *     total_nb: int
+     * }
+     */
+    private static function buildUnbilledOverview(): array
+    {
+        global $DB;
+
+        $entity_ids = $_SESSION['glpiactiveentities'];
+        $config     = Config::getInstance();
+
+        $parent_id           = (int) ($config->fields['wizard_default_entities_id'] ?? 0);
+        $archive_entities_id = (int) ($config->fields['wizard_archive_entities_id'] ?? 0);
+
+        // concerned_ids: active customers. archived_ids: customers moved to the archive subtree.
+        // Both are intersected with the session perimeter, which never widens them.
+        $concerned_ids = [];
+        $archived_ids  = [];
+
+        if ($parent_id > 0 && !empty($entity_ids)) {
+            $customer_sons = getSonsOf('glpi_entities', $parent_id);
+            unset($customer_sons[$parent_id]);
+
+            // The archive root is kept in the list: it is excluded from the active customers
+            // and included in the archived ones, exactly as showStatusTab() does.
+            $archive_son_ids = $archive_entities_id > 0
+                ? array_keys(getSonsOf('glpi_entities', $archive_entities_id))
+                : [];
+
+            $concerned_ids = array_map('intval', array_values(
+                array_diff(
+                    array_intersect($entity_ids, array_keys($customer_sons)),
+                    $archive_son_ids,
+                ),
+            ));
+            $archived_ids = array_map('intval', array_values(
+                array_intersect($archive_son_ids, $entity_ids),
+            ));
+        }
+
+        $active_states = json_decode($config->fields['contract_states'] ?? '', true);
+        $active_states = is_array($active_states) && !empty($active_states)
+            ? array_map('intval', $active_states)
+            : [];
+
+        // Customers holding at least one contract day in an active state: the "contract with
+        // ongoing services" the main table is restricted to.
+        $with_active_contract = [];
+        if (!empty($concerned_ids) && !empty($active_states)) {
+            $iter = $DB->request([
+                'SELECT'     => ['c.entities_id'],
+                'DISTINCT'   => true,
+                'FROM'       => 'glpi_plugin_manageentities_contractdays AS cd',
+                'INNER JOIN' => [
+                    'glpi_contracts AS c' => ['FKEY' => ['cd' => 'contracts_id', 'c' => 'id']],
+                ],
+                'WHERE' => [
+                    'c.entities_id' => $concerned_ids,
+                    'cd.plugin_manageentities_contractstates_id' => $active_states,
+                    'c.is_deleted'  => 0,
+                ],
+            ]);
+            $with_active_contract = array_map(
+                'intval',
+                array_column(iterator_to_array($iter), 'entities_id'),
+            );
+        }
+
+        // One aggregate per customer, active and archived alike: the archived ones feed their own
+        // alert and must not be filtered out before it is built.
+        $scope_ids  = array_values(array_unique(array_merge($concerned_ids, $archived_ids)));
+        $aggregates = [];
+        if (!empty($scope_ids)) {
+            $iter = $DB->request([
+                'SELECT'  => [
+                    'entities_id',
+                    QueryFunction::sum('actiontime', false, 'total_time'),
+                    QueryFunction::min('date', 'oldest_date'),
+                    QueryFunction::count('id', false, 'nb'),
+                ],
+                'FROM'    => self::getTable(),
+                'WHERE'   => ['is_billed' => 0, 'entities_id' => $scope_ids],
+                'GROUPBY' => ['entities_id'],
+            ]);
+            foreach ($iter as $row) {
+                $aggregates[(int) $row['entities_id']] = [
+                    'hours'  => round(((int) $row['total_time']) / HOUR_TIMESTAMP, 2),
+                    'oldest' => $row['oldest_date'],
+                    'nb'     => (int) $row['nb'],
+                ];
+            }
+        }
+
+        $names = [];
+        if (!empty($aggregates)) {
+            $iter = $DB->request([
+                'SELECT' => ['id', 'completename'],
+                'FROM'   => 'glpi_entities',
+                'WHERE'  => ['id' => array_keys($aggregates)],
+            ]);
+            foreach ($iter as $row) {
+                $names[(int) $row['id']] = $row['completename'];
+            }
+        }
+
+        // Main tech lead of each customer: the person to chase for the billing
+        $main_techleads = [];
+        if (!empty($aggregates)) {
+            foreach (TechLead::getTechLeadsByEntity(array_keys($aggregates)) as $entities_id => $techleads) {
+                foreach ($techleads as $techlead) {
+                    if ($techlead['is_default']) {
+                        $main_techleads[$entities_id] = $techlead['users_id'];
+                        break;
+                    }
+                }
+            }
+        }
+
+        $threshold = date(
+            'Y-m-d H:i:s',
+            strtotime('-' . self::UNBILLED_ALERT_MONTHS . ' months'),
+        );
+
+        // Half a working day, read from the plugin configuration rather than hardcoded: the
+        // whole plugin converts action time to days with $actiontime / 3600 / hourbyday, so a
+        // day here has to mean the same thing. The column may be 0, which the rest of the code
+        // guards against the same way.
+        $hours_per_day = (float) ($config->fields['hourbyday'] ?? 0);
+        if ($hours_per_day <= 0) {
+            $hours_per_day = 8.0;
+        }
+        $half_day_hours = $hours_per_day / 2;
+
+        $rows        = [];
+        $archived    = [];
+        $stale       = [];
+        $total_hours = 0.0;
+        $total_nb    = 0;
+
+        foreach ($aggregates as $entities_id => $data) {
+            $techlead_id = $main_techleads[$entities_id] ?? 0;
+            $row = [
+                'entities_id' => $entities_id,
+                'name'        => $names[$entities_id] ?? '',
+                'techlead'    => $techlead_id > 0 ? getUserName($techlead_id) : '',
+                'techlead_url' => $techlead_id > 0 ? User::getFormURLWithID($techlead_id) : '',
+                'hours'       => $data['hours'],
+                'nb'          => $data['nb'],
+                'oldest'      => $data['oldest'] !== null ? Html::convDate($data['oldest']) : '',
+                // Kept alongside the formatted date: the lists are ordered on it, and the
+                // displayed form sorts lexicographically by day/month/year.
+                'oldest_raw'  => $data['oldest'],
+                'is_stale'    => $data['oldest'] !== null && $data['oldest'] < $threshold,
+                // Drives the red badge in both alert lists: past half a working day the amount
+                // at stake stops being noise.
+                'over_half_day' => $data['hours'] > $half_day_hours,
+                'url'           => self::getUnbilledSearchUrl($entities_id),
+            ];
+
+            // An archived customer belongs to its own alert and to nothing else: it has no
+            // ongoing contract by definition, and its age is not actionable the same way.
+            if (in_array($entities_id, $archived_ids, true)) {
+                $archived[] = $row;
+                continue;
+            }
+
+            if (in_array($entities_id, $with_active_contract, true)) {
+                $rows[]       = $row;
+                $total_hours += $data['hours'];
+                $total_nb    += $data['nb'];
+            }
+
+            // Deliberately not restricted to the customers of the table above: unbilled hours
+            // left on a customer whose contract has ended are exactly what this alert is for.
+            if ($row['is_stale']) {
+                $stale[] = $row;
+            }
+        }
+
+        // Oldest first: the point of both lists is what has been waiting the longest, not what
+        // weighs the most. A row with no date sorts last rather than first.
+        $by_oldest_first = static fn(array $a, array $b): int
+            => ($a['oldest_raw'] ?? "\xFF") <=> ($b['oldest_raw'] ?? "\xFF");
+        usort($rows, $by_oldest_first);
+        usort($stale, $by_oldest_first);
+
+        // The archived list keeps the amount at stake first: nothing is waiting there any more,
+        // the customer is gone, so the only actionable ordering is how much is left to bill.
+        usort($archived, static fn(array $a, array $b): int => $b['hours'] <=> $a['hours']);
+
+        return [
+            'rows'        => $rows,
+            'archived'    => $archived,
+            'stale'       => $stale,
+            'total_hours' => round($total_hours, 2),
+            'total_nb'    => $total_nb,
+        ];
+    }
+
+    /**
+     * CSV export of the main table of the unplanned-interventions overview: the unbilled hours
+     * of the clients holding a contract with ongoing services. The two alert lists are not
+     * exported — they are read on screen and acted upon, not reconciled in a spreadsheet.
+     *
+     * Emits the file and exits, so it must be called before any header output.
+     */
+    public static function exportUnbilledCsv(): void
+    {
+        if (!Session::haveRight(self::$rightname, READ)) {
+            throw new AccessDeniedHttpException();
+        }
+
+        $data = self::buildUnbilledOverview();
+
+        $filename = 'unbilled_hours_' . date('Ymd_His') . '.csv';
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Cache-Control: no-cache, no-store, must-revalidate');
+        Html::header_nocache();
+
+        $out = fopen('php://output', 'w');
+        // UTF-8 BOM for Excel
+        fwrite($out, "\xEF\xBB\xBF");
+
+        fputcsv($out, [
+            _n('Client', 'Clients', 1, 'manageentities'),
+            __('Main tech lead', 'manageentities'),
+            _n('Intervention', 'Interventions', 2, 'manageentities'),
+            __('Unbilled hours', 'manageentities'),
+            __('Oldest intervention', 'manageentities'),
+            sprintf(__('More than %d months', 'manageentities'), self::UNBILLED_ALERT_MONTHS),
+        ], ';');
+
+        // Neutralize CSV formula injection: a spreadsheet interprets a cell starting with
+        // =, +, -, @, TAB or CR as a formula. Prefix such user-controlled values with an
+        // apostrophe so they are treated as text (OWASP CSV injection). Same helper as
+        // EditorSubscription::exportCsv().
+        $csvSafe = static function ($value): string {
+            $value = (string) $value;
+            if ($value !== '' && strpbrk($value[0], "=+-@\t\r") !== false) {
+                return "'" . $value;
+            }
+            return $value;
+        };
+
+        foreach ($data['rows'] as $row) {
+            fputcsv($out, [
+                $csvSafe($row['name'] ?? ''),
+                $csvSafe($row['techlead'] ?? ''),
+                (string) $row['nb'],
+                (string) $row['hours'],
+                // Raw date rather than the displayed one: a spreadsheet sorts an ISO date and
+                // cannot sort dd/mm/yyyy.
+                !empty($row['oldest_raw']) ? substr((string) $row['oldest_raw'], 0, 10) : '',
+                $row['is_stale'] ? '1' : '0',
+            ], ';');
+        }
+
+        fputcsv($out, [
+            __('Total'),
+            '',
+            (string) $data['total_nb'],
+            (string) $data['total_hours'],
+            '',
+            '',
+        ], ';');
+
+        fclose($out);
+        exit;
+    }
+
+    /**
+     * Search URL listing the unbilled interventions of one entity, used to jump from the
+     * overview to the records themselves. Search option 11 is is_billed and 80 is the entity,
+     * both declared in rawSearchOptions(). checkbox3 is pinned to 0 so the page does not silently
+     * apply its default three-hour filter to the gauge, and entities_id narrows that gauge to the
+     * client that was clicked instead of reopening the whole board.
+     */
+    private static function getUnbilledSearchUrl(int $entities_id): string
+    {
+        return PLUGIN_MANAGEENTITIES_WEBDIR . '/front/directhelpdesk.php?' . http_build_query([
+            'checkbox3'   => 0,
+            'entities_id' => $entities_id,
+            'criteria'    => [
+                ['field' => 11, 'searchtype' => 'equals', 'value' => 0],
+                [
+                    'link'       => 'AND',
+                    'field'      => 80,
+                    'searchtype' => 'equals',
+                    'value'      => $entities_id,
+                ],
+            ],
+        ]);
+    }
+
+    /**
+     * @return array
+     */
+    public function rawSearchOptions()
+    {
+        $tab = [];
+
+        $tab[] = [
+            'id' => 'common',
+            'name' => self::getTypeName(2),
+        ];
+
+        $tab[] = [
+            'id' => '1',
+            'table' => $this->getTable(),
+            'field' => 'name',
+            'name' => __('Name'),
+            'datatype' => 'itemlink',
+            'itemlink_type' => $this->getType(),
+        ];
+
+        $tab[] = [
+            'id' => '4',
+            'table' => $this->getTable(),
+            'field' => 'date',
+            'name' => __('Date'),
+            'datatype' => 'date',
+        ];
+
+
+        $tab[] = [
+            'id' => '8',
+            'table' => $this->getTable(),
+            'field' => 'comment',
+            'name' => __('Comments'),
+            'datatype' => 'text',
+        ];
+
+        $tab[] = [
+            'id' => '9',
+            'table' => $this->getTable(),
+            'field' => 'actiontime',
+            'name' => __('Duration'),
+            'datatype' => 'timestamp',
+        ];
+
+        $tab[] = [
+            'id' => '10',
+            'table' => 'glpi_users',
+            'field' => 'name',
+            'name' => __('User'),
+            'datatype' => 'dropdown',
+            'right' => 'all',
+        ];
+
+        $tab[] = [
+            'id' => '11',
+            'table' => $this->getTable(),
+            'field' => 'is_billed',
+            'name' => __('Is billed', 'manageentities'),
+            'datatype' => 'bool',
+        ];
+
+        $tab[] = [
+            'id' => '12',
+            'table' => 'glpi_tickets',
+            'field' => 'name',
+            'name' => __('Linked ticket'),
+            'datatype' => 'itemlink',
+            'itemlink_type' => 'Ticket',
+        ];
+
+
+        $tab[] = [
+            'id' => '30',
+            'table' => $this->getTable(),
+            'field' => 'id',
+            'name' => __('ID'),
+            'datatype' => 'number',
+        ];
+
+        $tab[] = [
+            'id' => '80',
+            'table' => 'glpi_entities',
+            'field' => 'completename',
+            'name' => _n('Entity', 'Entities', 1),
+            'datatype' => 'dropdown',
+        ];
+
+        $tab[] = [
+            'id' => '81',
+            'table' => 'glpi_entities',
+            'field' => 'entities_id',
+            'name' => _n('Entity', 'Entities', 1) . "-" . __('ID'),
+        ];
+
+        return $tab;
+    }
+
+    public function displayAlertforEntity($instID)
+    {
+        return self::getUnbilledAlert((int) $instID);
+    }
+
+    /**
+     * Alert telling that the customer still has unbilled interventions, with their number
+     * and duration, and a link to them when the user may read the interventions
+     *
+     * @param int $entities_id
+     *
+     * @return string '' when the customer has no unbilled intervention
+     */
+    public static function getUnbilledAlert(int $entities_id): string
+    {
+        global $DB;
+
+        $table = self::getTable();
+        $data  = $DB->request([
+            'SELECT' => [
+                QueryFunction::count("$table.id", false, 'nb'),
+                QueryFunction::sum("$table.actiontime", false, 'total'),
+            ],
+            'FROM'   => $table,
+            'WHERE'  => [
+                "$table.is_billed"   => 0,
+                "$table.entities_id" => $entities_id,
+            ],
+        ])->current();
+
+        $nb = (int) ($data['nb'] ?? 0);
+        if ($nb === 0) {
+            return '';
+        }
+
+        return TemplateRenderer::getInstance()->render('@manageentities/directhelpdesk_unbilled_alert.html.twig', [
+            'nb'       => $nb,
+            'duration' => Html::timestampToString((int) ($data['total'] ?? 0), false),
+            'url'      => Session::haveRight(self::$rightname, READ) ? self::getUnbilledSearchUrl($entities_id) : '',
+        ]);
+    }
+
+    public static function install(Migration $migration)
+    {
+        global $DB;
+
+        $default_charset   = DBConnection::getDefaultCharset();
+        $default_collation = DBConnection::getDefaultCollation();
+        $default_key_sign  = DBConnection::getDefaultPrimaryKeySignOption();
+        $table  = self::getTable();
+
+        if (!$DB->tableExists($table)) {
+            $query = "CREATE TABLE `$table` (
+                            `id` int {$default_key_sign} NOT NULL auto_increment,
+                            `users_id` int {$default_key_sign} NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_users (id)',
+                            `entities_id` int {$default_key_sign} NOT NULL DEFAULT '0',
+                            `name` varchar(255) collate utf8mb4_unicode_ci DEFAULT NULL,
+                            `comment` text collate utf8mb4_unicode_ci,
+                            `is_billed` tinyint NOT NULL DEFAULT '0',
+                            `date` timestamp NULL DEFAULT NULL,
+                            `actiontime` int NOT NULL DEFAULT '0',
+                            `tickets_id` int {$default_key_sign} NOT NULL DEFAULT '0' COMMENT 'RELATION to glpi_tickets (id)',
+                            `date_mod` timestamp NULL DEFAULT NULL,
+                            `date_creation` timestamp NULL DEFAULT NULL,
+                            PRIMARY KEY  (`id`),
+                            KEY `entities_id` (`entities_id`),
+                            KEY `tickets_id` (`tickets_id`),
+                            KEY `users_id` (`users_id`)
+               ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
+
+            $DB->doQuery($query);
+        }
+    }
+
+
+    public static function uninstall()
+    {
+        global $DB;
+
+        $DB->dropTable(self::getTable(), true);
+    }
+}

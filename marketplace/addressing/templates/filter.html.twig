@@ -1,0 +1,94 @@
+{#
+ # -------------------------------------------------------------------------
+ # addressing plugin for GLPI
+ # Copyright (C) 2016-2026 by the addressing Development Team.
+ #
+ # https://github.com/pluginsGLPI/addressing
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of addressing.
+ #
+ # addressing is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # addressing is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with addressing. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{% extends 'generic_show_form.html.twig' %}
+{% import 'components/form/fields_macros.html.twig' as fields %}
+
+{% block form_fields %}
+    {{ fields.hiddenField('plugin_addressing_addressings_id', params['items_id']) }}
+
+    {% if item.isField('name') %}
+        {{ fields.autoNameField('name', item, __('Name'), withtemplate, field_options) }}
+    {% endif %}
+
+    {% if item.isField('entities_id') %}
+        {{ fields.dropdownField('Entity', 'entities_id', item.fields['entities_id'], 'Entity'|itemtype_name, field_options) }}
+    {% endif %}
+
+    {{ fields.dropdownArrayField('type', item.fields['type'], params['types'], __('Type'), field_options) }}
+
+    {% if item.isField('begin_ip') %}
+        {{ _self.ipField('begin_ip', item.fields['begin_ip'], __('First IP', 'addressing'), {'full_width': true}) }}
+    {% endif %}
+
+    {# The empty bytes of the last IP are prefilled by public/scripts/forms.js. #}
+    {% if item.isField('end_ip') %}
+        {{ _self.ipField('end_ip', item.fields['end_ip'], __('Last IP', 'addressing'), {'full_width': true}) }}
+    {% endif %}
+
+    {{ fields.readOnlyField(
+        '',
+        item.isNewItem() ? '-' : item.fields['begin_ip'] ~ ' - ' ~ item.fields['end_ip'],
+        __('Report for the IP Range', 'addressing')
+    ) }}
+{% endblock %}
+
+{% macro ipField(name, value, label = '', options = {}) %}
+    {% set field %}
+        {% if value|length == 0 %}
+            {% set value = '...' %}
+        {% endif %}
+
+        {% set ipexploded = value|split('.') %}
+        {% for ipnum in ipexploded %}
+            {% if ipnum > 255 %}
+                {% set ipexploded = ipexploded|merge({(loop.index0): ''}) %}
+            {% endif %}
+        {% endfor %}
+
+        <div class="row flex-nowrap">
+            <div class="col-auto">
+                <input type="text" class="form-control" value="{{ ipexploded[0] }}"
+                       name="{{ name }}0" id="{{ name }}0" data-index="0" data-addressing-ip="{{ name }}" size="2" maxlength="3">
+            </div>
+            <div class="col-auto">
+                <input type="text" class="form-control" value="{{ ipexploded[1] }}"
+                       name="{{ name }}1" id="{{ name }}1" data-index="1" data-addressing-ip="{{ name }}" size="2" maxlength="3">
+            </div>
+            <div class="col-auto">
+                <input type="text" class="form-control" value="{{ ipexploded[2] }}"
+                       name="{{ name }}2" id="{{ name }}2" data-index="2" data-addressing-ip="{{ name }}" size="2" maxlength="3" >
+            </div>
+            <div class="col-auto">
+                <input type="text" class="form-control" value="{{ ipexploded[3] }}"
+                       name="{{ name }}3" id="{{ name }}3" data-index="3" data-addressing-ip="{{ name }}" size="2" maxlength="3">
+            </div>
+        </div>
+    {% endset %}
+
+    {{ fields.field(name, field, label, options) }}
+{% endmacro %}

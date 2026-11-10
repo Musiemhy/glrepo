@@ -1,0 +1,51 @@
+<?php
+
+include('../../../inc/includes.php');
+Session::checkLoginUser();
+if (!Session::haveRight('ticket', READ)) {
+    Html::displayErrorAndDie(__('You do not have permission to export ticket data.'));
+}
+
+global $DB;
+$date_from = isset($_GET['date_from']) ? trim($_GET['date_from']) : date('Y-m-01');
+$date_to = isset($_GET['date_to']) ? trim($_GET['date_to']) : date('Y-m-d');
+$group_id = isset($_GET['group_id']) ? (int)$_GET['group_id'] : 0;
+$user_id = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
+$category_id = isset($_GET['category_id']) ? (int)$_GET['category_id'] : 0;
+$status = isset($_GET['status']) ? (int)$_GET['status'] : -1;
+$priority = isset($_GET['priority']) ? (int)$_GET['priority'] : -1;
+
+$esc = static fn($v) => $DB->escape($v);
+$where = [
+    "t.is_deleted = 0",
+    "t.date >= '".$esc($date_from.' 00:00:00')."'",
+    "t.date < DATE_ADD('".$esc($date_to.' 00:00:00')."', INTERVAL 1 DAY)",
+];
+if ($user_id > 0) $where[] = "u.id = {$user_id}";
+if ($category_id > 0) $where[] = "t.itilcategories_id = {$category_id}";
+if ($status >= 0) $where[] = "t.status = {$status}";
+if ($priority >= 0) $where[] = "t.priority = {$priority}";
+if ($group_id > 0) $where[] = "EXISTS (SELECT 1 FROM glpi_groups_users guf WHERE guf.users_id = u.id AND guf.groups_id = {$group_id})";
+
+$sql = "
+SELECT u.id user_id,
+CONCAT(COALESCE(u.firstname,''), CASE WHEN u.firstname <> '' AND u.realname <> '' THEN ' ' ELSE '' END, COALESCE(u.realname,'')) technician,
+t.id ticket_id,t.name ticket_title,t.type,t.status,t.priority,
+ic.completename category,t.date opened,t.solvedate,t.closedate,t.time_to_resolve,
+CASE WHEN t.time_to_resolve IS NOT NULL AND ((t.solvedate IS NOT NULL AND t.solvedate > t.time_to_resolve) OR (t.solvedate IS NULL AND NOW() > t.time_to_resolve)) THEN 1 ELSE 0 END sla_breached
+FROM glpi_users u
+JOIN glpi_tickets_users tu ON tu.users_id=u.id AND tu.type=2
+JOIN glpi_tickets t ON t.id=tu.tickets_id
+LEFT JOIN glpi_itilcategories ic ON ic.id=t.itilcategories_id
+WHERE ".implode(' AND ',$where)."
+ORDER BY technician,t.id";
+
+header('Content-Type: text/csv; charset=UTF-8');
+header('Content-Disposition: attachment; filename="user_performance_kpi_'.date('Ymd_His').'.csv"');
+$out = fopen('php://output','w');
+fwrite($out, "\xEF\xBB\xBF");
+fputcsv($out, ['User ID','Technician','Ticket ID','Ticket Title','Type','Status','Priority','Category','Opened','Solved','Closed','SLA Due','SLA Breached']);
+foreach ($DB->request($sql) as $r) {
+    fputcsv($out, [$r['user_id'],$r['technician'],$r['ticket_id'],$r['ticket_title'],$r['type'],$r['status'],$r['priority'],$r['category'],$r['opened'],$r['solvedate'],$r['closedate'],$r['time_to_resolve'],$r['sla_breached']]);
+}
+fclose($out);

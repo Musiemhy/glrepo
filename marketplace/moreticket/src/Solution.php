@@ -1,0 +1,319 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * moreticket plugin for GLPI
+ * Copyright (C) 2015-2026 by the moreticket Development Team.
+ *
+ * https://github.com/InfotelGLPI/moreticket
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of moreticket.
+ *
+ * moreticket is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * moreticket is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with moreticket. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+namespace GlpiPlugin\Moreticket;
+
+use CommonITILObject;
+use Dropdown;
+use Glpi\Application\View\TemplateRenderer;
+use Html;
+use ITILSolution;
+use Planning;
+use Plugin;
+use Session;
+use User;
+
+if (!defined('GLPI_ROOT')) {
+    die("Sorry. You can't access directly to this file");
+}
+
+/**
+ * Class Solution
+ */
+class Solution extends CommonITILObject
+{
+    public static $rightname = "plugin_moreticket";
+
+    public static function getTaskClass()
+    {
+        // TODO: Implement getTaskClass() method.
+    }
+
+    public static function getDefaultValues($entity = 0)
+    {
+        // TODO: Implement getDefaultValues() method.
+    }
+
+    public static function getItemLinkClass(): string
+    {
+        // Minimal implementation: default to the core Item_Ticket link class.
+        return \Item_Ticket::class;
+    }
+
+    public static function getContentTemplatesParametersClass(): string
+    {
+        // Minimal implementation: default to the core Ticket content-template parameters.
+        return \Glpi\ContentTemplates\Parameters\TicketParameters::class;
+    }
+
+    public static function showFormSolution($params)
+    {
+
+        if (isset($params['item'])) {
+            $item = $params['item'];
+            $options = $params['options'];
+
+            if ($item->getType() == 'ITILSolution') {
+                $ticket = $options['item'];
+                $config = new Config();
+                $use_duration_solution = $config->useDurationSolution();
+                if ($use_duration_solution == 1) {
+                    $rand  = mt_rand();
+                    $toadd = self::getDurationToAdd();
+
+                    $script = Html::scriptBlock("
+	                    function showsolutionbutton(){
+		                    $(document).ready(function(){
+		                        $('.itilsolution').children().find(':submit').show();
+		                    });
+	                    }
+	                    function hidesolutionbutton(){
+		                    $(document).ready(function(){
+		                        $('.itilsolution').children().find(':submit').hide();
+		                    });
+	                    }
+	                    ");
+
+                    // Dropdown::showTimeStamp echoes its markup directly: capture it into an HTML slot.
+                    ob_start();
+                    Dropdown::showTimeStamp("duration_solution", ['min' => 0,
+                        'max' => self::getDurationMax(),
+                        'inhours' => true,
+                        'toadd' => $toadd,
+                    ]);
+                    $duration_dropdown = ob_get_clean();
+
+                    if ($config->isMandatorysolution()) {
+                        $script .= Html::scriptBlock("
+		                    $(document).ready(function(){
+		                        $('select[name=\"duration_solution\"]').on('change', function() {
+		                            if(this.value == 0){
+		                                hidesolutionbutton();
+		                            }else{
+		                                showsolutionbutton();
+		                            }
+
+		                        });
+		                    });
+		                ");
+                    }
+
+                    TemplateRenderer::getInstance()->display('@moreticket/solution_duration.html.twig', [
+                        'duration_mandatory' => $config->isMandatorysolution(),
+                        'duration_span_id'   => 'duration_solution_' . $rand . $ticket->fields['id'],
+                        'script_block'       => $script,
+                        'duration_dropdown'  => $duration_dropdown,
+                    ]);
+                }
+            }
+        }
+    }
+
+    /**
+     * Longest duration the dropdown proposes before the hour steps, in seconds.
+     *
+     * @return int
+     */
+    public static function getDurationMax(): int
+    {
+        return 8 * HOUR_TIMESTAMP;
+    }
+
+    /**
+     * Hour steps the duration dropdown appends beyond its maximum.
+     *
+     * @return int[]
+     */
+    public static function getDurationToAdd(): array
+    {
+        $toadd = [];
+
+        for ($i = 9; $i <= 100; $i++) {
+            $toadd[] = $i * HOUR_TIMESTAMP;
+        }
+
+        return $toadd;
+    }
+
+    /**
+     * Every value the duration dropdown actually offers, in seconds.
+     *
+     * Dropdown::showTimeStamp() walks from one step to the maximum and then appends the extra
+     * values; rebuilding the same list here is what lets the posted value be checked against
+     * what was proposed instead of being taken on trust.
+     *
+     * @return int[]
+     */
+    public static function getDurationValues(): array
+    {
+        global $CFG_GLPI;
+
+        $step = (int) ($CFG_GLPI['time_step'] ?? 5) * MINUTE_TIMESTAMP;
+
+        if ($step <= 0) {
+            $step = MINUTE_TIMESTAMP;
+        }
+
+        // 0 is the empty choice of the dropdown: no duration at all.
+        $values = [0];
+
+        for ($i = $step; $i <= self::getDurationMax(); $i += $step) {
+            $values[] = $i;
+        }
+
+        return array_merge($values, self::getDurationToAdd());
+    }
+
+    /**
+     * Keep a posted duration only when the dropdown offered it.
+     *
+     * A bounded dropdown is a suggestion made to the browser, nothing more. This value is
+     * written into Ticket.actiontime and TicketTask.actiontime, from where it reaches the
+     * entity statistics, the workload reports and the dashboards, with nothing to tell it
+     * apart from a legitimate entry.
+     *
+     * @param mixed $value
+     *
+     * @return int
+     */
+    public static function sanitizeDuration($value): int
+    {
+        $duration = (int) $value;
+
+        return in_array($duration, self::getDurationValues(), true) ? $duration : 0;
+    }
+
+    /**
+     * @param \Ticket $item
+     *
+     * @return bool
+     */
+    public static function beforeAdd(ITILSolution $solution)
+    {
+        global $CFG_GLPI;
+
+        if (!is_array($solution->input) || !count($solution->input)) {
+            // Already cancel by another plugin
+            return false;
+        }
+        $config = new Config();
+
+        $configglpi = \Config::getConfigurationValues('core', ['system_user']);
+
+        if ($config->useDurationSolution()) {
+            if (($solution->input['itemtype'] ?? '') == \Ticket::class) {
+                // The posted duration is checked against the list the dropdown built, not
+                // against its own word: see sanitizeDuration().
+                $duration = self::sanitizeDuration($solution->input['duration_solution'] ?? 0);
+
+                if ($duration > 0) {
+                    //               $solution->input['content'] = html_entity_decode($solution->input['content']);
+                    //               $solution->input['content'] = strip_tags($solution->input['content']);
+                    $ticket = new \Ticket();
+                    $tickets_id = $solution->input['items_id'] ?? 0;
+                    if ($ticket->getFromDB($tickets_id)) {
+                        if ($ticket->getField('actiontime') == 0) {
+                            $ticket->update(['id' => $tickets_id,
+                                'actiontime' => $duration]);
+                        }
+                    }
+
+                    // The private flag is the author's preference: without the load it was
+                    // read off an empty fields array and every task fell back to public.
+                    $user       = new User();
+                    $is_private = 0;
+                    if ($user->getFromDB(Session::getLoginUserID())) {
+                        $is_private = $user->getField('task_private');
+                    }
+
+                    $task_input = ['tickets_id' => $tickets_id,
+                        'date_creation' => date('Y-m-d H:i:s'),
+                        'date' => date(
+                            'Y-m-d H:i:s',
+                            strtotime('- 10 seconds', strtotime(date('Y-m-d H:i:s'))),
+                        ),
+                        'users_id' => Session::getLoginUserID(),
+                        'users_id_tech' => Session::getLoginUserID(),
+                        'content' => $solution->input['content'] ?? '',
+                        'state' => Planning::DONE,
+                        'is_private' => $is_private,
+                        'actiontime' => $duration];
+
+                    // A TicketTask is a core object under the core's own rights, and being
+                    // allowed to solve a ticket says nothing about being allowed to add a task
+                    // to it -- some organisations reserve time entry to one team. Ask what the
+                    // task form would have asked: without the right, the duration still
+                    // reaches the ticket above, it is simply not materialised as a task.
+                    $tickettask = new \TicketTask();
+
+                    if ($tickettask->can(-1, CREATE, $task_input)) {
+                        $tickettask->add($task_input);
+                    }
+                } elseif ($config->isMandatorysolution()) {
+                    if (Plugin::isPluginActive('servicecatalog')
+                        && Session::getCurrentInterface() != "central") {
+                        return true;
+                    }
+                    if ($configglpi['system_user'] == ($solution->input['users_id'] ?? 0)) {
+                        return true;
+                    }
+                    $ticket = new \Ticket();
+                    $tickets_id = $solution->input['items_id'] ?? 0;
+                    $dur = 0;
+                    if ($ticket->getFromDB($tickets_id)) {
+                        $dur = $ticket->fields['actiontime'] ?? 0;
+                    }
+                    if ($dur == 0) {
+                        Session::addMessageAfterRedirect(
+                            _n(
+                                'Mandatory field',
+                                'Mandatory fields',
+                                2,
+                            ) . " : " . __(
+                                'Duration',
+                            ),
+                            false,
+                            ERROR,
+                        );
+                        $_SESSION['saveInput'][$solution->getType()] = $solution->input;
+                        $solution->input = [];
+                    }
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    public static function getContentTemplatesParametersClassInstance(): \Glpi\ContentTemplates\Parameters\CommonITILObjectParameters
+    {
+        // Minimal implementation: default to the core Ticket content-template parameters.
+        return new \Glpi\ContentTemplates\Parameters\TicketParameters();
+    }
+}

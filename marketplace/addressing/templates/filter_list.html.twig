@@ -1,0 +1,106 @@
+{#
+ # -------------------------------------------------------------------------
+ # addressing plugin for GLPI
+ # Copyright (C) 2016-2026 by the addressing Development Team.
+ #
+ # https://github.com/pluginsGLPI/addressing
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of addressing.
+ #
+ # addressing is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # addressing is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with addressing. If not, see <http://www.gnu.org/licenses/>.
+ # --------------------------------------------------------------------------
+ #}
+
+{% if canedit %}
+    {# The add and edit forms are loaded here by public/scripts/filter.js. #}
+    <div id="viewfilter{{ item_id }}{{ rand }}"></div>
+    <div class='center firstbloc'>
+        <button type='button' class='submit btn btn-primary me-2'
+                data-addressing-filter-form="-1"
+                data-addressing-filter-target="viewfilter{{ item_id }}{{ rand }}"
+                data-addressing-filter-url="{{ filter_url }}"
+                data-addressing-filter-range="{{ item_id }}">
+            {{ __('Add a filter', 'addressing') }}
+        </button>
+    </div>
+{% endif %}
+
+<div class='spaced'>
+    {% if canedit and nb %}
+        {# Html::openMassiveActionsForm() and Html::showMassiveActions() markup, built by the core. #}
+        {{ massiveactions_top|raw }}
+    {% endif %}
+
+    {% if nb %}
+        <table class="{{ canedit ? 'tab_cadre_fixehov' : 'tab_cadre_fixe' }}">
+            <tr class='noHover'>
+                <th colspan='{{ (canedit and nb) ? 6 : 5 }}'>{{ _n('Filter', 'Filters', 2, 'addressing') }}</th>
+            </tr>
+            <tr>
+                {% if canedit and nb %}
+                    {# Html::getCheckAllAsCheckbox() markup, built by the core. #}
+                    <th width='10'>{{ checkall|raw }}</th>
+                {% endif %}
+                <th class='center b'>{{ __('Name') }}</th>
+                <th class='center b'>{{ __('Entity') }}</th>
+                <th class='center b'>{{ __('Type') }}</th>
+                <th class='center b'>{{ __('First IP', 'addressing') }}</th>
+                <th class='center b'>{{ __('Last IP', 'addressing') }}</th>
+            </tr>
+
+            {% for row in rows %}
+                <tr class='tab_bg_1'>
+                    {% if canedit %}
+                        {# Html::getMassiveActionCheckBox() markup, built by the core. #}
+                        <td width='10'>{{ row.checkbox|raw }}</td>
+                    {% endif %}
+                    {% for value in [row.name, row.entity_name, row.type_name, row.begin_ip, row.end_ip] %}
+                        {% if canedit %}
+                            <td class='pointer'
+                                data-addressing-filter-form="{{ row.id }}"
+                                data-addressing-filter-target="viewfilter{{ item_id }}{{ rand }}"
+                                data-addressing-filter-url="{{ filter_url }}"
+                                data-addressing-filter-range="{{ item_id }}">{{ value }}</td>
+                        {% else %}
+                            <td>{{ value }}</td>
+                        {% endif %}
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+
+            {% if nb %}
+                <tr>
+                    {% if canedit and nb %}
+                        {# Html::getCheckAllAsCheckbox() markup, built by the core. #}
+                        <th width='10'>{{ checkall|raw }}</th>
+                    {% endif %}
+                    <th class='center b'>{{ __('Name') }}</th>
+                    <th class='center b'>{{ __('Entity') }}</th>
+                    <th class='center b'>{{ __('Type') }}</th>
+                    <th class='center b'>{{ __('First IP', 'addressing') }}</th>
+                    <th class='center b'>{{ __('Last IP', 'addressing') }}</th>
+                </tr>
+            {% endif %}
+        </table>
+    {% endif %}
+
+    {% if canedit and nb %}
+        {# Massive actions of the core, and Html::closeForm() carrying the CSRF token. #}
+        {{ massiveactions_bottom|raw }}
+        {{ close_form|raw }}
+    {% endif %}
+</div>

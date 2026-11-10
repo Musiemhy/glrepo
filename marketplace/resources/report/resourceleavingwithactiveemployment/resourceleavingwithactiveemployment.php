@@ -1,0 +1,230 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * resources plugin for GLPI
+ * Copyright (C) 2015-2026 by the resources Development Team.
+ *
+ * https://github.com/InfotelGLPI/resources
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of resources.
+ *
+ * resources is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * resources is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with resources. If not, see <http://www.gnu.org/licenses/>.
+ * --------------------------------------------------------------------------
+ */
+
+//Options for GLPI 0.71 and newer : need slave db to access the report
+use GlpiPlugin\Reports\AutoReport;
+use GlpiPlugin\Reports\Column;
+use GlpiPlugin\Reports\ColumnDate;
+use GlpiPlugin\Reports\ColumnInteger;
+use GlpiPlugin\Reports\ColumnLink;
+use GlpiPlugin\Resources\Employment;
+use GlpiPlugin\Resources\Rank;
+use GlpiPlugin\Resources\Resource;
+use GlpiPlugin\Resources\ResourceSituation;
+use GlpiPlugin\Resources\ResourceState;
+
+$USEDBREPLICATE = 1;
+$DBCONNECTION_REQUIRED = 0;
+global $HEADER_LOADED, $DB;
+
+//"Rapport listant les ressources partantes ayant des emplois actifs"
+//"Report listing resource leaving with employment active";
+// Instantiate Report with Name
+// Authorization guard: this report script is directly addressable and bypasses the
+// reports plugin dispatcher, so enforce the plugin business right — like every other
+// resources endpoint — before running any query or emitting output.
+Session::checkRight('plugin_resources', READ);
+
+$report = new AutoReport(__("Report listing departing resources with active employment", "resources"));
+
+// Columns title (optional), from $LANG
+$report->setColumns([
+    new ColumnInteger(
+        'registration_number',
+        _x('user', 'Administrative number'),
+        ['sorton' => 'registration_number'],
+    ),
+    new ColumnLink(
+        'resource_id',
+        __('Surname'),
+        Resource::class,
+        ['sorton' => 'resource_name'],
+    ),
+    new Column(
+        'firstname',
+        __('First name'),
+        ['sorton' => 'firstname'],
+    ),
+    new Column(
+        'resource_rank',
+        Rank::getTypeName(1),
+        ['sorton' => 'resource_rank'],
+    ),
+    new Column(
+        'resources_situation',
+        ResourceSituation::getTypeName(1),
+        ['sorton' => 'resources_situation'],
+    ),
+    new Column(
+        'resource_state',
+        ResourceState::getTypeName(1),
+        ['sorton' => 'resource_state'],
+    ),
+    new ColumnDate(
+        'date_begin',
+        __('Arrival date', 'resources'),
+        ['sorton' => 'date_begin'],
+    ),
+    new ColumnDate(
+        'date_end',
+        __('Departure date', 'resources'),
+        ['sorton' => 'date_end'],
+    ),
+    new ColumnLink(
+        'employment_id',
+        __('Name') . " - " . _n('Employment', 'Employments', 1, 'resources'),
+        Employment::class,
+        ['sorton' => 'employment_name'],
+    ),
+    new Column(
+        'employment_profession',
+        _n('Employment', 'Employments', 1, 'resources') . " - " . _n('Profession', 'Professions', 2, 'resources'),
+        ['sorton' => 'employment_profession'],
+    ),
+    new Column(
+        'employment_state',
+        _n('Employment state', 'Employment states', 1, 'resources'),
+        ['sorton' => 'employment_state'],
+    ),
+    new Column(
+        'employer_name',
+        __('Name') . " - " . _n('Employer', 'Employers', 1, 'resources'),
+        ['sorton' => 'employer_name'],
+    ),
+]);
+
+// SQL statement
+$dbu = new DbUtils();
+
+//display only leaving resource with active employment
+$criteria = [
+    'SELECT'    => [
+        'glpi_users.registration_number',
+        'glpi_users.id AS user_id',
+        'glpi_plugin_resources_resources.id AS resource_id',
+        'glpi_plugin_resources_resources.name AS resource_name',
+        'glpi_plugin_resources_resources.firstname',
+        'glpi_plugin_resources_ranks.name AS resource_rank',
+        'glpi_plugin_resources_resourcesituations.name AS resources_situation',
+        'glpi_plugin_resources_resourcestates.name AS resource_state',
+        'glpi_plugin_resources_resources.date_begin',
+        'glpi_plugin_resources_resources.date_end',
+        'glpi_plugin_resources_employments.name AS employment_name',
+        'glpi_plugin_resources_employments.id AS employment_id',
+        'glpi_plugin_resources_employmentprofessions.name AS employment_profession',
+        'glpi_plugin_resources_employmentstates.name AS employment_state',
+        'glpi_plugin_resources_employers.completename AS employer_name',
+    ],
+    'FROM'      => 'glpi_users',
+    'LEFT JOIN' => [
+        'glpi_plugin_resources_resources_items'                                            => [
+            'ON' => [
+                'glpi_users'                            => 'id',
+                'glpi_plugin_resources_resources_items' => 'items_id',
+                [
+                    'AND' => ['glpi_plugin_resources_resources_items.itemtype' => 'User'],
+                ],
+            ],
+        ],
+        'glpi_plugin_resources_resources'                                                  => [
+            'ON' => [
+                'glpi_plugin_resources_resources'       => 'id',
+                'glpi_plugin_resources_resources_items' => 'plugin_resources_resources_id',
+            ],
+        ],
+        'glpi_plugin_resources_resourcesituations'                                         => [
+            'ON' => [
+                'glpi_plugin_resources_resources'          => 'plugin_resources_resourcesituations_id',
+                'glpi_plugin_resources_resourcesituations' => 'id',
+            ],
+        ],
+        'glpi_plugin_resources_resourcestates'                                             => [
+            'ON' => [
+                'glpi_plugin_resources_resources'      => 'plugin_resources_resourcestates_id',
+                'glpi_plugin_resources_resourcestates' => 'id',
+            ],
+        ],
+        'glpi_plugin_resources_employments'                                                => [
+            'ON' => [
+                'glpi_plugin_resources_resources'   => 'id',
+                'glpi_plugin_resources_employments' => 'plugin_resources_resources_id',
+            ],
+        ],
+        'glpi_plugin_resources_ranks'                                                      => [
+            'ON' => [
+                'glpi_plugin_resources_resources' => 'plugin_resources_ranks_id',
+                'glpi_plugin_resources_ranks'     => 'id',
+            ],
+        ],
+        'glpi_plugin_resources_professions AS glpi_plugin_resources_employmentprofessions' => [
+            'ON' => [
+                'glpi_plugin_resources_employments'            => 'plugin_resources_professions_id',
+                'glpi_plugin_resources_employmentprofessions'  => 'id',
+            ],
+        ],
+        'glpi_plugin_resources_employers'                                                  => [
+            'ON' => [
+                'glpi_plugin_resources_employments' => 'plugin_resources_employers_id',
+                'glpi_plugin_resources_employers'   => 'id',
+            ],
+        ],
+        'glpi_plugin_resources_employmentstates'                                           => [
+            'ON' => [
+                'glpi_plugin_resources_employments'      => 'plugin_resources_employmentstates_id',
+                'glpi_plugin_resources_employmentstates' => 'id',
+            ],
+        ],
+    ],
+    'WHERE'     => [
+        'glpi_plugin_resources_resources.is_leaving'                        => 1,
+        'glpi_users.is_active'                                              => 1,
+        'glpi_plugin_resources_employments.plugin_resources_resources_id'   => ['<>', 0],
+        'glpi_plugin_resources_resources.is_deleted'                        => 0,
+        'glpi_plugin_resources_resources.is_template'                       => 0,
+        'glpi_plugin_resources_employmentstates.is_active'                  => 1,
+    ],
+    'GROUPBY'   => [
+        'glpi_plugin_resources_employments.id',
+        'glpi_users.id',
+    ],
+];
+// Nested rather than merged with "+": getEntitiesRestrictCriteria() can return an "OR" key
+// (recursive entities) or a bare QueryExpression under key 0, which a union would drop.
+$criteria['WHERE'] = [
+    $criteria['WHERE'],
+    $dbu->getEntitiesRestrictCriteria('glpi_plugin_resources_resources'),
+];
+
+$criteria = $criteria + $report->getNewOrderBy('registration_number');
+
+$report->setSqlRequest($criteria);
+
+$report->execute();
+
+$report->footer();
